@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          Int          @id @default(autoincrement())
+  name        String
+  description String?
+  joinCode    String       @unique
+  trips       Trip[]
+  userTenants UserTenant[]
+}
+
+model User {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String       @unique
+  description String?
+  createdDate DateTime     @default(now())
+  latestData  DateTime?
+  firebaseUid String       @unique
+  buses       Bus[]        @relation("BusManager")
+  userTenants UserTenant[]
+}
+
+model Role {
+  id          Int          @id @default(autoincrement())
+  name        String
+  description String?
+  userTenants UserTenant[]
+}
+
+model UserTenant {
+  id       Int    @id @default(autoincrement())
+  userId   Int
+  tenantId Int
+  roleId   Int
+  role     Role   @relation(fields: [roleId], references: [id])
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([roleId])
+}
+
+model Trip {
+  id       Int     @id @default(autoincrement())
+  name     String
+  status   Status
+  tenantId Int
+  buses    Bus[]
+  rounds   Round[]
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Bus {
+  id                 Int           @id @default(autoincrement())
+  registrationNumber String
+  busCode            String
+  driverName         String?
+  driverTel          String?
+  tourGuideName      String?
+  tourGuideTel       String?
+  description        String?
+  managerId          Int
+  tripId             Int
+  manager            User          @relation("BusManager", fields: [managerId], references: [id])
+  trip               Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  passengers         Passenger[]
+  transactions       Transaction[]
+
+  @@unique([tripId, busCode])
+  @@index([managerId])
+  @@index([tripId])
+}
+
+model Round {
+  id           Int           @id @default(autoincrement())
+  name         String
+  time         String
+  status       Status
+  tripId       Int
+  trip         Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([tripId])
+}
+
+model Passenger {
+  id           Int           @id @default(autoincrement())
+  name         String
+  note         String?
+  busId        Int
+  bus          Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([busId])
+}
+
+model Transaction {
+  id          Int       @id @default(autoincrement())
+  busId       Int
+  roundId     Int
+  passengerId Int
+  checkIn     Boolean   @default(false)
+  checkOut    Boolean   @default(false)
+  note        String?
+  updatedAt   DateTime  @updatedAt
+  bus         Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
+  passenger   Passenger @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  round       Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([passengerId, roundId])
+  @@index([busId])
+  @@index([roundId])
+  @@index([passengerId])
+}
+
+enum Status {
+  DOING
+  DONE
+}

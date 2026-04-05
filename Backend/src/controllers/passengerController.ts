@@ -1,0 +1,226 @@
+import { Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { AuthRequest } from '../types/auth';
+
+const prisma = new PrismaClient();
+
+export const passengerController = {
+
+  // ✅ GET ALL theo trip (co the filter them theo busId query)
+  getAll: async (req: AuthRequest, res: Response) => {
+    try {
+      const tripId = Number(req.params.tripId);
+      const busIdQuery = req.query.busId;
+      const busId = busIdQuery ? Number(busIdQuery) : undefined;
+
+      if (!tripId) {
+        return res.status(400).json({ message: 'Missing tripId' });
+      }
+
+      if (busIdQuery !== undefined && !busId) {
+        return res.status(400).json({ message: 'Invalid busId query' });
+      }
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const passengers = await prisma.passenger.findMany({
+        where: {
+          bus: {
+            ...(busId ? { id: busId } : {}),
+            trip: {
+              id: tripId,
+              tenantId: req.tenantId
+            }
+          }
+        },
+        include: {
+          bus: {
+            select: {
+              id: true,
+              busCode: true,
+              registrationNumber: true,
+              trip: {
+                select: {
+                  id: true,
+                  name: true,
+                }
+              }
+            }
+          }
+        },
+        orderBy: [
+          { busId: 'asc' },
+          { id: 'asc' }
+        ]
+      });
+
+      res.json(passengers);
+
+    } catch (error) {
+      console.error('❌ getAll passengers error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  },
+
+  // ✅ CREATE
+  create: async (req: AuthRequest, res: Response) => {
+    try {
+      const tripId = Number(req.params.tripId);
+
+      if (!tripId) {
+        return res.status(400).json({ message: 'Missing tripId' });
+      }
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { name, note, busId } = req.body;
+      const busIdNumber = Number(busId);
+
+      if (!name) {
+        return res.status(400).json({ message: 'Missing name' });
+      }
+
+      if (!busIdNumber) {
+        return res.status(400).json({ message: 'Missing busId' });
+      }
+
+      // 🔥 check bus thuộc dung trip va tenant
+      const bus = await prisma.bus.findFirst({
+        where: {
+          id: busIdNumber,
+          tripId,
+          trip: {
+            tenantId: req.tenantId
+          }
+        }
+      });
+
+      if (!bus) {
+        return res.status(404).json({ message: 'Bus not found' });
+      }
+
+      const passenger = await prisma.passenger.create({
+        data: {
+          name,
+          note,
+          busId: busIdNumber
+        }
+      });
+
+      res.status(201).json(passenger);
+
+    } catch (error) {
+      console.error('❌ create passenger error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  },
+
+  // ✅ UPDATE
+  update: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { name, note, busId } = req.body;
+
+      // 🔥 check passenger thuộc tenant
+      const existing = await prisma.passenger.findFirst({
+        where: {
+          id: Number(id),
+          bus: {
+            trip: {
+              tenantId: req.tenantId
+            }
+          }
+        }
+      });
+
+      if (!existing) {
+        return res.status(404).json({ message: 'Passenger not found' });
+      }
+
+      let nextBusId: number | undefined;
+
+      if (busId !== undefined && busId !== null) {
+        const busIdNumber = Number(busId);
+        if (!busIdNumber) {
+          return res.status(400).json({ message: 'Invalid busId' });
+        }
+
+        const bus = await prisma.bus.findFirst({
+          where: {
+            id: busIdNumber,
+            trip: {
+              tenantId: req.tenantId
+            }
+          }
+        });
+
+        if (!bus) {
+          return res.status(404).json({ message: 'Bus not found' });
+        }
+
+        nextBusId = busIdNumber;
+      }
+
+      const updated = await prisma.passenger.update({
+        where: { id: Number(id) },
+        data: {
+          name,
+          note,
+          ...(nextBusId ? { busId: nextBusId } : {})
+        }
+      });
+
+      res.json(updated);
+
+    } catch (error) {
+      console.error('❌ update passenger error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  },
+
+  // ✅ DELETE
+  delete: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      // 🔥 check passenger thuộc tenant
+      const existing = await prisma.passenger.findFirst({
+        where: {
+          id: Number(id),
+          bus: {
+            trip: {
+              tenantId: req.tenantId
+            }
+          }
+        }
+      });
+
+      if (!existing) {
+        return res.status(404).json({ message: 'Passenger not found' });
+      }
+
+      await prisma.passenger.delete({
+        where: { id: Number(id) }
+      });
+
+      res.json({ message: 'Deleted successfully' });
+
+    } catch (error) {
+      console.error('❌ delete passenger error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+};
