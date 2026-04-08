@@ -6,8 +6,8 @@ import TenantSelector from '../components/TenantSelector';
 
 const Dashboard: React.FC = () => {
   const [showTenantSelector, setShowTenantSelector] = useState(false);
-  const { currentTenant } = useSelector((state: RootState) => state.auth);
-  const canViewJoinCode = ['owner', 'admin'].includes((currentTenant?.role || '').toLowerCase());
+  const { currentTenant, roleId } = useSelector((state: RootState) => state.auth);
+  const canViewJoinCode = [1, 2].includes(roleId || 0); // 1=SuperAdmin, 2=Admin
 
   return (
     <div>

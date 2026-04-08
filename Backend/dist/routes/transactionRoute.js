@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const authMiddleware_1 = require("../middleware/authMiddleware");
+const transactionController_1 = require("../controllers/transactionController");
+const router = (0, express_1.Router)();
+router.get('/transactions', authMiddleware_1.verifyFirebaseToken, transactionController_1.transactionController.getAll);
+router.post('/transactions', authMiddleware_1.verifyFirebaseToken, transactionController_1.transactionController.create);
+router.put('/transactions/:id', authMiddleware_1.verifyFirebaseToken, transactionController_1.transactionController.update);
+router.delete('/transactions/:id', authMiddleware_1.verifyFirebaseToken, transactionController_1.transactionController.delete);
+exports.default = router;

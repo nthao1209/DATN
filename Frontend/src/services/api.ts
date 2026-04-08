@@ -1,28 +1,61 @@
 import axios from 'axios';
 import { auth as fbAuth } from '../config/firebase';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 
 
 const axiosClient = axios.create({
   baseURL: 'http://localhost:5000/api',
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// ✅ Tự động đính kèm Token trước mỗi request
+let authInitPromise: Promise<User | null> | null = null;
+
+const waitForAuthInit = (): Promise<User | null> => {
+  if (fbAuth.currentUser) return Promise.resolve(fbAuth.currentUser);
+  if (authInitPromise) return authInitPromise;
+
+  authInitPromise = new Promise<User | null>((resolve) => {
+    const unsubscribe = onAuthStateChanged(fbAuth, (user) => {
+      unsubscribe();
+      resolve(user);
+      authInitPromise = null;
+    });
+  });
+
+  return authInitPromise;
+};
+
 axiosClient.interceptors.request.use(async (config: any) => {
-  const user = fbAuth.currentUser;
+  const user = fbAuth.currentUser ?? (await waitForAuthInit());
   if (user) {
     const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers?.Authorization;
   }
   return config;
 });
 
-// ✅ Chỉ lấy data từ response trả về
 axiosClient.interceptors.response.use(
   (response) => response.data,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config as any;
+    const isUnauthorized = error.response?.status === 401;
+
+    if (isUnauthorized && !originalRequest?._retry) {
+      originalRequest._retry = true;
+      const user = fbAuth.currentUser ?? (await waitForAuthInit());
+      if (user) {
+        const freshToken = await user.getIdToken(true);
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${freshToken}`;
+        return axiosClient(originalRequest);
+      }
+    }
+
     const message = error.response?.data?.detail || error.response?.data?.message || "Lỗi kết nối server";
     return Promise.reject(new Error(message));
   }
@@ -121,6 +154,45 @@ export const api = {
 
   deletePassenger: (id: string) =>
     axiosClient.delete(`/passengers/${id}`),
+
+  // User APIs
+  getUsers: () =>
+    axiosClient.get<any[], any[]>('/users'),
+
+  createUser: (data: any) =>
+    axiosClient.post('/users', data),
+
+  updateUser: (id: string, data: any) =>
+    axiosClient.put(`/users/${id}`, data),
+
+  deleteUser: (id: string) =>
+    axiosClient.delete(`/users/${id}`),
+
+  // Role APIs
+  getRoles: () =>
+    axiosClient.get<any[], any[]>('/roles'),
+
+  createRole: (data: any) =>
+    axiosClient.post('/roles', data),
+
+  updateRole: (id: string, data: any) =>
+    axiosClient.put(`/roles/${id}`, data),
+
+  deleteRole: (id: string) =>
+    axiosClient.delete(`/roles/${id}`),
+
+  // Transaction APIs
+  getTransactions: () =>
+    axiosClient.get<any[], any[]>('/transactions'),
+
+  createTransaction: (data: any) =>
+    axiosClient.post('/transactions', data),
+
+  updateTransaction: (id: string, data: any) =>
+    axiosClient.put(`/transactions/${id}`, data),
+
+  deleteTransaction: (id: string) =>
+    axiosClient.delete(`/transactions/${id}`),
 }
 
 export default api;

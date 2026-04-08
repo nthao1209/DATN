@@ -110,7 +110,8 @@ export const busController = {
       driverTel,
       tourGuideName,
       tourGuideTel,
-      description
+      description,
+      managerId
     } = req.body;
 
 
@@ -136,7 +137,8 @@ export const busController = {
         driverTel,
         tourGuideName,
         tourGuideTel,
-        description
+        description,
+        ...(managerId !== undefined && managerId !== null ? { managerId: Number(managerId) } : {})
       }
     });
       res.json(updated);

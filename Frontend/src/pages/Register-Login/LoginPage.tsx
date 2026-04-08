@@ -19,8 +19,8 @@ const Login: React.FC = () => {
     <div className="auth-shell">
       <div className="auth-card p-4 p-md-5">
         <div className="mb-4 text-center">
-          <h1 className="h3 fw-bold text-light mb-2">Chao mung tro lai</h1>
-          <p className="auth-muted mb-0">Dang nhap de quan ly to chuc va chuyen di.</p>
+          <h1 className="h3 fw-bold text-light mb-2">Chào mừng trở lại</h1>
+          <p className="auth-muted mb-0">Đăng nhập để quản lý tổ chức và chuyến đi.</p>
         </div>
 
         <form onSubmit={handleLogin}>
@@ -37,10 +37,10 @@ const Login: React.FC = () => {
           </div>
 
           <div className="mb-3">
-            <label className="form-label auth-muted">Mat khau</label>
+            <label className="form-label auth-muted">Mật khẩu</label>
             <input
               type="password"
-              placeholder="Nhap mat khau"
+              placeholder="Nhập mật khẩu"
               required
               className="form-control form-control-lg"
               value={password}
@@ -55,13 +55,13 @@ const Login: React.FC = () => {
             disabled={loading}
             className="btn btn-info btn-lg w-100 fw-semibold text-dark mt-2"
           >
-            {loading ? 'Dang dang nhap...' : 'Dang nhap'}
+            {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>
 
         <div className="d-flex justify-content-between align-items-center mt-4 small">
-          <Link to="/forgot-password" className="auth-muted">Quen mat khau?</Link>
-          <Link to="/register" className="text-info fw-semibold">Tao tai khoan</Link>
+          <Link to="/forgot-password" className="auth-muted">Quên mật khẩu?</Link>
+          <Link to="/register" className="text-info fw-semibold">Tạo tài khoản</Link>
         </div>
       </div>
     </div>

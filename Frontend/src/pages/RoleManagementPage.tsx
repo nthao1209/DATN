@@ -1,37 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Trash2 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Plus, Save, Trash2, Shield } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
 import api from '../services/api';
 
-type RoundStatus = 'DOING' | 'DONE';
-
-type RoundRow = {
+type RoleRow = {
   id?: number;
   localId: string;
   name: string;
-  time: string;
-  status: RoundStatus;
-  transactionCount: number;
+  description: string;
   isEdited?: boolean;
 };
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 8;
 
-const RoundPage: React.FC = () => {
-  const { id: tripId } = useParams<{ id: string }>();
-  const [rows, setRows] = useState<RoundRow[]>([]);
+const RoleManagementPage: React.FC = () => {
+  const [rows, setRows] = useState<RoleRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
 
-  const { data: rounds = [], isLoading, isError, refetch } = useQuery<any[]>({
-    queryKey: ['rounds', tripId],
-    queryFn: () => api.getRounds(String(tripId)),
-    enabled: !!tripId,
+  const { data: roles = [], isLoading, isError, refetch } = useQuery<any[]>({
+    queryKey: ['roles-management'],
+    queryFn: () => api.get('/roles'),
   });
 
   useEffect(() => {
@@ -43,13 +36,12 @@ const RoundPage: React.FC = () => {
 
   useEffect(() => {
 
-    const mapped: RoundRow[] = rounds.map((r: any) => ({
-      id: Number(r.id),
-      localId: `db_${r.id}`,
-      name: r.name || '',
-      time: r.time || '',
-      status: (r.status === 'DONE' ? 'DONE' : 'DOING') as RoundStatus,
-      transactionCount: Number(r?._count?.transactions || 0),
+    const mapped: RoleRow[] = roles.map((role: any) => ({
+      id: Number(role.id),
+      localId: `db_${role.id}`,
+      name: role.name || '',
+      description: role.description || '',
+      isEdited: false,
     }));
 
     const padded = [...mapped];
@@ -57,22 +49,19 @@ const RoundPage: React.FC = () => {
       padded.push({
         localId: makeLocalId(),
         name: '',
-        time: '',
-        status: 'DOING',
-        transactionCount: 0,
+        description: '',
       });
     }
 
     setRows(padded);
-  }, [rounds]);
+  }, [roles]);
 
-  const dirtyCount = useMemo(() => {
-    const created = rows.filter((r) => !r.id && r.name.trim() && r.time.trim()).length;
-    const edited = rows.filter((r) => r.id && r.isEdited).length;
-    return created + edited + deletedIds.length;
-  }, [rows, deletedIds]);
+  const dirtyCount = useMemo(
+    () => rows.filter((r) => r.isEdited).length + deletedIds.length,
+    [rows, deletedIds]
+  );
 
-  const handleCellChange = <K extends keyof RoundRow>(localId: string, key: K, value: RoundRow[K]) => {
+  const handleCellChange = <K extends keyof RoleRow>(localId: string, key: K, value: RoleRow[K]) => {
     setRows((prev) =>
       prev.map((row) =>
         row.localId === localId
@@ -82,44 +71,47 @@ const RoundPage: React.FC = () => {
     );
   };
 
-  const handleAddRow = () => {
+  const handleAddNewRow = () => {
     setRows((prev) => [
       ...prev,
       {
         localId: makeLocalId(),
         name: '',
-        time: '',
-        status: 'DOING',
-        transactionCount: 0,
+        description: '',
       },
     ]);
   };
 
-  const handleDeleteRow = (row: RoundRow) => {
+  const handleDeleteRow = (row: RoleRow) => {
     if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
     setRows((prev) => prev.filter((r) => r.localId !== row.localId));
   };
 
   const handleSave = async () => {
-    if (!tripId) {
-      alert('Khong tim thay tripId');
-      return;
-    }
+    const newRows = rows.filter((r) => !r.id && r.name.trim());
+    const updateRows = rows.filter((r) => r.id && r.isEdited);
 
-    const rowsToCreate = rows.filter((r) => !r.id && r.name.trim() && r.time.trim());
-    const rowsToUpdate = rows.filter((r) => r.id && r.isEdited);
-
-    if (!rowsToCreate.length && !rowsToUpdate.length && !deletedIds.length) {
-      alert('Khong co thay doi nao');
+    if (!newRows.length && !updateRows.length && !deletedIds.length) {
+      alert('Không có thay đổi nào');
       return;
     }
 
     try {
       setIsSaving(true);
       await Promise.all([
-        ...rowsToCreate.map((r) => api.createRound(tripId, { name: r.name.trim(), time: r.time.trim(), status: r.status })),
-        ...rowsToUpdate.map((r) => api.updateRound(String(r.id), { name: r.name.trim(), time: r.time.trim(), status: r.status })),
-        ...deletedIds.map((id) => api.deleteRound(String(id))),
+        ...newRows.map((r) =>
+          api.post('/roles', {
+            name: r.name.trim(),
+            description: r.description.trim() || null,
+          })
+        ),
+        ...updateRows.map((r) =>
+          api.put(`/roles/${r.id}`, {
+            name: r.name.trim(),
+            description: r.description.trim() || null,
+          })
+        ),
+        ...deletedIds.map((id) => api.delete(`/roles/${id}`)),
       ]);
       setDeletedIds([]);
       await refetch();
@@ -131,50 +123,31 @@ const RoundPage: React.FC = () => {
     }
   };
 
-  const columns: Column<RoundRow>[] = [
+  const columns: Column<RoleRow>[] = [
     { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
     {
-      header: 'Tên chặng',
+      header: 'Tên Role',
       key: 'name',
       render: (row) => (
         <input
           className="form-control form-control-sm"
           value={row.name}
           onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-          placeholder="Nhập tên chặng"
+          placeholder="Tên role"
         />
       ),
     },
     {
-      header: 'Thời gian',
-      key: 'time',
+      header: 'Mô tả',
+      key: 'description',
       render: (row) => (
         <input
           className="form-control form-control-sm"
-          value={row.time}
-          onChange={(e) => handleCellChange(row.localId, 'time', e.target.value)}
-          placeholder="Ví dụ: 08:00"
+          value={row.description}
+          onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
+          placeholder="Mô tả role"
         />
       ),
-    },
-    {
-      header: 'Tình trạng',
-      key: 'status',
-      render: (row) => (
-        <select
-          className="form-select form-select-sm"
-          value={row.status}
-          onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as RoundStatus)}
-        >
-          <option value="DOING">Đang diễn ra</option>
-          <option value="DONE">Hoàn thành</option>
-        </select>
-      ),
-    },
-    {
-      header: 'Số check-in',
-      key: 'transactionCount',
-      render: (row) => (row.id ? row.transactionCount : '-'),
     },
     {
       header: 'Thao tác',
@@ -191,13 +164,19 @@ const RoundPage: React.FC = () => {
     <div className="p-3 p-md-4">
       <div className="d-flex align-items-center justify-content-between gap-2 mb-3 flex-wrap">
         <div>
-          <h3 className="m-0 fw-bold">Quản lý Chặng đi</h3>
+          <h3 className="m-0 fw-bold d-flex align-items-center gap-2">
+            <Shield size={24} /> Quản lý Vai trò
+          </h3>
+          <div className="text-muted small">Định nghĩa vai trò người dùng</div>
         </div>
       </div>
 
       <div className="d-grid gap-2 d-md-flex align-items-md-end mb-3">
-        <button className="btn btn-primary d-flex align-items-center justify-content-center gap-1" onClick={handleAddRow}>
-          <Plus size={14} /> Thêm dòng
+        <button
+          className="btn btn-primary d-flex align-items-center justify-content-center gap-1"
+          onClick={handleAddNewRow}
+        >
+          <Plus size={14} /> Thêm mới
         </button>
         <button
           className="btn btn-success d-flex align-items-center justify-content-center gap-1"
@@ -216,7 +195,7 @@ const RoundPage: React.FC = () => {
                 <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
                   <div>
                     <div className="small text-muted">Dòng {index + 1}</div>
-                    <div className="fw-bold">{row.id ? `Round #${row.id}` : 'Mới'}</div>
+                    {row.id && <div className="text-muted small">ID: {row.id}</div>}
                   </div>
                   <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
                     <Trash2 size={14} />
@@ -224,40 +203,23 @@ const RoundPage: React.FC = () => {
                 </div>
 
                 <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Tên chặng</label>
+                  <label className="form-label small fw-bold mb-1">Tên Role</label>
                   <input
                     className="form-control"
                     value={row.name}
                     onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-                    placeholder="Nhập tên chặng"
+                    placeholder="Tên role"
                   />
                 </div>
 
                 <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Thời gian</label>
+                  <label className="form-label small fw-bold mb-1">Mô tả</label>
                   <input
                     className="form-control"
-                    value={row.time}
-                    onChange={(e) => handleCellChange(row.localId, 'time', e.target.value)}
-                    placeholder="Ví dụ: 08:00"
+                    value={row.description}
+                    onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
+                    placeholder="Mô tả role"
                   />
-                </div>
-
-                <div className="mb-3">
-                  <label className="form-label small fw-bold mb-1">Tình trạng</label>
-                  <select
-                    className="form-select"
-                    value={row.status}
-                    onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as RoundStatus)}
-                  >
-                    <option value="DOING">Đang diễn ra</option>
-                    <option value="DONE">Hoàn thành</option>
-                  </select>
-                </div>
-
-                <div className="text-center p-2 app-dark-soft rounded">
-                  <div className="text-muted small">Số check-in</div>
-                  <div className="fw-bold text-info">{row.transactionCount}</div>
                 </div>
               </div>
             </div>
@@ -265,9 +227,9 @@ const RoundPage: React.FC = () => {
         </div>
       ) : (
         <DataTable
-          title="Danh sách các chặng"
+          title="Danh sách vai trò"
           columns={columns}
-          queryKey={['rounds-local', tripId]}
+          queryKey={['roles-management-local']}
           data={rows}
           isLoading={isLoading}
           isError={isError}
@@ -288,4 +250,4 @@ const RoundPage: React.FC = () => {
   );
 };
 
-export default RoundPage;
+export default RoleManagementPage;

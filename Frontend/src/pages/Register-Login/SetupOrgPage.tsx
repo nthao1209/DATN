@@ -11,7 +11,6 @@ const SetupOrgPage: React.FC = () => {
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
 
-  // Mutation Tạo tổ chức
   const createMutation = useMutation({
     mutationFn: (name: string) => api.createTenant({ name }), 
     onSuccess: (res: any) => {
@@ -22,7 +21,6 @@ const SetupOrgPage: React.FC = () => {
     onError: (err: any) => alert(err.message)
   });
 
-  // Mutation Tham gia tổ chức
   const joinMutation = useMutation({
     mutationFn: (code: string) => api.joinTenant(code),
     onSuccess: (res: any) => {

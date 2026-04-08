@@ -7,6 +7,9 @@ import tripRoutes from './routes/tripRoute';
 import roundRoutes from './routes/roundRoute';
 import busRoutes from './routes/busRoute';
 import passengerRoutes from './routes/passengerRoute';
+import userRoutes from './routes/userRoute';
+import roleRoutes from './routes/roleRoute';
+import transactionRoutes from './routes/transactionRoute';
 dotenv.config()
 
 const app = express()
@@ -20,6 +23,9 @@ app.use('/api', tripRoutes);
 app.use('/api', roundRoutes);
 app.use('/api', busRoutes);
 app.use('/api', passengerRoutes);
+app.use('/api', userRoutes);
+app.use('/api', roleRoutes);
+app.use('/api', transactionRoutes);
 
 const PORT = process.env.PORT || 5000
 

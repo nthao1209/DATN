@@ -5,4 +5,5 @@ export interface AuthRequest extends Request{
   user?: User;
   firebaseUser?: any;
   tenantId?: number;
+  roleId?: number;
 }

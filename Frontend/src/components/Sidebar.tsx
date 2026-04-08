@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, ShieldCheck, UserCircle,
-  MapPin, Route, Bus, Repeat, Info, ChevronDown, Menu, X
+  MapPin, Route, Bus, Info, ChevronDown, Menu, X, Clock
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { type RootState } from '../redux/store';
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -12,6 +14,8 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { roleId } = useSelector((state: RootState) => state.auth);
   const [collapsed, setCollapsed] = useState(isCollapsed);
   const [expandedItems, setExpandedItems] = useState<string[]>(['trips']);
 
@@ -30,6 +34,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
       prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
     );
   };
+
+  // Determine menu items based on role
+  const getMenuItems = () => {
+    const isSuperAdmin = roleId === 1;
+    const isAdmin = roleId === 2;
+    const isBusManager = roleId === 3;
+
+    return {
+      dashboard: true, 
+      userManagement: isSuperAdmin,
+      roleManagement: isSuperAdmin,
+      trips: isAdmin,
+      passengers: isAdmin,
+      transactions: isBusManager,
+      about: true,
+    };
+  };
+
+  const menuItems = getMenuItems();
 
   const MenuItem = ({ to, icon: Icon, label, badge }: any) => {
     const active = isActive(to);
@@ -85,64 +108,83 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
 
       <div className="p-2 pt-3">
         <ul className="nav flex-column gap-1">
-          <MenuItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-          <MenuItem to="/users" icon={Users} label="User Management" badge="4" />
-          <MenuItem to="/roles" icon={ShieldCheck} label="Role Management" />
-          <MenuItem to="/passengers" icon={UserCircle} label="Passengers" />
+          {menuItems.dashboard && (
+            <MenuItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+          )}
 
-          <li className="nav-item">
-            <div
-              className={`nav-link d-flex justify-content-between align-items-center cursor-pointer rounded ${isActive('/trips') ? 'text-info fw-bold' : 'text-light'}`}
-              onClick={() => !collapsed && toggleExpanded('trips')}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className="d-flex align-items-center">
-                <MapPin size={18} className={collapsed ? 'm-0' : 'me-2'} />
-                {!collapsed && <span>Trips Management</span>}
-              </div>
-              {!collapsed && (
-                <ChevronDown
-                  size={14}
-                  style={{
-                    transform: expandedItems.includes('trips') ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: '0.2s'
-                  }}
-                />
-              )}
-            </div>
+          {/* SuperAdmin Section */}
+          {menuItems.userManagement && (
+            <MenuItem to="/users" icon={Users} label="User Management" />
+          )}
+          {menuItems.roleManagement && (
+            <MenuItem to="/roles" icon={ShieldCheck} label="Role Management" />
+          )}
 
-            {!collapsed && expandedItems.includes('trips') && (
-              <ul className="nav flex-column ps-3 small mt-1 gap-1">
-                <li className="nav-item">
-                  <Link to="/trips" className={`nav-link py-1 ${location.pathname === '/trips' ? 'text-info fw-semibold' : 'text-white-50'}`}>
-                    • Danh sách Trip
-                  </Link>
-                </li>
+          {/* Admin Section */}
+          {menuItems.passengers && (
+            <MenuItem to="/passengers" icon={UserCircle} label="Passengers" />
+          )}
 
-                {currentTripId ? (
-                  <>
-                    <li className="nav-item">
-                      <Link to={`/trips/${currentTripId}/rounds`} className={`nav-link py-1 ${isActive(`/trips/${currentTripId}/rounds`) ? 'text-info fw-bold' : 'text-white-50'}`}>
-                        <Route size={14} className="me-2" /> Rounds (Trip #{currentTripId})
-                      </Link>
-                    </li>
-                    <li className="nav-item">
-                      <Link to={`/trips/${currentTripId}/buses`} className={`nav-link py-1 ${isActive(`/trips/${currentTripId}/buses`) ? 'text-info fw-bold' : 'text-white-50'}`}>
-                        <Bus size={14} className="me-2" /> Buses (Trip #{currentTripId})
-                      </Link>
-                    </li>
-                  </>
-                ) : (
-                  <li className="nav-item ps-2 mt-1">
-                    <small className="text-muted" style={{ fontSize: '11px' }}><i>Chọn 1 trip để xem chi tiết</i></small>
-                  </li>
+          {menuItems.trips && (
+            <li className="nav-item">
+              <div
+                className={`nav-link d-flex justify-content-between align-items-center cursor-pointer rounded ${isActive('/trips') ? 'text-info fw-bold' : 'text-light'}`}
+                onClick={() => !collapsed && toggleExpanded('trips')}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="d-flex align-items-center">
+                  <MapPin onClick={() => navigate('/trips')} size={18} className={collapsed ? 'm-0' : 'me-2'} />
+                  {!collapsed && <span>Trips Management</span>}
+                </div>
+                {!collapsed && (
+                  <ChevronDown
+                    size={14}
+                    style={{
+                      transform: expandedItems.includes('trips') ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: '0.2s'
+                    }}
+                  />
                 )}
-              </ul>
-            )}
-          </li>
+              </div>
 
-          <MenuItem to="/transactions" icon={Repeat} label="Transaction" />
-          <MenuItem to="/about" icon={Info} label="About us" />
+              {!collapsed && expandedItems.includes('trips') && (
+                <ul className="nav flex-column ps-3 small mt-1 gap-1">
+                  <li className="nav-item">
+                    <Link to="/trips" className={`nav-link py-1 ${location.pathname === '/trips' ? 'text-info fw-semibold' : 'text-white-50'}`}>
+                      • Danh sách Trip
+                    </Link>
+                  </li>
+
+                  {currentTripId ? (
+                    <>
+                      <li className="nav-item">
+                        <Link to={`/trips/${currentTripId}/rounds`} className={`nav-link py-1 ${isActive(`/trips/${currentTripId}/rounds`) ? 'text-info fw-bold' : 'text-white-50'}`}>
+                          <Route size={14} className="me-2" /> Rounds (Trip #{currentTripId})
+                        </Link>
+                      </li>
+                      <li className="nav-item">
+                        <Link to={`/trips/${currentTripId}/buses`} className={`nav-link py-1 ${isActive(`/trips/${currentTripId}/buses`) ? 'text-info fw-bold' : 'text-white-50'}`}>
+                          <Bus size={14} className="me-2" /> Buses (Trip #{currentTripId})
+                        </Link>
+                      </li>
+                    </>
+                  ) : (
+                    <li className="nav-item ps-2 mt-1">
+                      <small className="text-white-50" style={{ fontSize: '11px' }}><i>Chọn 1 trip để xem chi tiết</i></small>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </li>
+          )}
+
+          {menuItems.transactions && (
+            <MenuItem to="/transactions" icon={Clock} label="Transactions" />
+          )}
+
+          {menuItems.about && (
+            <MenuItem to="/about" icon={Info} label="About us" />
+          )}
         </ul>
       </div>
 

@@ -19,12 +19,13 @@ const authSlice = createSlice({
     loginRequest: (state,_action) => {state.loading=true},
     registerRequest: (state,_action: PayloadAction<any>) => { state.loading = true; },
     forgotPasswordRequest: (state, _action: PayloadAction<string>) => { state.loading = true; },
-    authSuccess: (state, action:PayloadAction<{user: User,token:string, tenants: Tenant[]}>) => {
+    authSuccess: (state, action:PayloadAction<{user: User,token:string, tenants: Tenant[], roleId?: number}>) => {
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.tenants = action.payload.tenants || [];
       state.hasTenant = state.tenants.length > 0;
       state.currentTenant = state.tenants[0] || null;
+      state.roleId = action.payload.roleId || state.currentTenant?.roleId || state.currentTenant?.role?.id;
       if (state.currentTenant?.id) {
         localStorage.setItem('currentTenantId', String(state.currentTenant.id));
       } else {
@@ -41,6 +42,7 @@ const authSlice = createSlice({
     joinTenantSuccess: (state, action: PayloadAction<Tenant>) => {
       const tenant = action.payload;
       state.currentTenant = tenant;
+      state.roleId = tenant.roleId || tenant.role?.id;
       state.tenants = state.tenants.some((t) => t.id === tenant.id)
         ? state.tenants.map((t) => (t.id === tenant.id ? { ...t, ...tenant } : t))
         : [...state.tenants, tenant];
@@ -59,6 +61,7 @@ const authSlice = createSlice({
     setCurrentTenant: (state, action: PayloadAction<Tenant>) => {
       state.currentTenant = action.payload;
       state.hasTenant = true; // Chắc chắn là true khi đã chọn
+      state.roleId = action.payload.roleId || action.payload.role?.id;
       localStorage.setItem('currentTenantId', String(action.payload.id));
     },
     logout: (state) =>{
@@ -67,6 +70,7 @@ const authSlice = createSlice({
       state.currentTenant = null;
       state.tenants = [];
       state.hasTenant = false;
+      state.roleId = undefined;
       localStorage.removeItem('currentTenantId');
     },
     clearMessages: (state) => {

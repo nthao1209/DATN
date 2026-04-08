@@ -5,6 +5,16 @@ import admin from "../config/firebaseAdmin";
 
 const prisma = new PrismaClient();
 
+const getSystemSuperAdminEmails = () => {
+  const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
+  const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
+
+  return `${fromSingle},${fromList}`
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+};
+
 export const syncUser = async (req: AuthRequest, res: Response) =>{
   const {email, firebaseUid, name} = req.body;
   try{
@@ -25,6 +35,8 @@ export const syncUser = async (req: AuthRequest, res: Response) =>{
 
 export const getMyStatus = async (req: AuthRequest, res: Response) => {
   const userId = req.user?.id;
+  const superAdminEmails = getSystemSuperAdminEmails();
+  const isSystemSuperAdmin = !!req.user?.email && superAdminEmails.includes(req.user.email.toLowerCase());
 
   const userTenants = await prisma.userTenant.findMany({
     where: { userId },
@@ -36,9 +48,15 @@ export const getMyStatus = async (req: AuthRequest, res: Response) => {
 
   res.json({
     user: req.user,
+    roleId: isSystemSuperAdmin ? 1 : undefined,
     tenants: userTenants.map(ut => ({
       ...ut.tenant,
-      role: ut.role.name
+      roleId: ut.roleId,
+      role: {
+        id: ut.role.id,
+        name: ut.role.name,
+        description: ut.role.description ?? undefined
+      }
     }))
   });
 };

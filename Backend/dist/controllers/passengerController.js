@@ -4,7 +4,6 @@ exports.passengerController = void 0;
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
 exports.passengerController = {
-    // ✅ GET ALL theo trip (co the filter them theo busId query)
     getAll: async (req, res) => {
         try {
             const tripId = Number(req.params.tripId);
@@ -56,7 +55,6 @@ exports.passengerController = {
             res.status(500).json({ message: 'Server error' });
         }
     },
-    // ✅ CREATE
     create: async (req, res) => {
         try {
             const tripId = Number(req.params.tripId);
@@ -67,6 +65,7 @@ exports.passengerController = {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
             const { name, note, busId } = req.body;
+            const tel = String(req.body?.tel ?? '').trim();
             const busIdNumber = Number(busId);
             if (!name) {
                 return res.status(400).json({ message: 'Missing name' });
@@ -74,7 +73,6 @@ exports.passengerController = {
             if (!busIdNumber) {
                 return res.status(400).json({ message: 'Missing busId' });
             }
-            // 🔥 check bus thuộc dung trip va tenant
             const bus = await prisma.bus.findFirst({
                 where: {
                     id: busIdNumber,
@@ -89,7 +87,8 @@ exports.passengerController = {
             }
             const passenger = await prisma.passenger.create({
                 data: {
-                    name,
+                    name: String(name).trim(),
+                    tel,
                     note,
                     busId: busIdNumber
                 }
@@ -97,11 +96,10 @@ exports.passengerController = {
             res.status(201).json(passenger);
         }
         catch (error) {
-            console.error('❌ create passenger error:', error);
+            console.error(' create passenger error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
-    // ✅ UPDATE
     update: async (req, res) => {
         try {
             const { id } = req.params;
@@ -109,7 +107,7 @@ exports.passengerController = {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
             const { name, note, busId } = req.body;
-            // 🔥 check passenger thuộc tenant
+            const tel = req.body?.tel;
             const existing = await prisma.passenger.findFirst({
                 where: {
                     id: Number(id),
@@ -145,8 +143,9 @@ exports.passengerController = {
             const updated = await prisma.passenger.update({
                 where: { id: Number(id) },
                 data: {
-                    name,
-                    note,
+                    ...(name !== undefined ? { name: String(name).trim() } : {}),
+                    ...(tel !== undefined ? { tel: String(tel).trim() } : {}),
+                    ...(note !== undefined ? { note } : {}),
                     ...(nextBusId ? { busId: nextBusId } : {})
                 }
             });
@@ -157,7 +156,6 @@ exports.passengerController = {
             res.status(500).json({ message: 'Server error' });
         }
     },
-    // ✅ DELETE
     delete: async (req, res) => {
         try {
             const { id } = req.params;
@@ -184,7 +182,7 @@ exports.passengerController = {
             res.json({ message: 'Deleted successfully' });
         }
         catch (error) {
-            console.error('❌ delete passenger error:', error);
+            console.error(' delete passenger error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     }

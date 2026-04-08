@@ -66,7 +66,6 @@ function DataTable<T extends object>({
   const isLoading = externalLoading ?? queryLoading;
   const isError = externalError ?? queryError;
 
-  // 2. Logic Lọc dữ liệu kết hợp (Global Search + Granular Filters)
   const filteredData = useMemo(() => {
     if (!tableData) return [];
     

@@ -30,7 +30,8 @@ function* handleLogin(action: any): any {
     yield put(authActions.authSuccess({
       user: response.user,
       token: token,
-      tenants: response.tenants || []
+      tenants: response.tenants || [],
+      roleId: response.roleId,
     }));
 
   } catch (error: any) {

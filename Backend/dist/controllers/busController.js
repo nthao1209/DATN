@@ -81,7 +81,7 @@ exports.busController = {
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            const { registrationNumber, busCode, driverName, driverTel, tourGuideName, tourGuideTel, description } = req.body;
+            const { registrationNumber, busCode, driverName, driverTel, tourGuideName, tourGuideTel, description, managerId } = req.body;
             const existing = await prisma.bus.findFirst({
                 where: {
                     id: Number(id),
@@ -102,7 +102,8 @@ exports.busController = {
                     driverTel,
                     tourGuideName,
                     tourGuideTel,
-                    description
+                    description,
+                    ...(managerId !== undefined && managerId !== null ? { managerId: Number(managerId) } : {})
                 }
             });
             res.json(updated);
@@ -158,11 +159,12 @@ exports.busController = {
                 },
                 select: {
                     id: true,
+                    name: true,
                     email: true,
                     description: true
                 },
                 orderBy: {
-                    email: 'asc'
+                    name: 'asc'
                 }
             });
             res.json(users);

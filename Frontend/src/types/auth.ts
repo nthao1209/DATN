@@ -1,16 +1,25 @@
 export interface User {
   id: number;
-  email:string;
+  email: string;
   name: string;
   firebaseUid: string;
 }
+
+export interface Role {
+  id: number;
+  name: string;
+  description?: string;
+}
+
 export interface Tenant {
   id: number;
   name: string;
   joinCode?: string;
-  role?: string;
+  role?: Role;
+  roleId?: number;
 }
-export interface AuthState{
+
+export interface AuthState {
   user: User | null;
   token: string | null;
   hasTenant: boolean;
@@ -19,5 +28,6 @@ export interface AuthState{
   statusMessage: string | null;
   currentTenant: Tenant | null;
   tenants: Tenant[];
+  roleId?: number;
 }
 

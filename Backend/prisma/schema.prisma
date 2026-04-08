@@ -96,6 +96,7 @@ model Round {
 model Passenger {
   id           Int           @id @default(autoincrement())
   name         String
+  tel          String        @default("")
   note         String?
   busId        Int
   bus          Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)

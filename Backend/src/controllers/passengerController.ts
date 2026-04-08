@@ -6,7 +6,6 @@ const prisma = new PrismaClient();
 
 export const passengerController = {
 
-  // ✅ GET ALL theo trip (co the filter them theo busId query)
   getAll: async (req: AuthRequest, res: Response) => {
     try {
       const tripId = Number(req.params.tripId);
@@ -64,7 +63,6 @@ export const passengerController = {
     }
   },
 
-  // ✅ CREATE
   create: async (req: AuthRequest, res: Response) => {
     try {
       const tripId = Number(req.params.tripId);
@@ -78,6 +76,7 @@ export const passengerController = {
       }
 
       const { name, note, busId } = req.body;
+      const tel = String(req.body?.tel ?? '').trim();
       const busIdNumber = Number(busId);
 
       if (!name) {
@@ -88,7 +87,6 @@ export const passengerController = {
         return res.status(400).json({ message: 'Missing busId' });
       }
 
-      // 🔥 check bus thuộc dung trip va tenant
       const bus = await prisma.bus.findFirst({
         where: {
           id: busIdNumber,
@@ -105,7 +103,8 @@ export const passengerController = {
 
       const passenger = await prisma.passenger.create({
         data: {
-          name,
+          name: String(name).trim(),
+          tel,
           note,
           busId: busIdNumber
         }
@@ -114,12 +113,11 @@ export const passengerController = {
       res.status(201).json(passenger);
 
     } catch (error) {
-      console.error('❌ create passenger error:', error);
+      console.error(' create passenger error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   },
 
-  // ✅ UPDATE
   update: async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
@@ -129,8 +127,8 @@ export const passengerController = {
       }
 
       const { name, note, busId } = req.body;
+      const tel = req.body?.tel;
 
-      // 🔥 check passenger thuộc tenant
       const existing = await prisma.passenger.findFirst({
         where: {
           id: Number(id),
@@ -173,8 +171,9 @@ export const passengerController = {
       const updated = await prisma.passenger.update({
         where: { id: Number(id) },
         data: {
-          name,
-          note,
+          ...(name !== undefined ? { name: String(name).trim() } : {}),
+          ...(tel !== undefined ? { tel: String(tel).trim() } : {}),
+          ...(note !== undefined ? { note } : {}),
           ...(nextBusId ? { busId: nextBusId } : {})
         }
       });
@@ -187,7 +186,6 @@ export const passengerController = {
     }
   },
 
-  // ✅ DELETE
   delete: async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
@@ -219,7 +217,7 @@ export const passengerController = {
       res.json({ message: 'Deleted successfully' });
 
     } catch (error) {
-      console.error('❌ delete passenger error:', error);
+      console.error(' delete passenger error:', error);
       res.status(500).json({ message: 'Server error' });
     }
   }

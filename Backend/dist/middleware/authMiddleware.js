@@ -29,6 +29,7 @@ const getOrCreatePrismaUser = async (token) => {
                 firebaseUid: decodedToken.uid,
                 email: decodedToken.email || '',
                 name: decodedToken.name || decodedToken.email?.split('@')[0] || 'User',
+                latestData: new Date(),
             },
         });
     }
@@ -40,6 +41,7 @@ const getOrCreatePrismaUser = async (token) => {
                 firebaseUid: decodedToken.uid,
                 email: decodedToken.email || '',
                 name: decodedToken.name || user.name, // Giữ tên cũ nếu Firebase không cấp
+                latestData: new Date(),
             },
         });
     }
@@ -77,17 +79,16 @@ const verifyFirebaseToken = async (req, res, next) => {
                 role: true // Lấy luôn Role để sau này check req.role === 'ADMIN'
             }
         });
-        // Nếu user chưa join vào bất kỳ tenant nào
         if (!userTenant) {
             return res.status(403).json({
                 message: 'User has no tenant',
-                code: 'NO_TENANT_ASSIGNED' // Trả thêm code để Frontend dễ xử lý logic chuyển trang
+                code: 'NO_TENANT_ASSIGNED'
             });
         }
         req.user = user;
         req.firebaseUser = decodedToken;
         req.tenantId = userTenant.tenantId;
-        // req.role = userTenant.role.name; // Bạn có thể thêm trường này vào AuthRequest nếu muốn
+        req.roleId = userTenant.roleId;
         next();
     }
     catch (error) {
