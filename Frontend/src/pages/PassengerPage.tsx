@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
+import PassengerMobileView from '../components/mobile/PassengerMobileView';
 import api from '../services/api';
 import { isValidPhoneNumber, normalizePhoneNumber } from '../utils/phone';
 
@@ -396,100 +397,13 @@ const PassengerPage: React.FC = () => {
       </div>
 
       {isMobile ? (
-        <div className="d-grid gap-3">
-          {mobileRows.map((row, index) => (
-            <div key={row.localId} className="card app-dark-surface border-0 shadow-sm passenger-mobile-card">
-              <div className="card-body p-3">
-                <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
-                  <div>
-                    <div className="small text-muted">Dòng {index + 1}</div>
-                    <div className="fw-bold">{row.id ? `#${row.id}` : 'Mới'}</div>
-                  </div>
-                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Họ và tên</label>
-                  <input
-                    className="form-control"
-                    value={row.name}
-                    onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-                    placeholder="Nhập tên"
-                  />
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Số điện thoại</label>
-                  <input
-                    className="form-control"
-                    inputMode="numeric"
-                    maxLength={10}
-                    pattern="^[1-9][0-9]{9}$"
-                    value={row.tel}
-                    onChange={(e) => handleCellChange(row.localId, 'tel', e.target.value.replace(/\D/g, ''))}
-                    placeholder="Nhập SĐT"
-                  />
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Trip</label>
-                  <select
-                    className="form-select"
-                    value={row.tripId ?? ''}
-                    onChange={(e) => {
-                      const nextTripId = e.target.value ? Number(e.target.value) : null;
-                      handleCellChange(row.localId, 'tripId', nextTripId);
-                      handleCellChange(row.localId, 'busId', null);
-                      handleCellChange(row.localId, 'busCode', '');
-                    }}
-                  >
-                    <option value="">-- Chọn trip --</option>
-                    {trips.map((trip: any) => (
-                      <option key={trip.id} value={trip.id}>
-                        {trip.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Chọn xe</label>
-                  <select
-                    className="form-select"
-                    value={row.busId ?? ''}
-                    onChange={(e) => {
-                      const nextBusId = e.target.value ? Number(e.target.value) : null;
-                      const options = row.tripId ? (busesByTrip[row.tripId] || []) : [];
-                      const nextBus = options.find((bus: any) => Number(bus.id) === nextBusId);
-                      handleCellChange(row.localId, 'busId', nextBusId);
-                      handleCellChange(row.localId, 'busCode', nextBus?.busCode || '');
-                    }}
-                    disabled={!row.tripId}
-                  >
-                    <option value="">-- Chọn xe --</option>
-                    {(row.tripId ? (busesByTrip[row.tripId] || []) : []).map((bus: any) => (
-                      <option key={bus.id} value={bus.id}>
-                        {bus.busCode} - {bus.registrationNumber}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="mb-3">
-                  <label className="form-label small fw-bold mb-1">Ghi chú</label>
-                  <input
-                    className="form-control"
-                    value={row.note}
-                    onChange={(e) => handleCellChange(row.localId, 'note', e.target.value)}
-                    placeholder="Ghi chú"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <PassengerMobileView
+          rows={mobileRows}
+          trips={trips}
+          busesByTrip={busesByTrip}
+          onDeleteRow={handleDeleteRow}
+          onCellChange={handleCellChange}
+        />
       ) : (
         <DataTable
           title="Danh sách hành khách"

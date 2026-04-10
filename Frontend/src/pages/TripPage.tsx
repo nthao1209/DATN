@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DataTable, { type Column } from '../components/DataTable';
+import TripMobileView from '../components/mobile/TripMobileView';
 import api from '../services/api';
 
 type TripStatus = 'DOING' | 'DONE';
@@ -210,76 +211,13 @@ const TripPage: React.FC = () => {
       </div>
 
       {isMobile ? (
-        <div className="d-grid gap-3">
-          {rows.map((row, index) => (
-            <div key={row.localId} className="card app-dark-surface border-0 shadow-sm">
-              <div className="card-body p-3">
-                <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
-                  <div>
-                    <div className="small text-muted">Dòng {index + 1}</div>
-                    <div className="fw-bold">{row.id ? `Trip #${row.id}` : 'Mới'}</div>
-                  </div>
-                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Tên chuyến</label>
-                  <input
-                    className="form-control"
-                    value={row.name}
-                    onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-                    placeholder="Nhập tên chuyến"
-                  />
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Trạng thái</label>
-                  <select
-                    className="form-select"
-                    value={row.status}
-                    onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as TripStatus)}
-                  >
-                    <option value="DOING">Đang diễn ra</option>
-                    <option value="DONE">Hoàn thành</option>
-                  </select>
-                </div>
-
-                <div className="row g-2 mb-3">
-                  <div className="col-6">
-                    <div className="text-center p-2 app-dark-soft rounded">
-                      <div className="text-muted small">Số xe</div>
-                      <div className="fw-bold text-info">{row.busCount}</div>
-                      {row.id && (
-                        <button
-                          className="btn btn-link btn-sm mt-1"
-                          onClick={() => navigate(`/trips/${row.id}/buses`)}
-                        >
-                          Quản lý
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-6">
-                    <div className="text-center p-2 app-dark-soft rounded">
-                      <div className="text-muted small">Số round</div>
-                      <div className="fw-bold text-info">{row.roundCount}</div>
-                      {row.id && (
-                        <button
-                          className="btn btn-link btn-sm mt-1"
-                          onClick={() => navigate(`/trips/${row.id}/rounds`)}
-                        >
-                          Quản lý
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <TripMobileView
+          rows={rows}
+          onDeleteRow={handleDeleteRow}
+          onCellChange={handleCellChange}
+          onManageBuses={(id) => navigate(`/trips/${id}/buses`)}
+          onManageRounds={(id) => navigate(`/trips/${id}/rounds`)}
+        />
       ) : (
         <DataTable
           title="Danh sách các chuyến đi"

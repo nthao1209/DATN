@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Save, ClipboardCheck, RefreshCw } from 'lucide-react';
+import PassengerActionButtons from '../components/PassengerActionButtons';
 import api from '../services/api';
 
 type PassengerRow = {
@@ -418,7 +419,17 @@ const TransactionPage: React.FC = () => {
                   <tr key={passenger.id}>
                     <td className="text-center">{index + 1}</td>
                     <td className="fw-semibold">{passenger.name}</td>
-                    <td>{passenger.tel || '-'}</td>
+                    <td>
+                      <div className="transaction-contact-cell">
+                        <div className="transaction-contact-phone">{passenger.tel || '-'}</div>
+                        {passenger.tel ? (
+                          <PassengerActionButtons
+                            passenger={{ name: passenger.name, phone: passenger.tel }}
+                            compact
+                          />
+                        ) : null}
+                      </div>
+                    </td>
 
                     {selectedRounds.map((round: any) => {
                       const roundId = Number(round.id);
@@ -562,9 +573,43 @@ const TransactionPage: React.FC = () => {
           background: #f3f6ff;
         }
 
+        .transaction-contact-cell {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .transaction-contact-phone {
+          font-weight: 600;
+          color: #2e3c55;
+        }
+
+        .transaction-contact-cell .btn {
+          min-height: 30px;
+          border-radius: 999px;
+          padding-inline: 10px;
+        }
+
+        .transaction-contact-cell .btn-success {
+          background: #1d9a5b;
+          border-color: #1d9a5b;
+        }
+
+        .transaction-contact-cell .btn-success:hover {
+          background: #16874f;
+          border-color: #16874f;
+        }
+
         @media (max-width: 991px) {
           .transaction-table {
             font-size: 13px;
+          }
+
+          .transaction-contact-cell {
+            align-items: flex-start;
+            flex-direction: column;
           }
         }
       `}</style>

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Trash2, Shield } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
+import RoleMobileView from '../components/mobile/RoleMobileView';
 import api from '../services/api';
 
 type RoleRow = {
@@ -188,43 +189,7 @@ const RoleManagementPage: React.FC = () => {
       </div>
 
       {isMobile ? (
-        <div className="d-grid gap-3">
-          {rows.map((row, index) => (
-            <div key={row.localId} className="card app-dark-surface border-0 shadow-sm">
-              <div className="card-body p-3">
-                <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
-                  <div>
-                    <div className="small text-muted">Dòng {index + 1}</div>
-                    {row.id && <div className="text-muted small">ID: {row.id}</div>}
-                  </div>
-                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Tên Role</label>
-                  <input
-                    className="form-control"
-                    value={row.name}
-                    onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-                    placeholder="Tên role"
-                  />
-                </div>
-
-                <div className="mb-2">
-                  <label className="form-label small fw-bold mb-1">Mô tả</label>
-                  <input
-                    className="form-control"
-                    value={row.description}
-                    onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
-                    placeholder="Mô tả role"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <RoleMobileView rows={rows} onDeleteRow={handleDeleteRow} onCellChange={handleCellChange} />
       ) : (
         <DataTable
           title="Danh sách vai trò"
