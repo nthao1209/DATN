@@ -4,6 +4,7 @@ import {
   ChevronLeft, ChevronRight, AlertCircle, Loader2 
 } from 'lucide-react';
 import TableActionBar, { type FilterConfig } from './TableActionBar';
+import useDebounce from '../hooks/useDebounce';
 
 export interface Column<T> {
   header: string;
@@ -25,6 +26,8 @@ interface DataTableProps<T> {
   filters?: FilterConfig[];
   pageSizeOptions?: number[];
   initialPageSize?: number;
+  showActionBar?: boolean;
+  showPagination?: boolean;
 }
 
 function DataTable<T extends object>({
@@ -39,10 +42,54 @@ function DataTable<T extends object>({
   onAdd,
   filters,
   pageSizeOptions = [5, 10, 20, 50],
-  initialPageSize = 10
+  initialPageSize = 10,
+  showActionBar = true,
+  showPagination = true
 }: DataTableProps<T>) {
-  
+  const normalizeText = (text: string) => {
+   return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+  }
+  const levenshtein = (a: string, b: string) => {
+    const matrix = Array.from({ length: b.length + 1 }, () =>
+      Array(a.length + 1).fill(0)
+    );
+
+    for (let i = 0; i <= b.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return matrix[b.length][a.length];
+  };
+  const smartMatch = (source: string, keyword: string) => {
+    const text = normalizeText(source);
+    const query = normalizeText(keyword);
+
+    if (text.includes(query)) return true;
+
+    const words = text.split(' ');
+
+    return words.some((word) => levenshtein(word, query) <= 1);
+  };
+
   const [searchText, setSearchText] = useState('');
+  const debouncedSearchText = useDebounce(searchText, 300);
+  
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
@@ -71,8 +118,8 @@ function DataTable<T extends object>({
     
     return tableData.filter((item: any) => {
       // Lọc theo ô search tổng quát
-      const matchesSearch = searchText === '' || 
-        JSON.stringify(item).toLowerCase().includes(searchText.toLowerCase());
+      const matchesSearch = debouncedSearchText === '' || 
+        smartMatch(JSON.stringify(item), debouncedSearchText);
 
       // Lọc theo từng ô input chi tiết (Tên, Mô tả, Status...)
       const matchesColumnFilters = Object.keys(columnFilters).every(key => {
@@ -86,7 +133,7 @@ function DataTable<T extends object>({
 
       return matchesSearch && matchesColumnFilters;
     });
-  }, [tableData, searchText, columnFilters]);
+  }, [tableData, debouncedSearchText, columnFilters]);
 
   // 3. Logic Phân trang
   const totalPages = Math.ceil(filteredData.length / pageSize);
@@ -116,14 +163,16 @@ function DataTable<T extends object>({
       </div>
 
       {/* Thanh công cụ tách riêng */}
-      <TableActionBar 
-        onSearch={(val) => { setSearchText(val); setCurrentPage(1); }}
-        onAdd={onAdd}
-        onRefresh={() => (onRefresh ? onRefresh() : refetch())}
-        isFetching={isFetching}
-        filters={filters}
-        onFilterChange={handleFilterChange}
-      /> 
+      {showActionBar && (
+        <TableActionBar 
+          onSearch={(val) => { setSearchText(val); setCurrentPage(1); }}
+          onAdd={onAdd}
+          onRefresh={() => (onRefresh ? onRefresh() : refetch())}
+          isFetching={isFetching}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+        />
+      )}
 
       {/* Nội dung Bảng */}
       <div className="card-body p-0">
@@ -174,7 +223,7 @@ function DataTable<T extends object>({
       </div>
 
       {/* Footer / Phân trang */}
-      {!isLoading && !isError && filteredData.length > 0 && (
+      {showPagination && !isLoading && !isError && filteredData.length > 0 && (
         <div className="card-footer app-dark-soft py-3 border-top d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center gap-3">
             <small className="text-muted">

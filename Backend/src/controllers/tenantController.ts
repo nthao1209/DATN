@@ -1,13 +1,20 @@
 import {Response} from 'express'
 import { PrismaClient } from '@prisma/client'
 import { AuthRequest } from '../types/auth'
-import {nanoid} from "nanoid";
-import { sendJoinCodeEmail } from '../services/emailService';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
 
 export const generateJoinCode = () =>{
-  return nanoid(6);
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(6);
+  let code = '';
+
+  for (let i = 0; i < 6; i++) {
+    code += alphabet[bytes[i] % alphabet.length];
+  }
+
+  return code;
 }
 
 export const generateUniqueJoinCode = async() : Promise<string> =>{
@@ -94,49 +101,3 @@ export const joinTenant = async (req: AuthRequest,res:Response) =>{
   }
 }
 
-export const sendJoinCodeToEmail = async (req: AuthRequest, res: Response) => {
-  const { tenantId, email } = req.body;
-  const user = req.user;
-
-  if (!user) return res.status(401).json({ message: "Unauthorized" });
-
-  if (!tenantId || !email) {
-    return res.status(400).json({ message: "Thiếu thông tin" });
-  }
-
-  try {
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
-    });
-
-    if (!tenant) {
-      return res.status(404).json({ message: "Tổ chức không tồn tại" });
-    }
-
-    // Kiểm tra xem user có phải là owner/admin của tổ chức
-    const userTenant = await prisma.userTenant.findUnique({
-      where: {
-        userId_tenantId: {
-          userId: user.id,
-          tenantId: tenantId
-        }
-      },
-      include: { role: true }
-    });
-
-    if (!userTenant || userTenant.role.name !== 'owner') {
-      return res.status(403).json({ message: "Bạn không có quyền thực hiện hành động này" });
-    }
-
-    // Gửi email với mã tham gia
-    await sendJoinCodeEmail(email, tenant.joinCode, tenant.name);
-
-    res.json({
-      message: "Mã tham gia đã được gửi vào email",
-      joinCode: tenant.joinCode
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Lỗi server" });
-  }
-}

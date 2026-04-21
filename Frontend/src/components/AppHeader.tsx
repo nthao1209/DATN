@@ -8,12 +8,22 @@ import {
   Folder, Bell, Flag, LayoutGrid, Users as UsersIcon, Map 
 } from 'lucide-react';
 import TenantSelector from './TenantSelector';
+import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 
 const TopBar: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { currentTenant } = useSelector((state: RootState) => state.auth);
   const [showTenantSelector, setShowTenantSelector] = useState(false);
+  const mqttStatus = useMqttBrokerStatus();
+
+  const statusMeta = {
+    connecting: { label: 'MQTT: Connecting', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
+    connected: { label: 'MQTT: Connected', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' },
+    reconnecting: { label: 'MQTT: Reconnecting', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.15)' },
+    disconnected: { label: 'MQTT: Disconnected', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' },
+    error: { label: 'MQTT: Error', color: '#f97316', bg: 'rgba(249, 115, 22, 0.15)' },
+  }[mqttStatus];
 
   const handleLogout = () => {
     dispatch(logout());
@@ -26,6 +36,22 @@ const TopBar: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
           <span style={{ color: '#e5e7eb', fontSize: '0.875rem', fontWeight: 'bold' }}>
             {currentTenant?.name || 'Dashboard'}
+          </span>
+
+          <span
+            style={{
+              marginLeft: '0.75rem',
+              padding: '0.25rem 0.65rem',
+              borderRadius: '999px',
+              border: `1px solid ${statusMeta.color}`,
+              color: statusMeta.color,
+              background: statusMeta.bg,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+            }}
+          >
+            {statusMeta.label}
           </span>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>

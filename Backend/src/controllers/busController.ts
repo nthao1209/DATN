@@ -15,9 +15,14 @@ export const busController = {
         return res.status(401).json({ message: 'Unauthorized' });
       }
 
+    const managerFilter = req.roleId === 3 && req.user?.id
+      ? { managerId: req.user.id }
+      : {};
+
     const buses = await prisma.bus.findMany({
         where: {
             tripId,
+            ...managerFilter,
             trip: {
               tenantId: req.tenantId
             }

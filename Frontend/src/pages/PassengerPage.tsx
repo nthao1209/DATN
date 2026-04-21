@@ -1,22 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Trash2 } from 'lucide-react';
-import DataTable, { type Column } from '../components/DataTable';
+import { Plus, Save } from 'lucide-react';
+import DataTable from '../components/DataTable';
 import PassengerMobileView from '../components/mobile/PassengerMobileView';
 import api from '../services/api';
 import { isValidPhoneNumber, normalizePhoneNumber } from '../utils/phone';
+import { buildPassengerColumns } from './passenger/columns';
+import type { BusesByTrip, PassengerBus, PassengerRow, PassengerTrip } from './passenger/types';
 
-type PassengerRow = {
-  id?: number;
-  localId: string;
-  name: string;
-  tel: string;
-  note: string;
-  tripId: number | null;
-  busId: number | null;
-  busCode?: string;
-  isEdited?: boolean;
-};
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const EMPTY_ROWS_COUNT = 8;
@@ -30,17 +21,17 @@ const PassengerPage: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
 
 
-  const { data: trips = [] } = useQuery<any[]>({
+  const { data: trips = [] } = useQuery<PassengerTrip[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
   });
 
-  const { data: allBuses = [] } = useQuery<any[]>({
+  const { data: allBuses = [] } = useQuery<PassengerBus[]>({
     queryKey: ['buses-all-trips', trips.map((t: any) => t.id).join(',')],
     enabled: trips.length > 0,
     queryFn: async () => {
       const busesPerTrip = await Promise.all(
-        trips.map((trip: any) => api.getBuses(String(trip.id)))
+        trips.map((trip) => api.getBuses(String(trip.id)))
       );
       return busesPerTrip.flat();
     },
@@ -89,7 +80,7 @@ const PassengerPage: React.FC = () => {
       return;
     }
 
-    const exists = busesOfSelectedTrip.some((bus: any) => Number(bus.id) === selectedBusId);
+    const exists = busesOfSelectedTrip.some((bus) => Number(bus.id) === selectedBusId);
     if (!exists) {
       setSelectedBusId(null);
     }
@@ -130,8 +121,8 @@ const PassengerPage: React.FC = () => {
     setRows(padded);
   }, [passengers, selectedBusId]);
 
-  const busesByTrip = useMemo(() => {
-    const map: Record<number, any[]> = {};
+  const busesByTrip = useMemo<BusesByTrip>(() => {
+    const map: BusesByTrip = {};
 
     allBuses.forEach((bus: any) => {
       const tripId = Number(bus.trip?.id ?? selectedTripId ?? 0);
@@ -202,7 +193,7 @@ const PassengerPage: React.FC = () => {
 
     const invalidPhoneRow = rows.find((row) => row.name.trim() && row.tel.trim() && !isValidPhoneNumber(normalizePhoneNumber(row.tel)));
     if (invalidPhoneRow) {
-      alert('Số điện thoại phải đủ 10 số và không được bắt đầu bằng 0.');
+      alert('Số điện thoại phải đủ 10 số và  bắt đầu bằng 0.');
       return;
     }
 
@@ -243,101 +234,12 @@ const PassengerPage: React.FC = () => {
       setIsSaving(false);
     }
   };
-
-  const columns: Column<PassengerRow>[] = [
-    {
-      header: 'STT',
-      key: 'stt',
-      render: (_row, index) => index + 1,
-    },
-    {
-      header: 'Họ và tên',
-      key: 'name',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.name}
-          onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-          placeholder="Nhập tên"
-        />
-      ),
-    },
-    {
-      header: 'Số điện thoại',
-      key: 'tel',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-            inputMode="numeric"
-            maxLength={10}
-            pattern="^[1-9][0-9]{9}$"
-          value={row.tel}
-            onChange={(e) => handleCellChange(row.localId, 'tel', e.target.value.replace(/\D/g, ''))}
-          placeholder="Nhập SĐT"
-        />
-      ),
-    },
-    ...trips.map((trip: any) => {
-      const tripId = Number(trip.id);
-      const tripBuses = busesByTrip[tripId] || [];
-
-      return {
-        header: String(trip.name),
-        key: `trip_${tripId}`,
-        render: (row: PassengerRow) => (
-          <select
-            className="form-select form-select-sm"
-            value={row.tripId === tripId ? (row.busId ?? '') : ''}
-            onChange={(e) => {
-              const nextBusId = e.target.value ? Number(e.target.value) : null;
-              const nextBus = tripBuses.find((bus: any) => Number(bus.id) === nextBusId);
-
-              if (!nextBusId) {
-                if (row.tripId === tripId) {
-                  handleCellChange(row.localId, 'tripId', null);
-                  handleCellChange(row.localId, 'busId', null);
-                  handleCellChange(row.localId, 'busCode', '');
-                }
-                return;
-              }
-
-              handleCellChange(row.localId, 'tripId', tripId);
-              handleCellChange(row.localId, 'busId', nextBusId);
-              handleCellChange(row.localId, 'busCode', nextBus?.busCode || '');
-            }}
-          >
-            <option value="">-- Chọn xe --</option>
-            {tripBuses.map((bus: any) => (
-              <option key={bus.id} value={bus.id}>
-                {bus.busCode}
-              </option>
-            ))}
-          </select>
-        ),
-      } as Column<PassengerRow>;
-    }),
-    {
-      header: 'Ghi chú',
-      key: 'note',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.note}
-          onChange={(e) => handleCellChange(row.localId, 'note', e.target.value)}
-          placeholder="Ghi chú"
-        />
-      ),
-    },
-    {
-      header: 'Thao tác',
-      key: 'actions',
-      render: (row) => (
-        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-          <Trash2 size={14} />
-        </button>
-      ),
-    },
-  ];
+  const columns = buildPassengerColumns({
+    trips,
+    busesByTrip,
+    handleCellChange,
+    handleDeleteRow,
+  });
 
   const mobileRows = visibleRows.length > 0 ? visibleRows : rows;
 

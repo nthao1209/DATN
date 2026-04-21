@@ -26,6 +26,7 @@ export interface AuthState {
   loading: boolean;
   error: string | null;
   statusMessage: string | null;
+  needsEmailVerification: boolean;
   currentTenant: Tenant | null;
   tenants: Tenant[];
   roleId?: number;

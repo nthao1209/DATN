@@ -35,17 +35,17 @@ const RoundMobileView: React.FC<RoundMobileViewProps> = ({ rows, onDeleteRow, on
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Tên chặng</label>
+              <label className="form-label small fw-bold mb-1">TÊN CHẶNG</label>
               <input className="form-control" value={row.name} onChange={(e) => onCellChange(row.localId, 'name', e.target.value)} placeholder="Nhập tên chặng" />
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Thời gian</label>
+              <label className="form-label small fw-bold mb-1">THỜI GIAN</label>
               <input className="form-control" value={row.time} onChange={(e) => onCellChange(row.localId, 'time', e.target.value)} placeholder="Ví dụ: 08:00" />
             </div>
 
             <div className="mb-3">
-              <label className="form-label small fw-bold mb-1">Tình trạng</label>
+              <label className="form-label small fw-bold mb-1">TÌNH TRẠNG</label>
               <select className="form-select" value={row.status} onChange={(e) => onCellChange(row.localId, 'status', e.target.value as RoundStatus)}>
                 <option value="DOING">Đang diễn ra</option>
                 <option value="DONE">Hoàn thành</option>
@@ -53,7 +53,7 @@ const RoundMobileView: React.FC<RoundMobileViewProps> = ({ rows, onDeleteRow, on
             </div>
 
             <div className="text-center p-2 app-dark-soft rounded">
-              <div className="text-muted small">Số check-in</div>
+              <div className="text-muted small">SỐ CHECK-IN</div>
               <div className="fw-bold text-info">{row.transactionCount}</div>
             </div>
           </div>

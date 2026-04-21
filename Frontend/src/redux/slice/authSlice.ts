@@ -8,6 +8,7 @@ const initialState: AuthState = {
   loading: false,
   error: null,
   statusMessage: null,
+  needsEmailVerification: false,
   currentTenant:null,
   tenants: [],
 };
@@ -26,6 +27,8 @@ const authSlice = createSlice({
       state.hasTenant = state.tenants.length > 0;
       state.currentTenant = state.tenants[0] || null;
       state.roleId = action.payload.roleId || state.currentTenant?.roleId || state.currentTenant?.role?.id;
+      state.needsEmailVerification = false;
+      state.statusMessage = null;
       if (state.currentTenant?.id) {
         localStorage.setItem('currentTenantId', String(state.currentTenant.id));
       } else {
@@ -36,8 +39,29 @@ const authSlice = createSlice({
     },
     registerSuccess: (state, action: PayloadAction<string>) => {
       state.loading = false;
+      state.user = null;
+      state.token = null;
+      state.hasTenant = false;
+      state.currentTenant = null;
+      state.tenants = [];
+      state.roleId = undefined;
       state.statusMessage = action.payload;
+      state.needsEmailVerification = true;
       state.error = null;
+      localStorage.removeItem('currentTenantId');
+    },
+    emailVerificationRequired: (state, action: PayloadAction<string>) => {
+      state.loading = false;
+      state.user = null;
+      state.token = null;
+      state.hasTenant = false;
+      state.currentTenant = null;
+      state.tenants = [];
+      state.roleId = undefined;
+      state.statusMessage = action.payload;
+      state.needsEmailVerification = true;
+      state.error = null;
+      localStorage.removeItem('currentTenantId');
     },
     joinTenantSuccess: (state, action: PayloadAction<Tenant>) => {
       const tenant = action.payload;
@@ -71,6 +95,9 @@ const authSlice = createSlice({
       state.tenants = [];
       state.hasTenant = false;
       state.roleId = undefined;
+      state.needsEmailVerification = false;
+      state.statusMessage = null;
+      state.error = null;
       localStorage.removeItem('currentTenantId');
     },
     clearMessages: (state) => {
@@ -80,5 +107,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { loginRequest, registerRequest, registerSuccess, authSuccess, authFailure, logout, forgotPasswordRequest, joinTenantSuccess, joinTenantRequest, setCurrentTenant } = authSlice.actions;
+export const { loginRequest, registerRequest, registerSuccess, emailVerificationRequired, authSuccess, authFailure, logout, forgotPasswordRequest, joinTenantSuccess, joinTenantRequest, setCurrentTenant } = authSlice.actions;
 export default authSlice.reducer;

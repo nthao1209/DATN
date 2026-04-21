@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { verifyFirebaseTokenOnly } from '../middleware/authMiddleware';
+import { verifyVerifiedFirebaseTokenOnly } from '../middleware/authMiddleware';
 import { roleController } from '../controllers/roleController';
 
 const router = Router();
 
-router.get('/roles', verifyFirebaseTokenOnly, roleController.getAll);
-router.post('/roles', verifyFirebaseTokenOnly, roleController.create);
-router.put('/roles/:id', verifyFirebaseTokenOnly, roleController.update);
-router.delete('/roles/:id', verifyFirebaseTokenOnly, roleController.delete);
+router.get('/roles', verifyVerifiedFirebaseTokenOnly, roleController.getAll);
+router.post('/roles', verifyVerifiedFirebaseTokenOnly, roleController.create);
+router.put('/roles/:id', verifyVerifiedFirebaseTokenOnly, roleController.update);
+router.delete('/roles/:id', verifyVerifiedFirebaseTokenOnly, roleController.delete);
 
 export default router;

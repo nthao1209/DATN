@@ -17,6 +17,9 @@ const getSystemSuperAdminEmails = () => {
 };
 const syncUser = async (req, res) => {
     const { email, firebaseUid, name } = req.body;
+    if (!email || !firebaseUid) {
+        return res.status(400).json({ error: "Thiếu email hoặc firebaseUid" });
+    }
     try {
         const user = await prisma.user.upsert({
             where: { firebaseUid: firebaseUid },
@@ -36,6 +39,9 @@ const syncUser = async (req, res) => {
 exports.syncUser = syncUser;
 const getMyStatus = async (req, res) => {
     const userId = req.user?.id;
+    if (!userId) {
+         return res.status(401).json({ message: "Unauthorized" });
+    }
     const superAdminEmails = getSystemSuperAdminEmails();
     const isSystemSuperAdmin = !!req.user?.email && superAdminEmails.includes(req.user.email.toLowerCase());
     const userTenants = await prisma.userTenant.findMany({

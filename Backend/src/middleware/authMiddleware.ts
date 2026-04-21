@@ -49,7 +49,18 @@ const getOrCreatePrismaUser = async (token: string) => {
   return { user, decodedToken };
 };
 
-// ✅ Middleware 1: Chỉ xác thực danh tính (Dùng cho Login, Profile, Join-Tenant)
+const rejectUnverifiedEmail = (res: Response, decodedToken: any) => {
+  if (decodedToken.email_verified !== true) {
+    res.status(403).json({
+      message: 'Email chưa được xác thực',
+      code: 'EMAIL_NOT_VERIFIED'
+    });
+    return true;
+  }
+
+  return false;
+};
+
 export const verifyFirebaseTokenOnly = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (!token) return res.status(401).json({ message: 'No token provided' });
@@ -67,13 +78,37 @@ export const verifyFirebaseTokenOnly = async (req: AuthRequest, res: Response, n
   }
 };
 
-// ✅ Middleware 2: Xác thực danh tính + Bắt buộc phải thuộc về một Tenant (Dùng cho Business logic: Trips, Buses...)
+export const verifyVerifiedFirebaseTokenOnly = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split('Bearer ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  try {
+    const { user, decodedToken } = await getOrCreatePrismaUser(token);
+
+    if (rejectUnverifiedEmail(res, decodedToken)) {
+      return;
+    }
+
+    req.user = user;
+    req.firebaseUser = decodedToken;
+
+    next();
+  } catch (error: any) {
+    console.error('Auth Error:', error.message);
+    res.status(401).json({ message: 'Unauthorized' });
+  }
+};
+
 export const verifyFirebaseToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   try {
     const { user, decodedToken } = await getOrCreatePrismaUser(token);
+
+    if (rejectUnverifiedEmail(res, decodedToken)) {
+      return;
+    }
 
     // Tìm thông tin Tenant của User này
     const userTenant = await prisma.userTenant.findFirst({
@@ -93,7 +128,7 @@ export const verifyFirebaseToken = async (req: AuthRequest, res: Response, next:
 
     req.user = user; 
     req.firebaseUser = decodedToken;
-    req.tenantId = userTenant.tenantId;
+    req.tenantId = userTenant.tenantId ?? undefined;
     req.roleId = userTenant.roleId;
 
     next();

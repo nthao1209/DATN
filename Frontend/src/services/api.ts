@@ -29,12 +29,15 @@ const waitForAuthInit = (): Promise<User | null> => {
 };
 
 axiosClient.interceptors.request.use(async (config: any) => {
+  const existingAuthorization = config.headers?.Authorization || config.headers?.authorization;
+  if (existingAuthorization) {
+    return config;
+  }
+
   const user = fbAuth.currentUser ?? (await waitForAuthInit());
   if (user) {
     const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    delete config.headers?.Authorization;
   }
   return config;
 });
@@ -71,8 +74,8 @@ export const api = {
   delete: <T = any>(url: string) => axiosClient.delete<T, T>(url),
 
   // Auth & Sync
-  syncUser: (data: { email: string; name: string; firebaseUid: string }) => 
-    axiosClient.post('/auth/sync', data),
+  syncUser: (data: { email: string; name: string; firebaseUid: string }, token?: string) => 
+    axiosClient.post('/auth/sync', data, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined),
 
   getMyStatus: () => 
     axiosClient.get('/auth/status'), // Trả về { user, tenants: [] }
@@ -144,6 +147,14 @@ export const api = {
       busId
         ? `/trips/${tripId}/passengers?busId=${busId}`
         : `/trips/${tripId}/passengers`
+    ),
+
+  getAttendancePassengers: (tripId: string) =>
+    axiosClient.get<any[], any[]>(`/trips/${tripId}/passengers?scope=attendance`),
+
+  searchPassengersByNameForAttendance: (tripId: string, keyword: string) =>
+    axiosClient.get<any[], any[]>(
+      `/trips/${tripId}/passengers?scope=attendance&keyword=${encodeURIComponent(keyword)}`
     ),
 
   createPassenger: (tripId: string, data: any) =>

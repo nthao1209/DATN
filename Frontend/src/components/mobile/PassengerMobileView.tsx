@@ -1,6 +1,5 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
-
 type PassengerMobileRow = {
   id?: number;
   localId: string;
@@ -43,17 +42,17 @@ const PassengerMobileView: React.FC<PassengerMobileViewProps> = ({
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Họ và tên</label>
+              <label className="form-label small fw-bold mb-1">HỌ VÀ TÊN</label>
               <input className="form-control" value={row.name} onChange={(e) => onCellChange(row.localId, 'name', e.target.value)} placeholder="Nhập tên" />
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Số điện thoại</label>
+              <label className="form-label small fw-bold mb-1">SỐ ĐIỆN THOẠI</label>
               <input className="form-control" inputMode="numeric" maxLength={10} pattern="^[1-9][0-9]{9}$" value={row.tel} onChange={(e) => onCellChange(row.localId, 'tel', e.target.value.replace(/\D/g, ''))} placeholder="Nhập SĐT" />
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Trip</label>
+              <label className="form-label small fw-bold mb-1">CHUYẾN ĐI</label>
               <select
                 className="form-select"
                 value={row.tripId ?? ''}
@@ -74,7 +73,7 @@ const PassengerMobileView: React.FC<PassengerMobileViewProps> = ({
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Chọn xe</label>
+              <label className="form-label small fw-bold mb-1">MÃ XE</label>
               <select
                 className="form-select"
                 value={row.busId ?? ''}

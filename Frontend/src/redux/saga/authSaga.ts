@@ -18,7 +18,9 @@ function* handleLogin(action: any): any {
     const user = userCredential.user;
 
     if (!user.emailVerified) {
-      throw new Error("Email chưa được xác thực. Vui lòng kiểm tra hộp thư!");
+      yield call(signOut, fbAuth);
+      yield put(authActions.authFailure("Email chưa được xác thực. Vui lòng kiểm tra hộp thư!"));
+      return;
     }
    
     const token = yield call([user, user.getIdToken]);
@@ -51,13 +53,16 @@ function* handleRegister(action: any): any {
     // 2. Gửi email xác nhận
     yield call(sendEmailVerification, fbUser);
 
+    const token = yield call([fbUser, fbUser.getIdToken]);
+
     // 3. Đồng bộ ngay lập tức sang Postgres (Prisma)
     yield call(api.syncUser, {
       email: fbUser.email!,
       name: name,
       firebaseUid: fbUser.uid
-    });
+    }, token);
 
+    yield call(signOut, fbAuth);
     yield put(authActions.registerSuccess("Đăng ký thành công! Hãy xác thực email trước khi đăng nhập."));
   } catch (error: any) {
     yield put(authActions.authFailure(error.message));

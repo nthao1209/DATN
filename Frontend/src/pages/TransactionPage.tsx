@@ -1,69 +1,80 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, ClipboardCheck, RefreshCw } from 'lucide-react';
-import PassengerActionButtons from '../components/PassengerActionButtons';
+import { Save, ClipboardCheck, RefreshCw, Plus, Search, Upload, X } from 'lucide-react';
+import DataTable from '../components/DataTable';
 import api from '../services/api';
-
-type PassengerRow = {
-  id: number;
-  name: string;
-  tel: string;
-  busId: number | null;
-  busName: string;
-};
-
-type DraftCell = {
-  transactionId?: number;
-  passengerId: number;
-  roundId: number;
-  busId: number;
-  checkIn: boolean;
-  checkOut: boolean;
-  note: string;
-  dirty?: boolean;
-};
-
-type TransactionRecord = {
-  id: number;
-  passengerId?: number;
-  roundId?: number;
-  busId?: number;
-  checkIn?: boolean;
-  checkOut?: boolean;
-  note?: string | null;
-  passenger?: {
-    id?: number;
-    name?: string;
-    tel?: string;
-    busId?: number;
-  };
-  round?: {
-    id?: number;
-    tripId?: number;
-    name?: string;
-  };
-  bus?: {
-    id?: number;
-    busCode?: string;
-    registrationNumber?: string;
-  };
-};
-
-const keyOf = (passengerId: number, roundId: number) => `${passengerId}_${roundId}`;
+import { subscribeAttendanceUpdates } from '../services/mqtt';
+import { buildTransactionColumns } from './transaction/columns';
+import type {
+  BusOption,
+  DraftCell,
+  PassengerRow,
+  RoundOption,
+  TransactionRecord,
+  TransactionTableRow,
+  TripOption,
+} from './transaction/types';
+import { keyOf } from './transaction/types';
+import TransactionFilters from './transaction/TransactionFilters';
+import { useTransactionSync } from './transaction/useTransactionSync';
+import useDebounce from '../hooks/useDebounce';
+import './transaction/TransactionPage.css';
 
 const TransactionPage: React.FC = () => {
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
   const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
   const [draftMap, setDraftMap] = useState<Record<string, DraftCell>>({});
-  const [isSaving, setIsSaving] = useState(false);
   const [busDropdownOpen, setBusDropdownOpen] = useState(false);
   const [roundDropdownOpen, setRoundDropdownOpen] = useState(false);
+  const [nameFilter, setNameFilter] = useState('');
+  const [departureRoundFilter, setDepartureRoundFilter] = useState<number | null>(null);
+  const [returnRoundFilter, setReturnRoundFilter] = useState<number | null>(null);
+  const [showAddPassengerPanel, setShowAddPassengerPanel] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedSearchPassengerId, setSelectedSearchPassengerId] = useState<number | null>(null);
+  const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const parseBooleanCell = (value: unknown): boolean | undefined => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') {
+      if (value === 1) return true;
+      if (value === 0) return false;
+      return undefined;
+    }
+
+    const raw = String(value ?? '').trim().toLowerCase();
+    if (!raw) return undefined;
+
+    if (['1', 'true', 'yes', 'y', 'x', 'co', 'có', 'di', 'đi'].includes(raw)) return true;
+    if (['0', 'false', 'no', 'n', 'khong', 'không'].includes(raw)) return false;
+    return undefined;
+  };
+
+  const normalizeRow = (row: Record<string, unknown>) => {
+    const normalized: Record<string, unknown> = {};
+    Object.entries(row).forEach(([key, value]) => {
+      const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+      normalized[normalizedKey] = value;
+    });
+    return normalized;
+  };
+
+  const pickValue = (row: Record<string, unknown>, keys: string[]) => {
+    for (const key of keys) {
+      const value = row[key];
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return value;
+      }
+    }
+    return undefined;
+  };
 
   const {
     data: trips = [],
     isLoading: tripsLoading,
-  } = useQuery<any[]>({
+  } = useQuery<TripOption[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
   });
@@ -71,7 +82,7 @@ const TransactionPage: React.FC = () => {
   const {
     data: buses = [],
     isLoading: busesLoading,
-  } = useQuery<any[]>({
+  } = useQuery<BusOption[]>({
     queryKey: ['transaction-buses', selectedTripId],
     queryFn: () => api.getBuses(String(selectedTripId)),
     enabled: !!selectedTripId,
@@ -80,7 +91,7 @@ const TransactionPage: React.FC = () => {
   const {
     data: rounds = [],
     isLoading: roundsLoading,
-  } = useQuery<any[]>({
+  } = useQuery<RoundOption[]>({
     queryKey: ['transaction-rounds', selectedTripId],
     queryFn: () => api.getRounds(String(selectedTripId)),
     enabled: !!selectedTripId,
@@ -94,6 +105,15 @@ const TransactionPage: React.FC = () => {
     queryKey: ['transaction-passengers', selectedTripId],
     queryFn: () => api.getPassengers(String(selectedTripId)),
     enabled: !!selectedTripId,
+  });
+
+  const {
+    data: searchPassengers = [],
+    isLoading: searchPassengersLoading,
+  } = useQuery<any[]>({
+    queryKey: ['attendance-search-passengers', selectedTripId, searchKeyword],
+    queryFn: () => api.searchPassengersByNameForAttendance(String(selectedTripId), searchKeyword),
+    enabled: !!selectedTripId && showAddPassengerPanel && searchKeyword.trim().length >= 1,
   });
 
   const {
@@ -113,15 +133,34 @@ const TransactionPage: React.FC = () => {
   }, [selectedTripId, trips]);
 
   useEffect(() => {
+    setExtraPassengers([]);
+    setShowAddPassengerPanel(false);
+    setSearchKeyword('');
+    setSelectedSearchPassengerId(null);
+  }, [selectedTripId]);
+
+  useEffect(() => {
+    if (!selectedTripId) return;
+
+    const client = subscribeAttendanceUpdates(selectedTripId, async () => {
+      await Promise.all([refetchTransactions(), refetchPassengers()]);
+    });
+
+    return () => {
+      client.end(true);
+    };
+  }, [selectedTripId, refetchPassengers, refetchTransactions]);
+
+  useEffect(() => {
     if (!buses.length) {
       setSelectedBusIds([]);
       return;
     }
 
     setSelectedBusIds((prev) => {
-      if (!prev.length) return buses.map((b: any) => Number(b.id));
-      const valid = prev.filter((id) => buses.some((b: any) => Number(b.id) === id));
-      return valid.length ? valid : buses.map((b: any) => Number(b.id));
+      if (!prev.length) return buses.map((b) => Number(b.id));
+      const valid = prev.filter((id) => buses.some((b) => Number(b.id) === id));
+      return valid.length ? valid : buses.map((b) => Number(b.id));
     });
   }, [buses]);
 
@@ -132,16 +171,27 @@ const TransactionPage: React.FC = () => {
     }
 
     setSelectedRoundIds((prev) => {
-      if (!prev.length) return rounds.map((r: any) => Number(r.id));
-      const valid = prev.filter((id) => rounds.some((r: any) => Number(r.id) === id));
-      return valid.length ? valid : rounds.map((r: any) => Number(r.id));
+      if (!prev.length) return rounds.map((r) => Number(r.id));
+      const valid = prev.filter((id) => rounds.some((r) => Number(r.id) === id));
+      return valid.length ? valid : rounds.map((r) => Number(r.id));
     });
   }, [rounds]);
+
+  useEffect(() => {
+    if (departureRoundFilter && !selectedRoundIds.includes(departureRoundFilter)) {
+      setDepartureRoundFilter(null);
+    }
+
+    if (returnRoundFilter && !selectedRoundIds.includes(returnRoundFilter)) {
+      setReturnRoundFilter(null);
+    }
+  }, [departureRoundFilter, returnRoundFilter, selectedRoundIds]);
 
   const storageKey = useMemo(
     () => (selectedTripId ? `transaction_draft_${selectedTripId}` : ''),
     [selectedTripId]
   );
+  const debouncedDraftJson = useDebounce(JSON.stringify(draftMap), 600);
 
   useEffect(() => {
     if (!storageKey) return;
@@ -157,8 +207,8 @@ const TransactionPage: React.FC = () => {
 
   useEffect(() => {
     if (!storageKey) return;
-    localStorage.setItem(storageKey, JSON.stringify(draftMap));
-  }, [draftMap, storageKey]);
+    localStorage.setItem(storageKey, debouncedDraftJson);
+  }, [debouncedDraftJson, storageKey]);
 
   const txMap = useMemo(() => {
     const map: Record<string, DraftCell> = {};
@@ -169,6 +219,7 @@ const TransactionPage: React.FC = () => {
       if (!passengerId || !roundId || !busId) return;
       map[keyOf(passengerId, roundId)] = {
         transactionId: Number(tx.id),
+        updatedAt: tx.updatedAt,
         passengerId,
         roundId,
         busId,
@@ -180,7 +231,8 @@ const TransactionPage: React.FC = () => {
     return map;
   }, [transactions]);
 
-  const filteredPassengers = useMemo<PassengerRow[]>(() => {
+
+  const busFilteredPassengers = useMemo<PassengerRow[]>(() => {
     return passengers
       .map((p: any) => ({
         id: Number(p.id),
@@ -188,12 +240,63 @@ const TransactionPage: React.FC = () => {
         tel: p.tel || '',
         busId: p.bus?.id ? Number(p.bus.id) : null,
         busName: p.bus?.busCode || p.bus?.registrationNumber || '',
+        assignedBusName: p.bus?.busCode || p.bus?.registrationNumber || '',
       }))
       .filter((p: PassengerRow) => p.busId && selectedBusIds.includes(Number(p.busId)));
   }, [passengers, selectedBusIds]);
 
+  const transactionBackedPassengers = useMemo<PassengerRow[]>(() => {
+    const passengersById = new Map<number, PassengerRow>();
+
+    transactions.forEach((tx) => {
+      const passengerId = Number(tx.passengerId ?? tx.passenger?.id ?? 0);
+      const actualBusId = Number(tx.busId ?? tx.bus?.id ?? 0);
+      const assignedBusId = Number(tx.passenger?.busId ?? tx.passenger?.bus?.id ?? 0);
+      if (!passengerId || !actualBusId) return;
+
+      const isInActualBusFilter = selectedBusIds.includes(actualBusId);
+      const isInAssignedBusFilter = assignedBusId ? selectedBusIds.includes(assignedBusId) : false;
+      if (!isInActualBusFilter && !isInAssignedBusFilter) return;
+
+      if (passengersById.has(passengerId)) return;
+
+      const assignedFromPassengerList = passengers.find((p: any) => Number(p.id) === passengerId);
+      const assignedBusName =
+        assignedFromPassengerList?.bus?.busCode ||
+        assignedFromPassengerList?.bus?.registrationNumber ||
+        tx.passenger?.bus?.busCode ||
+        tx.passenger?.bus?.registrationNumber ||
+        '';
+
+      passengersById.set(passengerId, {
+        id: passengerId,
+        name: tx.passenger?.name || '',
+        tel: tx.passenger?.tel || '',
+        busId: actualBusId,
+        busName: tx.bus?.busCode || tx.bus?.registrationNumber || '',
+        assignedBusName,
+      });
+    });
+
+    return Array.from(passengersById.values());
+  }, [transactions, selectedBusIds, passengers]);
+
+  const displayedPassengers = useMemo<PassengerRow[]>(() => {
+    const map = new Map<number, PassengerRow>();
+    busFilteredPassengers.forEach((p) => map.set(p.id, p));
+    transactionBackedPassengers.forEach((p) => map.set(p.id, p));
+    extraPassengers.forEach((p) => map.set(p.id, p));
+    return Array.from(map.values());
+  }, [busFilteredPassengers, transactionBackedPassengers, extraPassengers]);
+
+  const nameFilteredPassengers = useMemo(() => {
+    const keyword = nameFilter.trim().toLowerCase();
+    if (!keyword) return displayedPassengers;
+    return displayedPassengers.filter((p) => p.name.toLowerCase().includes(keyword));
+  }, [displayedPassengers, nameFilter]);
+
   const selectedRounds = useMemo(
-    () => rounds.filter((r: any) => selectedRoundIds.includes(Number(r.id))),
+    () => rounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
     [rounds, selectedRoundIds]
   );
 
@@ -208,6 +311,61 @@ const TransactionPage: React.FC = () => {
       [keyOf(payload.passengerId, payload.roundId)]: { ...payload, dirty: true },
     }));
   };
+
+  const isPresentAtRound = (passengerId: number, roundId: number, direction: 'checkIn' | 'checkOut') => {
+    const cell = getCell(passengerId, roundId);
+    return Boolean(cell?.[direction]);
+  };
+
+  const roundSummary = useMemo(() => {
+    const summary: Record<number, { checkIn: number; checkOut: number; total: number }> = {};
+    selectedRounds.forEach((round) => {
+      const roundId = Number(round.id);
+      const total = nameFilteredPassengers.length;
+      const checkIn = nameFilteredPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkIn)).length;
+      const checkOut = nameFilteredPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkOut)).length;
+      summary[roundId] = { checkIn, checkOut, total };
+    });
+    return summary;
+  }, [nameFilteredPassengers, selectedRounds, txMap, draftMap]);
+
+  const visiblePassengers = useMemo(() => {
+    return nameFilteredPassengers.filter((p) => {
+      if (departureRoundFilter && !isPresentAtRound(p.id, departureRoundFilter, 'checkIn')) {
+        return false;
+      }
+
+      if (returnRoundFilter && !isPresentAtRound(p.id, returnRoundFilter, 'checkOut')) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [nameFilteredPassengers, departureRoundFilter, returnRoundFilter, txMap, draftMap]);
+
+  const tableRows = useMemo<TransactionTableRow[]>(() => {
+    const rows: TransactionTableRow[] = [...visiblePassengers];
+    rows.push({
+      id: -1,
+      name: 'Tổng điểm danh',
+      tel: '',
+      busId: null,
+      busName: '',
+      isSummary: true,
+    });
+    return rows;
+  }, [visiblePassengers]);
+
+  const tableColumns = useMemo(
+    () =>
+      buildTransactionColumns({
+        selectedRounds,
+        roundSummary,
+        getCell,
+        setCell,
+      }),
+    [selectedRounds, roundSummary, txMap, draftMap]
+  );
 
   const toggleBus = (busId: number) => {
     setSelectedBusIds((prev) =>
@@ -226,44 +384,14 @@ const TransactionPage: React.FC = () => {
     [draftMap]
   );
 
-  const handleSave = async () => {
-    if (!dirtyEntries.length) {
-      alert('Không có thay đổi nào để lưu');
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      await Promise.all(
-        dirtyEntries.map((entry) => {
-          if (entry.transactionId) {
-            return api.updateTransaction(String(entry.transactionId), {
-              checkIn: entry.checkIn,
-              checkOut: entry.checkOut,
-              note: entry.note?.trim() || null,
-            });
-          }
-          return api.createTransaction({
-            passengerId: entry.passengerId,
-            roundId: entry.roundId,
-            busId: entry.busId,
-            checkIn: entry.checkIn,
-            checkOut: entry.checkOut,
-            note: entry.note?.trim() || null,
-          });
-        })
-      );
-
-      setDraftMap({});
-      if (storageKey) localStorage.removeItem(storageKey);
-      await Promise.all([refetchTransactions(), refetchPassengers()]);
-      alert('Đã lưu điểm danh thành công');
-    } catch (error: any) {
-      alert(error?.message || 'Lỗi khi lưu điểm danh');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const { isSaving, isOnline, hasPendingSync, handleSave } = useTransactionSync({
+    dirtyEntries,
+    selectedTripId,
+    storageKey,
+    setDraftMap,
+    refetchTransactions,
+    refetchPassengers,
+  });
 
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
@@ -271,10 +399,27 @@ const TransactionPage: React.FC = () => {
     <div className="transaction-page p-2 p-md-3">
       <div className="transaction-toolbar mb-3">
         <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-          <h4 className="m-0 fw-bold d-flex align-items-center gap-2">
-            <ClipboardCheck size={20} /> Điểm danh hành khách
+          <h4 className="transaction-title m-0 fw-bold d-flex align-items-center gap-2">
+            <ClipboardCheck size={20}  /> Điểm danh hành khách
           </h4>
+          <div className="d-flex align-items-center gap-2 flex-wrap">
+            {!isOnline && <span className="badge text-bg-warning">Offline: đang lưu tạm local</span>}
+            {isOnline && hasPendingSync && <span className="badge text-bg-info">Có dữ liệu chờ đồng bộ</span>}
+          </div>
           <div className="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-primary btn-sm"
+              onClick={() => {
+                if (selectedBusIds.length !== 1) {
+                  alert('Vui lòng chỉ chọn 1 xe để thêm khách ngoài biên chế.');
+                  return;
+                }
+                setShowAddPassengerPanel((prev) => !prev);
+              }}
+            >
+              <Plus size={14} className="me-1" /> Thêm khách ngoài biên chế
+            </button>
             <button
               type="button"
               className="btn btn-outline-secondary btn-sm"
@@ -296,323 +441,184 @@ const TransactionPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="row g-2 mt-1">
-          <div className="col-12 col-md-4">
-            <label className="form-label form-label-sm mb-1">Trip</label>
-            <select
-              className="form-select form-select-sm"
-              value={selectedTripId ?? ''}
-              onChange={(e) => {
-                setSelectedTripId(Number(e.target.value));
-                setDraftMap({});
-              }}
-            >
-              {trips.map((trip: any) => (
-                <option key={trip.id} value={trip.id}>
-                  {trip.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <TransactionFilters
+          trips={trips}
+          buses={buses}
+          rounds={rounds}
+          selectedTripId={selectedTripId}
+          selectedBusIds={selectedBusIds}
+          selectedRoundIds={selectedRoundIds}
+          busDropdownOpen={busDropdownOpen}
+          roundDropdownOpen={roundDropdownOpen}
+          setSelectedTripId={setSelectedTripId}
+          setBusDropdownOpen={setBusDropdownOpen}
+          setRoundDropdownOpen={setRoundDropdownOpen}
+          toggleBus={toggleBus}
+          toggleRound={toggleRound}
+          onTripChange={() => setDraftMap({})}
+        />
 
-          <div className="col-12 col-md-4 position-relative">
-            <label className="form-label form-label-sm mb-1">Xe</label>
-            <button
-              type="button"
-              className="form-select form-select-sm text-start"
-              onClick={() => setBusDropdownOpen((v) => !v)}
-            >
-              {selectedBusIds.length === buses.length
-                ? 'Multichoice'
-                : `${selectedBusIds.length} xe đã chọn`}
-            </button>
-            {busDropdownOpen && (
-              <div className="multi-menu shadow-sm">
-                {buses.map((bus: any) => {
-                  const id = Number(bus.id);
+        {showAddPassengerPanel && (
+          <div className="attendance-add-panel mt-3">
+            <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+              <h6 className="m-0 fw-bold">Thêm khách đang ngồi xe khác</h6>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => {
+                  setShowAddPassengerPanel(false);
+                  setSearchKeyword('');
+                  setSelectedSearchPassengerId(null);
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="input-group input-group-sm mb-2">
+              <span className="input-group-text"><Search size={14} /></span>
+              <input
+                className="form-control"
+                value={searchKeyword}
+                onChange={(e) => {
+                  setSearchKeyword(e.target.value);
+                  setSelectedSearchPassengerId(null);
+                }}
+                placeholder="Tìm hành khách theo tên..."
+              />
+            </div>
+
+            <div className="attendance-search-list">
+              {searchKeyword.trim().length < 1 ? (
+                <div className="text-muted small">Nhập tên để tìm kiếm.</div>
+              ) : searchPassengersLoading ? (
+                <div className="text-muted small">Đang tìm...</div>
+              ) : searchPassengers.length === 0 ? (
+                <div className="text-muted small">Không tìm thấy hành khách phù hợp.</div>
+              ) : (
+                searchPassengers.map((p: any) => {
+                  const id = Number(p.id);
+                  const assignedBusName = p.bus?.busCode || p.bus?.registrationNumber || 'Chưa rõ';
                   return (
-                    <label key={id} className="multi-item">
+                    <label key={id} className="attendance-search-item">
                       <input
-                        type="checkbox"
-                        checked={selectedBusIds.includes(id)}
-                        onChange={() => toggleBus(id)}
+                        type="radio"
+                        name="attendance-search-passenger"
+                        checked={selectedSearchPassengerId === id}
+                        onChange={() => setSelectedSearchPassengerId(id)}
                       />
-                      <span>{bus.busCode || bus.registrationNumber || `Xe ${id}`}</span>
+                      <span>
+                        <strong>{p.name}</strong> - {p.tel || '-'} - Biên chế: {assignedBusName}
+                      </span>
                     </label>
                   );
-                })}
-              </div>
-            )}
-          </div>
+                })
+              )}
+            </div>
 
-          <div className="col-12 col-md-4 position-relative">
-            <label className="form-label form-label-sm mb-1">Rounds</label>
-            <button
-              type="button"
-              className="form-select form-select-sm text-start"
-              onClick={() => setRoundDropdownOpen((v) => !v)}
-            >
-              {selectedRoundIds.length === rounds.length
-                ? 'Multichoice'
-                : `${selectedRoundIds.length} round đã chọn`}
-            </button>
-            {roundDropdownOpen && (
-              <div className="multi-menu shadow-sm">
-                {rounds.map((round: any) => {
-                  const id = Number(round.id);
-                  return (
-                    <label key={id} className="multi-item">
-                      <input
-                        type="checkbox"
-                        checked={selectedRoundIds.includes(id)}
-                        onChange={() => toggleRound(id)}
-                      />
-                      <span>{round.name || `Round ${id}`}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
+            <div className="mt-2 d-flex justify-content-end">
+              <button
+                className="btn btn-sm btn-primary"
+                disabled={!selectedSearchPassengerId || selectedBusIds.length !== 1}
+                onClick={() => {
+                  if (!selectedSearchPassengerId || selectedBusIds.length !== 1) return;
+                  const picked = searchPassengers.find((p: any) => Number(p.id) === selectedSearchPassengerId);
+                  if (!picked) return;
+
+                  const assignedBusName = picked.bus?.busCode || picked.bus?.registrationNumber || 'Chưa rõ';
+                  const actualBusId = Number(selectedBusIds[0]);
+
+                  setExtraPassengers((prev) => {
+                    if (prev.some((x) => x.id === Number(picked.id))) return prev;
+                    return [
+                      ...prev,
+                      {
+                        id: Number(picked.id),
+                        name: picked.name || '',
+                        tel: picked.tel || '',
+                        busId: actualBusId,
+                        busName: assignedBusName,
+                        assignedBusName,
+                      },
+                    ];
+                  });
+
+                  setSelectedSearchPassengerId(null);
+                  setSearchKeyword('');
+                  setShowAddPassengerPanel(false);
+                }}
+              >
+                Xác nhận thêm vào bảng
+              </button>
+            </div>
           </div>
+        )}
+      </div>
+
+      <div className="row g-2 mt-2 mb-3">
+        <div className="col-12 col-md-6">
+          <label className="form-label form-label-sm mb-1">Lọc theo tên</label>
+          <input
+            className="form-control form-control-sm"
+            placeholder="Nhập tên hành khách..."
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
+        </div>
+        <div className="col-12 col-md-6">
+          <label className="form-label form-label-sm mb-1">Lọc lượt đi</label>
+          <select
+            className="form-select form-select-sm"
+            value={departureRoundFilter ?? ''}
+            onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Tất cả</option>
+            {selectedRounds.map((round) => (
+              <option key={round.id} value={round.id}>
+                {round.name || `Chặng ${round.id}`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-12 col-md-6">
+          <label className="form-label form-label-sm mb-1">Lọc lượt về</label>
+          <select
+            className="form-select form-select-sm"
+            value={returnRoundFilter ?? ''}
+            onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">Tất cả</option>
+            {selectedRounds.map((round) => (
+              <option key={round.id} value={round.id}>
+                {round.name || `Chặng ${round.id}`}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="table-responsive transaction-table-wrap">
-        <table className="table table-bordered align-middle mb-0 transaction-table">
-          <thead>
-            <tr>
-              <th className="text-center" style={{ width: 70 }}>STT</th>
-              <th style={{ minWidth: 220 }}>Họ và tên</th>
-              <th style={{ minWidth: 140 }}>Liên lạc</th>
-              {selectedRounds.map((round: any) => (
-                <th key={round.id} style={{ minWidth: 200 }}>
-                  {round.name || `Round ${round.id}`}
-                </th>
-              ))}
-              <th style={{ minWidth: 180 }}>Ghi chú</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={4 + selectedRounds.length} className="text-center py-4">
-                  Đang tải dữ liệu...
-                </td>
-              </tr>
-            )}
-
-            {!isLoading && filteredPassengers.length === 0 && (
-              <tr>
-                <td colSpan={4 + selectedRounds.length} className="text-center py-4">
-                  Không có hành khách theo bộ lọc hiện tại.
-                </td>
-              </tr>
-            )}
-
-            {!isLoading &&
-              filteredPassengers.map((passenger, index) => {
-                const noteSource = selectedRounds
-                  .map((round: any) => getCell(passenger.id, Number(round.id))?.note || '')
-                  .find((n) => n.trim().length > 0) || '';
-
-                return (
-                  <tr key={passenger.id}>
-                    <td className="text-center">{index + 1}</td>
-                    <td className="fw-semibold">{passenger.name}</td>
-                    <td>
-                      <div className="transaction-contact-cell">
-                        <div className="transaction-contact-phone">{passenger.tel || '-'}</div>
-                        {passenger.tel ? (
-                          <PassengerActionButtons
-                            passenger={{ name: passenger.name, phone: passenger.tel }}
-                            compact
-                          />
-                        ) : null}
-                      </div>
-                    </td>
-
-                    {selectedRounds.map((round: any) => {
-                      const roundId = Number(round.id);
-                      const current = getCell(passenger.id, roundId);
-                      const checkIn = Boolean(current?.checkIn);
-                      const checkOut = Boolean(current?.checkOut);
-
-                      return (
-                        <td key={`${passenger.id}_${roundId}`}>
-                          <div className="d-flex align-items-center justify-content-center gap-3">
-                            <label className="d-flex align-items-center gap-1 small m-0">
-                              <input
-                                type="checkbox"
-                                checked={checkIn}
-                                onChange={(e) => {
-                                  if (!passenger.busId) return;
-                                  setCell({
-                                    transactionId: current?.transactionId,
-                                    passengerId: passenger.id,
-                                    roundId,
-                                    busId: passenger.busId,
-                                    checkIn: e.target.checked,
-                                    checkOut,
-                                    note: current?.note || '',
-                                  });
-                                }}
-                              />
-                              <span>Vào</span>
-                            </label>
-
-                            <label className="d-flex align-items-center gap-1 small m-0">
-                              <input
-                                type="checkbox"
-                                checked={checkOut}
-                                onChange={(e) => {
-                                  if (!passenger.busId) return;
-                                  setCell({
-                                    transactionId: current?.transactionId,
-                                    passengerId: passenger.id,
-                                    roundId,
-                                    busId: passenger.busId,
-                                    checkIn,
-                                    checkOut: e.target.checked,
-                                    note: current?.note || '',
-                                  });
-                                }}
-                              />
-                              <span>Ra</span>
-                            </label>
-                          </div>
-                        </td>
-                      );
-                    })}
-
-                    <td>
-                      <input
-                        className="form-control form-control-sm"
-                        value={noteSource}
-                        placeholder="Ghi chú"
-                        onChange={(e) => {
-                          const nextNote = e.target.value;
-                          selectedRounds.forEach((round: any) => {
-                            const roundId = Number(round.id);
-                            const current = getCell(passenger.id, roundId);
-                            if (!passenger.busId) return;
-                            setCell({
-                              transactionId: current?.transactionId,
-                              passengerId: passenger.id,
-                              roundId,
-                              busId: passenger.busId,
-                              checkIn: Boolean(current?.checkIn),
-                              checkOut: Boolean(current?.checkOut),
-                              note: nextNote,
-                            });
-                          });
-                        }}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
-      </div>
-
-      <style>{`
-        .transaction-page {
-          background: #f2f4f8;
-          border-radius: 10px;
-        }
-
-        .transaction-toolbar {
-          background: #ffffff;
-          border: 1px solid #d7deeb;
-          border-radius: 8px;
-          padding: 12px;
-        }
-
-        .transaction-table-wrap {
-          background: #ffffff;
-          border: 1px solid #d7deeb;
-          border-radius: 8px;
-        }
-
-        .transaction-table thead th {
-          background: #3f6dbc;
-          color: #fff;
-          vertical-align: top;
-          font-weight: 700;
-        }
-
-        .transaction-table tbody td {
-          background: #f8f9fc;
-        }
-
-        .multi-menu {
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: calc(100% + 4px);
-          background: #fff;
-          border: 1px solid #d7deeb;
-          border-radius: 8px;
-          z-index: 30;
-          max-height: 220px;
-          overflow: auto;
-          padding: 6px;
-        }
-
-        .multi-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 8px;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 13px;
-        }
-
-        .multi-item:hover {
-          background: #f3f6ff;
-        }
-
-        .transaction-contact-cell {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .transaction-contact-phone {
-          font-weight: 600;
-          color: #2e3c55;
-        }
-
-        .transaction-contact-cell .btn {
-          min-height: 30px;
-          border-radius: 999px;
-          padding-inline: 10px;
-        }
-
-        .transaction-contact-cell .btn-success {
-          background: #1d9a5b;
-          border-color: #1d9a5b;
-        }
-
-        .transaction-contact-cell .btn-success:hover {
-          background: #16874f;
-          border-color: #16874f;
-        }
-
-        @media (max-width: 991px) {
-          .transaction-table {
-            font-size: 13px;
-          }
-
-          .transaction-contact-cell {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-        }
-      `}</style>
+      <DataTable<TransactionTableRow>
+        title="Bảng điểm danh"
+        queryKey={[
+          'transaction-table',
+          selectedTripId,
+          selectedBusIds.join(','),
+          selectedRoundIds.join(','),
+          nameFilter,
+          departureRoundFilter,
+          returnRoundFilter,
+          dirtyEntries.length,
+        ]}
+        data={tableRows}
+        columns={tableColumns}
+        isLoading={isLoading}
+        isError={false}
+        onRefresh={() => {
+          refetchTransactions();
+          refetchPassengers();
+        }}
+        showActionBar={false}
+        showPagination={true}
+      />
     </div>
   );
 };

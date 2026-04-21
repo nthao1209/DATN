@@ -31,12 +31,12 @@ const RoleMobileView: React.FC<RoleMobileViewProps> = ({ rows, onDeleteRow, onCe
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Tên Role</label>
+              <label className="form-label small fw-bold mb-1">TÊN ROLE</label>
               <input className="form-control" value={row.name} onChange={(e) => onCellChange(row.localId, 'name', e.target.value)} placeholder="Tên role" />
             </div>
 
             <div className="mb-2">
-              <label className="form-label small fw-bold mb-1">Mô tả</label>
+              <label className="form-label small fw-bold mb-1">MÔ TẢ</label>
               <input className="form-control" value={row.description} onChange={(e) => onCellChange(row.localId, 'description', e.target.value)} placeholder="Mô tả role" />
             </div>
           </div>

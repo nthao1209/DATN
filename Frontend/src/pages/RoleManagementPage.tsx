@@ -1,17 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Trash2, Shield } from 'lucide-react';
-import DataTable, { type Column } from '../components/DataTable';
+import { Plus, Save, Shield } from 'lucide-react';
+import DataTable from '../components/DataTable';
 import RoleMobileView from '../components/mobile/RoleMobileView';
 import api from '../services/api';
-
-type RoleRow = {
-  id?: number;
-  localId: string;
-  name: string;
-  description: string;
-  isEdited?: boolean;
-};
+import { buildRoleColumns } from './role-management/columns';
+import type { RoleRow } from './role-management/types';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 8;
@@ -124,42 +118,10 @@ const RoleManagementPage: React.FC = () => {
     }
   };
 
-  const columns: Column<RoleRow>[] = [
-    { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
-    {
-      header: 'Tên Role',
-      key: 'name',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.name}
-          onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-          placeholder="Tên role"
-        />
-      ),
-    },
-    {
-      header: 'Mô tả',
-      key: 'description',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.description}
-          onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
-          placeholder="Mô tả role"
-        />
-      ),
-    },
-    {
-      header: 'Thao tác',
-      key: 'actions',
-      render: (row) => (
-        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-          <Trash2 size={14} />
-        </button>
-      ),
-    },
-  ];
+  const columns = buildRoleColumns({
+    handleCellChange,
+    handleDeleteRow,
+  });
 
   return (
     <div className="p-3 p-md-4">

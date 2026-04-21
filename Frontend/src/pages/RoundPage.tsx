@@ -1,22 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import DataTable, { type Column } from '../components/DataTable';
+import DataTable from '../components/DataTable';
 import RoundMobileView from '../components/mobile/RoundMobileView';
 import api from '../services/api';
-
-type RoundStatus = 'DOING' | 'DONE';
-
-type RoundRow = {
-  id?: number;
-  localId: string;
-  name: string;
-  time: string;
-  status: RoundStatus;
-  transactionCount: number;
-  isEdited?: boolean;
-};
+import { buildRoundColumns } from './round/columns';
+import type { RoundRow } from './round/types';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 8;
@@ -49,7 +39,7 @@ const RoundPage: React.FC = () => {
       localId: `db_${r.id}`,
       name: r.name || '',
       time: r.time || '',
-      status: (r.status === 'DONE' ? 'DONE' : 'DOING') as RoundStatus,
+      status: r.status === 'DONE' ? 'DONE' : 'DOING',
       transactionCount: Number(r?._count?.transactions || 0),
     }));
 
@@ -132,61 +122,10 @@ const RoundPage: React.FC = () => {
     }
   };
 
-  const columns: Column<RoundRow>[] = [
-    { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
-    {
-      header: 'Tên chặng',
-      key: 'name',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.name}
-          onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-          placeholder="Nhập tên chặng"
-        />
-      ),
-    },
-    {
-      header: 'Thời gian',
-      key: 'time',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.time}
-          onChange={(e) => handleCellChange(row.localId, 'time', e.target.value)}
-          placeholder="Ví dụ: 08:00"
-        />
-      ),
-    },
-    {
-      header: 'Tình trạng',
-      key: 'status',
-      render: (row) => (
-        <select
-          className="form-select form-select-sm"
-          value={row.status}
-          onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as RoundStatus)}
-        >
-          <option value="DOING">Đang diễn ra</option>
-          <option value="DONE">Hoàn thành</option>
-        </select>
-      ),
-    },
-    {
-      header: 'Số check-in',
-      key: 'transactionCount',
-      render: (row) => (row.id ? row.transactionCount : '-'),
-    },
-    {
-      header: 'Thao tác',
-      key: 'actions',
-      render: (row) => (
-        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-          <Trash2 size={14} />
-        </button>
-      ),
-    },
-  ];
+  const columns = buildRoundColumns({
+    handleCellChange,
+    handleDeleteRow,
+  });
 
   return (
     <div className="p-3 p-md-4">

@@ -1,22 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, Trash2, Users } from 'lucide-react';
-import DataTable, { type Column } from '../components/DataTable';
+import { Save, Users } from 'lucide-react';
+import DataTable from '../components/DataTable';
 import UserMobileView from '../components/mobile/UserMobileView';
 import api from '../services/api';
 import { format } from 'date-fns';
-
-type UserRow = {
-  id?: number;
-  localId: string;
-  email: string;
-  name: string;
-  createdDate: string;
-  latestAccessDate: string;
-  latestRole: string;
-  description?: string;
-  isEdited?: boolean;
-};
+import { buildUserColumns } from './user-management/columns';
+import type { UserRow } from './user-management/types';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 8;
@@ -123,46 +113,10 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
-  const columns: Column<UserRow>[] = [
-    { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
-    { header: 'Email', key: 'email', render: (row) => <span className="text-monospace">{row.email}</span> },
-    {
-      header: 'Tên',
-      key: 'name',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.name}
-          onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-          placeholder="Tên user"
-        />
-      ),
-    },
-    { header: 'Ngày tạo', key: 'createdDate', render: (row) => row.createdDate },
-    { header: 'Truy cập gần nhất', key: 'latestAccessDate', render: (row) => row.latestAccessDate },
-    { header: 'Role', key: 'latestRole', render: (row) => <span className="badge bg-info">{row.latestRole}</span> },
-    {
-      header: 'Ghi chú',
-      key: 'description',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.description}
-          onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
-          placeholder="Ghi chú"
-        />
-      ),
-    },
-    {
-      header: 'Thao tác',
-      key: 'actions',
-      render: (row) => (
-        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-          <Trash2 size={14} />
-        </button>
-      ),
-    },
-  ];
+  const columns = buildUserColumns({
+    handleCellChange,
+    handleDeleteRow,
+  });
 
   return (
     <div className="p-3 p-md-4">

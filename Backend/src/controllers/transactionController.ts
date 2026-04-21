@@ -23,16 +23,51 @@ export const transactionController = {
         return res.status(403).json({ message: 'Forbidden' });
       }
 
-      const transactions = await prisma.transaction.findMany({
-        where: {
-          bus: {
-            trip: {
-              tenantId
-            }
+      const managerCondition = req.roleId === 3 && req.user?.id
+        ? {
+            OR: [
+              {
+                bus: {
+                  managerId: req.user.id,
+                  trip: {
+                    tenantId
+                  }
+                }
+              },
+              {
+                passenger: {
+                  bus: {
+                    managerId: req.user.id,
+                    trip: {
+                      tenantId
+                    }
+                  }
+                }
+              }
+            ]
           }
-        },
+        : {
+            bus: {
+              trip: {
+                tenantId
+              }
+            }
+          };
+
+      const transactions = await prisma.transaction.findMany({
+        where: managerCondition,
         include: {
-          passenger: true,
+          passenger: {
+            include: {
+              bus: {
+                select: {
+                  id: true,
+                  busCode: true,
+                  registrationNumber: true
+                }
+              }
+            }
+          },
           round: true,
           bus: {
             select: {
@@ -88,6 +123,26 @@ export const transactionController = {
       });
       if (!passenger) return res.status(404).json({ message: 'Passenger not found' });
 
+      const existing = await prisma.transaction.findUnique({
+        where: {
+          passengerId_roundId: {
+            passengerId,
+            roundId
+          }
+        }
+      });
+
+      const incomingCheckIn = req.body?.checkIn !== undefined ? Boolean(req.body?.checkIn) : undefined;
+      const incomingCheckOut = req.body?.checkOut !== undefined ? Boolean(req.body?.checkOut) : undefined;
+      const incomingNote = req.body?.note ? String(req.body.note).trim() : null;
+
+      const nextCheckIn = existing
+        ? Boolean(existing.checkIn) || Boolean(incomingCheckIn)
+        : Boolean(incomingCheckIn);
+      const nextCheckOut = existing
+        ? Boolean(existing.checkOut) || Boolean(incomingCheckOut)
+        : Boolean(incomingCheckOut);
+
       const created = await prisma.transaction.upsert({
         where: {
           passengerId_roundId: {
@@ -97,17 +152,17 @@ export const transactionController = {
         },
         update: {
           busId,
-          checkIn: Boolean(req.body?.checkIn),
-          checkOut: Boolean(req.body?.checkOut),
-          note: req.body?.note ? String(req.body.note).trim() : null
+          checkIn: nextCheckIn,
+          checkOut: nextCheckOut,
+          note: incomingNote
         },
         create: {
           busId,
           roundId,
           passengerId,
-          checkIn: Boolean(req.body?.checkIn),
-          checkOut: Boolean(req.body?.checkOut),
-          note: req.body?.note ? String(req.body.note).trim() : null
+          checkIn: nextCheckIn,
+          checkOut: nextCheckOut,
+          note: incomingNote
         }
       });
 
@@ -146,14 +201,37 @@ export const transactionController = {
         return res.status(404).json({ message: 'Transaction not found' });
       }
 
+      const expectedUpdatedAtRaw = req.body?.expectedUpdatedAt;
+      if (expectedUpdatedAtRaw) {
+        const expectedUpdatedAt = new Date(String(expectedUpdatedAtRaw));
+        if (Number.isNaN(expectedUpdatedAt.getTime())) {
+          return res.status(400).json({ message: 'Invalid expectedUpdatedAt' });
+        }
+
+        if (existing.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+          return res.status(409).json({
+            message: 'Dữ liệu đã được cập nhật bởi người khác. Vui lòng tải lại để đồng bộ.',
+            latest: existing
+          });
+        }
+      }
+
       const checkInInput = req.body?.checkIn;
       const checkOutInput = req.body?.checkOut;
+
+      const nextCheckIn = checkInInput !== undefined
+        ? Boolean(checkInInput)
+        : existing.checkIn;
+
+      const nextCheckOut = checkOutInput !== undefined
+        ? Boolean(checkOutInput)
+        : existing.checkOut;
 
       const updated = await prisma.transaction.update({
         where: { id },
         data: {
-          ...(checkInInput !== undefined ? { checkIn: Boolean(checkInInput) } : {}),
-          ...(checkOutInput !== undefined ? { checkOut: Boolean(checkOutInput) } : {}),
+          ...(checkInInput !== undefined ? { checkIn: nextCheckIn } : {}),
+          ...(checkOutInput !== undefined ? { checkOut: nextCheckOut } : {}),
           ...(req.body?.note !== undefined ? { note: req.body.note ? String(req.body.note).trim() : null } : {})
         }
       });

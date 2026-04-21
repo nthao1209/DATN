@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyFirebaseToken = exports.verifyFirebaseTokenOnly = void 0;
+exports.verifyFirebaseToken = exports.verifyVerifiedFirebaseTokenOnly = exports.verifyFirebaseTokenOnly = void 0;
 const firebaseAdmin_1 = __importDefault(require("../config/firebaseAdmin"));
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
@@ -47,6 +47,16 @@ const getOrCreatePrismaUser = async (token) => {
     }
     return { user, decodedToken };
 };
+const rejectUnverifiedEmail = (res, decodedToken) => {
+    if (decodedToken.email_verified !== true) {
+        res.status(403).json({
+            message: 'Email chưa được xác thực',
+            code: 'EMAIL_NOT_VERIFIED'
+        });
+        return true;
+    }
+    return false;
+};
 // ✅ Middleware 1: Chỉ xác thực danh tính (Dùng cho Login, Profile, Join-Tenant)
 const verifyFirebaseTokenOnly = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
@@ -64,6 +74,25 @@ const verifyFirebaseTokenOnly = async (req, res, next) => {
     }
 };
 exports.verifyFirebaseTokenOnly = verifyFirebaseTokenOnly;
+const verifyVerifiedFirebaseTokenOnly = async (req, res, next) => {
+    const token = req.headers.authorization?.split('Bearer ')[1];
+    if (!token)
+        return res.status(401).json({ message: 'No token provided' });
+    try {
+        const { user, decodedToken } = await getOrCreatePrismaUser(token);
+        if (rejectUnverifiedEmail(res, decodedToken)) {
+            return;
+        }
+        req.user = user;
+        req.firebaseUser = decodedToken;
+        next();
+    }
+    catch (error) {
+        console.error('Auth Error:', error.message);
+        res.status(401).json({ message: 'Unauthorized' });
+    }
+};
+exports.verifyVerifiedFirebaseTokenOnly = verifyVerifiedFirebaseTokenOnly;
 // ✅ Middleware 2: Xác thực danh tính + Bắt buộc phải thuộc về một Tenant (Dùng cho Business logic: Trips, Buses...)
 const verifyFirebaseToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
@@ -71,6 +100,9 @@ const verifyFirebaseToken = async (req, res, next) => {
         return res.status(401).json({ message: 'No token provided' });
     try {
         const { user, decodedToken } = await getOrCreatePrismaUser(token);
+        if (rejectUnverifiedEmail(res, decodedToken)) {
+            return;
+        }
         // Tìm thông tin Tenant của User này
         const userTenant = await prisma.userTenant.findFirst({
             where: { userId: user.id },

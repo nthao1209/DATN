@@ -36,13 +36,14 @@ model Role {
 }
 
 model UserTenant {
-  id       Int    @id @default(autoincrement())
+  id       Int  @id @default(autoincrement())
   userId   Int
-  tenantId Int
+  tenantId Int?
   roleId   Int
-  role     Role   @relation(fields: [roleId], references: [id])
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role   Role    @relation(fields: [roleId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tenantId])
   @@index([userId])

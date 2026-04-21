@@ -1,18 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
+import { Link,  useNavigate } from 'react-router-dom';
 import { loginRequest } from '../../redux/slice/authSlice';
 import { type RootState } from '../../redux/store';
 
+const LS_EMAIL = "remember_email";
+const LS_PASSWORD = "remember_password";
+const LS_REMEMBER = "remember_me";
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const dispatch = useDispatch();
   const { loading, error } = useSelector((state: RootState) => state.auth);
 
+  useEffect(() => {
+    const remember = localStorage.getItem(LS_REMEMBER) === "1";
+    if (remember) {
+      setRememberMe(true);
+      setEmail(localStorage.getItem(LS_EMAIL) || "");
+      setPassword(localStorage.getItem(LS_PASSWORD) || "");
+    }
+  }, []);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (rememberMe) {
+      localStorage.setItem(LS_REMEMBER, "1");
+      localStorage.setItem(LS_EMAIL, email);
+      localStorage.setItem(LS_PASSWORD, password);
+    } else {
+      localStorage.removeItem(LS_REMEMBER);
+      localStorage.removeItem(LS_EMAIL);
+      localStorage.removeItem(LS_PASSWORD);
+    }
     dispatch(loginRequest({ email, password }));
+    navigate('/setup-org', { replace: true });
   };
 
   return (
@@ -29,6 +55,7 @@ const Login: React.FC = () => {
             <input
               type="email"
               placeholder="yourname@company.com"
+              autoComplete="email"
               required
               className="form-control form-control-lg"
               value={email}
@@ -39,14 +66,31 @@ const Login: React.FC = () => {
           <div className="mb-3">
             <label className="form-label auth-muted">Mật khẩu</label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="Nhập mật khẩu"
               required
+              autoComplete="current-password"
               className="form-control form-control-lg"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="btn btn-outline-secondary"
+            >
+              {showPassword ? 'Ẩn' : 'Hiển thị'}
+            </button>
           </div>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            Lưu tài khoản và mật khẩu
+          </label>
 
           {error && <div className="alert alert-danger py-2 small">{error}</div>}
 

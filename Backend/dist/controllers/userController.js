@@ -46,7 +46,7 @@ exports.userController = {
             const normalizedUsers = users.map((user) => ({
                 ...user,
                 latestRole: superAdminEmails.includes((user.email || '').toLowerCase())
-                    ? 'SuperAdmin'
+                    ? 'system_admin'
                     : (user.userTenants?.[0]?.role?.name || 'N/A'),
                 lastAccessAt: user.latestData || null,
             }));

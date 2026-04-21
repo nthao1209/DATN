@@ -23,7 +23,6 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Fetch danh sách tenant từ API status
   const { data: status, isLoading } = useQuery<{ tenants: Tenant[] }>({
     queryKey: ['userStatus'],
     queryFn: async () => (await api.getMyStatus()) as unknown as { tenants: Tenant[] },
@@ -52,9 +51,6 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
               </h5>
               <small className="text-muted">Bạn đang tham gia {tenants?.length || 0} tổ chức</small>
             </div>
-            <button type="button" className="btn btn-sm btn-light" onClick={onClose}>
-              <X size={16} />
-            </button>
           </div>
 
           <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -86,7 +82,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
                       <div>
                         <div className="fw-semibold">{tenant.name}</div>
                         <small className={currentTenant?.id === tenant.id ? 'text-white-50' : 'text-muted'}>
-                          Vai trò: {tenant.role || 'member'}
+                          Vai trò: {typeof tenant.role === 'string' ? tenant.role : tenant.role?.name ?? 'member'}
                         </small>
                       </div>
                     </div>

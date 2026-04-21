@@ -1,0 +1,136 @@
+.transaction-page {
+  background: #f2f4f8;
+  border-radius: 10px;
+}
+
+.transaction-toolbar {
+  background: #ffffff;
+  border: 1px solid #d7deeb;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.transaction-page .app-dark-surface {
+  background: #ffffff !important;
+}
+
+.transaction-page .app-dark-soft {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+}
+
+.transaction-page .table > :not(caption) > * > * {
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  border-color: #e5e7eb !important;
+}
+
+.transaction-page .table thead th {
+  color: #4b5563 !important;
+  background-color: #f9fafb !important;
+}
+
+.transaction-page .table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+.transaction-title {
+  color: #045678;
+}
+
+.attendance-add-panel {
+  background: #ffffff;
+  border: 1px solid #d7deeb;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.attendance-search-list {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+  background: #f9fafb;
+}
+
+.attendance-search-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.attendance-search-item:hover {
+  background: #eef2ff;
+}
+
+.multi-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #fff;
+  border: 1px solid #d7deeb;
+  border-radius: 8px;
+  z-index: 30;
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.multi-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.multi-item:hover {
+  background: #f3f6ff;
+}
+
+.transaction-contact-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.transaction-contact-phone {
+  font-weight: 600;
+  color: #2e3c55;
+}
+
+.transaction-contact-cell .btn {
+  min-height: 30px;
+  border-radius: 999px;
+  padding-inline: 10px;
+}
+
+.transaction-contact-cell .btn-success {
+  background: #1d9a5b;
+  border-color: #1d9a5b;
+}
+
+.transaction-contact-cell .btn-success:hover {
+  background: #16874f;
+  border-color: #16874f;
+}
+
+@media (max-width: 991px) {
+  .transaction-table {
+    font-size: 13px;
+  }
+
+  .transaction-contact-cell {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

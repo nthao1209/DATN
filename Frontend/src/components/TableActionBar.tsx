@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, RotateCw, FileSpreadsheet, FileText } from 'lucide-react';
+import { Search, Plus, RotateCw, FileText } from 'lucide-react';
 
 export interface FilterConfig {
   label: string;
@@ -49,9 +49,6 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
           <div className="d-flex gap-1 ms-2">
             <button className="btn btn-sm btn-white border bg-white" onClick={onRefresh} title="Tải lại">
               <RotateCw size={14} className={`text-primary ${isFetching ? 'spin' : ''}`} />
-            </button>
-            <button className="btn btn-sm btn-white border bg-white" title="Xuất Excel">
-              <FileSpreadsheet size={14} className="text-success" />
             </button>
             <button className="btn btn-sm btn-white border bg-white" title="Xuất PDF">
               <FileText size={14} className="text-danger" />

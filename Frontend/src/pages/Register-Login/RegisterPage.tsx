@@ -74,6 +74,7 @@ const Register: React.FC = () => {
             <input
               type="text"
               required
+              autoComplete="name"
               className="form-control form-control-lg"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -85,6 +86,7 @@ const Register: React.FC = () => {
             <input
               type="email"
               required
+              autoComplete="email"
               className="form-control form-control-lg"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -97,6 +99,7 @@ const Register: React.FC = () => {
               type="password"
               required
               minLength={6}
+              autoComplete="new-password"
               className="form-control form-control-lg"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -110,6 +113,7 @@ const Register: React.FC = () => {
               type="password"
               required
               minLength={6}
+              autoComplete="new-password"
               className="form-control form-control-lg"
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}

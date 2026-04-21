@@ -1,22 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import DataTable, { type Column } from '../components/DataTable';
+import DataTable from '../components/DataTable';
 import TripMobileView from '../components/mobile/TripMobileView';
 import api from '../services/api';
-
-type TripStatus = 'DOING' | 'DONE';
-
-type TripRow = {
-  id?: number;
-  localId: string;
-  name: string;
-  status: TripStatus;
-  busCount: number;
-  roundCount: number;
-  isEdited?: boolean;
-};
+import { buildTripColumns } from './trip/columns';
+import type { TripRow } from './trip/types';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 8;
@@ -47,7 +37,7 @@ const TripPage: React.FC = () => {
       id: Number(t.id),
       localId: `db_${t.id}`,
       name: t.name || '',
-      status: (t.status === 'DONE' ? 'DONE' : 'DOING') as TripStatus,
+      status: t.status === 'DONE' ? 'DONE' : 'DOING',
       busCount: Number(t?._count?.buses || 0),
       roundCount: Number(t?._count?.rounds || 0),
     }));
@@ -126,68 +116,12 @@ const TripPage: React.FC = () => {
     }
   };
 
-  const columns: Column<TripRow>[] = [
-    { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
-    {
-      header: 'Tên chuyến',
-      key: 'name',
-      render: (row) => (
-        <input
-          className="form-control form-control-sm"
-          value={row.name}
-          onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-          placeholder="Nhập tên chuyến"
-        />
-      ),
-    },
-    {
-      header: 'Trạng thái',
-      key: 'status',
-      render: (row) => (
-        <select
-          className="form-select form-select-sm"
-          value={row.status}
-          onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as TripStatus)}
-        >
-          <option value="DOING">Đang diễn ra</option>
-          <option value="DONE">Hoàn thành</option>
-        </select>
-      ),
-    },
-    {
-      header: 'Số xe',
-      key: 'busCount',
-      render: (row) =>
-        row.id ? (
-          <button className="btn btn-sm btn-link fw-bold text-decoration-none p-0" onClick={() => navigate(`/trips/${row.id}/buses`)}>
-            {row.busCount}
-          </button>
-        ) : (
-          '-'
-        ),
-    },
-    {
-      header: 'Số round',
-      key: 'roundCount',
-      render: (row) =>
-        row.id ? (
-          <button className="btn btn-sm btn-link fw-bold text-decoration-none p-0" onClick={() => navigate(`/trips/${row.id}/rounds`)}>
-            {row.roundCount}
-          </button>
-        ) : (
-          '-'
-        ),
-    },
-    {
-      header: 'Thao tác',
-      key: 'actions',
-      render: (row) => (
-        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-          <Trash2 size={14} />
-        </button>
-      ),
-    },
-  ];
+  const columns = buildTripColumns({
+    handleCellChange,
+    handleDeleteRow,
+    onManageBuses: (id) => navigate(`/trips/${id}/buses`),
+    onManageRounds: (id) => navigate(`/trips/${id}/rounds`),
+  });
 
   return (
     <div className="p-3 p-md-4">

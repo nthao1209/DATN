@@ -1,0 +1,31 @@
+{
+  "name": "mqtt-worker",
+  "version": "1.0.0",
+  "description": "```plain\r mqtt-worker/\r ├── configs/                # Chứa các file duan_01.config.json...\r ├── src/                    # Chứa mã nguồn TypeScript\r │   ├── types.ts            # Định nghĩa Interface\r │   ├── master.ts           # Trình điều phối chính\r │   └── worker.ts           # Logic xử lý từng dự án\r ├── dist/                   # Chứa file Javascript sau khi biên dịch (tự sinh)\r ├── package.json\r ├── tsconfig.json           # Cấu hình TypeScript\r └── .gitignore\r ```",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node --loader ts-node/esm src/master.ts",
+    "build": "rimraf dist && tsc",
+    "start": "node dist/master.js",
+    "pm2": "npm run build && pm2 restart mqtt-aggregator || pm2 start dist/master.js --name mqtt-aggregator",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^25.3.1",
+    "@types/pg": "^8.20.0",
+    "mqtt": "^5.15.1",
+    "mysql2": "^3.18.1",
+    "rimraf": "^6.1.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "pg": "^8.20.0"
+  }
+}

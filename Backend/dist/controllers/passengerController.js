@@ -8,6 +8,8 @@ exports.passengerController = {
         try {
             const tripId = Number(req.params.tripId);
             const busIdQuery = req.query.busId;
+            const scope = String(req.query.scope || '');
+            const keyword = String(req.query.keyword || '').trim();
             const busId = busIdQuery ? Number(busIdQuery) : undefined;
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -18,10 +20,24 @@ exports.passengerController = {
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
+            const managerFilter = scope === 'attendance'
+                ? {}
+                : req.roleId === 3 && req.user?.id
+                    ? { managerId: req.user.id }
+                    : {};
             const passengers = await prisma.passenger.findMany({
                 where: {
+                    ...(keyword
+                        ? {
+                            name: {
+                                contains: keyword,
+                                mode: 'insensitive'
+                            }
+                        }
+                        : {}),
                     bus: {
                         ...(busId ? { id: busId } : {}),
+                        ...managerFilter,
                         trip: {
                             id: tripId,
                             tenantId: req.tenantId

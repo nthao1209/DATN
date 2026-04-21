@@ -35,6 +35,11 @@ const App: React.FC = () => {
           return;
         }
 
+        if (!firebaseUser.emailVerified) {
+          dispatch(logout());
+          return;
+        }
+
         const token = await firebaseUser.getIdToken();
         const response = await api.getMyStatus();
         const status = (response as any)?.data ?? response;
@@ -68,7 +73,6 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        {/* NHÓM 1: CHƯA ĐĂNG NHẬP */}
         {!user ? (
           <>
             <Route path="/login" element={<Login />} />
@@ -90,6 +94,7 @@ const App: React.FC = () => {
             <>
               <Route element={<Layout />}>
                 {/* Dashboard - tất cả roles đều có thể xem */}
+                <Route path="/setup-org" element={<SetupOrg />} />
                 <Route path="/dashboard" element={<Dashboard />} />
 
                 {/* SuperAdmin Routes - Role 1 */}

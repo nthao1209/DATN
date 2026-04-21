@@ -7,7 +7,7 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed": "ts-node prisma/seed.ts",
+    "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts",
     "db:seed": "prisma db seed"
   },
   "keywords": [],
@@ -33,6 +33,6 @@
     "typescript": "^5.9.3"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node -P tsconfig.seed.json prisma/seed.ts"
   }
 }
