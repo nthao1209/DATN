@@ -1,142 +1,318 @@
-import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
-import { registerRequest } from '../../redux/slice/authSlice';
-import { type RootState } from '../../redux/store';
-import { fetchSignInMethodsForEmail } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import React, { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { Link } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { Eye, EyeOff } from "lucide-react";
+import { fetchSignInMethodsForEmail } from "firebase/auth";
+
+import { registerRequest } from "../../redux/slice/authSlice";
+import { type RootState } from "../../redux/store";
+import { auth } from "../../config/firebase";
+import AuthLayout from "../../layouts/AuthLayout";
+
+type RegisterFormData = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 const Register: React.FC = () => {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
-  const [formError, setFormError] = useState<string | null>(null);
   const dispatch = useDispatch();
-  const { loading, error, statusMessage } = useSelector((state: RootState) => state.auth);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
+  const { loading, error, statusMessage } = useSelector(
+    (state: RootState) => state.auth
+  );
 
-    if (formData.password.length < 6) {
-      setFormError('Mật khẩu phải có ít nhất 6 ký tự.');
-      return;
+  const [showPassword, setShowPassword] =
+    useState(false);
+
+  const [
+    showConfirmPassword,
+    setShowConfirmPassword
+  ] = useState(false);
+
+  const [formError, setFormError] =
+    useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors }
+  } = useForm<RegisterFormData>({
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: ""
     }
+  });
 
-    if (formData.password !== formData.confirmPassword) {
-      setFormError('Mật khẩu nhập lại không khớp.');
-      return;
-    }
+  const passwordValue = watch("password");
 
-    try {
-      const signInMethods = await fetchSignInMethodsForEmail(auth, formData.email.trim());
-      if (signInMethods.length > 0) {
-        setFormError('Email này đã được sử dụng. Vui lòng dùng email khác.');
-        return;
+  const onSubmit = handleSubmit(
+    async (data) => {
+      setFormError(null);
+
+      try {
+        const methods =
+          await fetchSignInMethodsForEmail(
+            auth,
+            data.email.trim()
+          );
+
+        if (methods.length > 0) {
+          setFormError(
+            "Email này đã được sử dụng"
+          );
+          return;
+        }
+
+        dispatch(
+          registerRequest({
+            name: data.name,
+            email: data.email,
+            password: data.password
+          })
+        );
+      } catch {
+        setFormError(
+          "Không thể kiểm tra email lúc này"
+        );
       }
-    } catch {
-      setFormError('Không thể kiểm tra email lúc này. Vui lòng thử lại.');
-      return;
     }
-
-    const payload = {
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-    };
-
-    dispatch(registerRequest(payload));
-  };
+  );
 
   if (statusMessage) {
     return (
-      <div className="auth-shell">
-        <div className="auth-card p-4 p-md-5 text-center">
-          <h2 className="h4 fw-bold text-success mb-3">Đăng ký thành công</h2>
-          <p className="auth-muted mb-4">{statusMessage}</p>
-          <Link to="/login" className="btn btn-outline-info fw-semibold px-4">
-            Quay lại đăng nhập
+      <AuthLayout>
+        <div className="w-100 text-center">
+          <h2 className="fw-bold text-success mb-3">
+            Đăng ký thành công
+          </h2>
+
+          <p className="auth-muted mb-4">
+            {statusMessage}
+          </p>
+
+          <Link
+            to="/login"
+            className="btn btn-info px-4 fw-semibold text-dark"
+          >
+            Đăng nhập ngay
           </Link>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="auth-shell">
-      <div className="auth-card p-4 p-md-5">
+    <AuthLayout>
+      <div className="w-100">
         <div className="mb-4 text-center">
-          <h1 className="h3 fw-bold text-light mb-2">Tạo tài khoản mới</h1>
-          <p className="auth-muted mb-0">Bắt đầu hệ thống quản lý cho tổ chức của bạn.</p>
+          <h1 className="h3 fw-bold text-light mb-2">
+            Tạo tài khoản mới
+          </h1>
+          
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={onSubmit}>
           <div className="mb-3">
             <label className="form-label auth-muted">Họ và tên</label>
+
             <input
               type="text"
-              required
+              placeholder="Nguyen Van A"
               autoComplete="name"
-              className="form-control form-control-lg"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className={`form-control form-control-lg ${
+                errors.name ? "is-invalid" : ""
+              }`}
+              {...register("name", {
+                required:
+                  "Họ tên không được để trống"
+              })}
             />
+
+            {errors.name && (
+              <div className="invalid-feedback">
+                {errors.name.message}
+              </div>
+            )}
           </div>
 
           <div className="mb-3">
             <label className="form-label auth-muted">Email</label>
+
             <input
               type="email"
-              required
+              placeholder="you@company.com"
               autoComplete="email"
-              className="form-control form-control-lg"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className={`form-control form-control-lg ${
+                errors.email ? "is-invalid" : ""
+              }`}
+              {...register("email", {
+                required:
+                  "Email không được để trống",
+                pattern: {
+                  value:
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message:
+                    "Email không hợp lệ"
+                }
+              })}
             />
+
+            {errors.email && (
+              <div className="invalid-feedback">
+                {errors.email.message}
+              </div>
+            )}
           </div>
 
           <div className="mb-3">
             <label className="form-label auth-muted">Mật khẩu</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              className="form-control form-control-lg"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            />
-            <div className="form-text auth-muted">Tối thiểu 6 ký tự.</div>
+
+            <div className="input-group">
+              <input
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
+                placeholder="Tối thiểu 8 ký tự"
+                autoComplete="new-password"
+                className={`form-control form-control-lg ${
+                  errors.password
+                    ? "is-invalid"
+                    : ""
+                }`}
+                {...register("password", {
+                  required:
+                    "Mật khẩu không được để trống",
+                  minLength: {
+                    value: 8,
+                    message: "Tối thiểu 8 ký tự"
+                  }
+                })}
+              />
+
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() =>
+                  setShowPassword((v) => !v)
+                }
+              >
+                {showPassword ? (
+                  <EyeOff size={18} />
+                ) : (
+                  <Eye size={18} />
+                )}
+              </button>
+            </div>
+
+            {errors.password && (
+              <div className="text-danger small mt-1">
+                {errors.password.message}
+              </div>
+            )}
           </div>
 
           <div className="mb-3">
             <label className="form-label auth-muted">Nhập lại mật khẩu</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              className="form-control form-control-lg"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-            />
+
+            <div className="input-group">
+              <input
+                type={
+                  showConfirmPassword
+                    ? "text"
+                    : "password"
+                }
+                placeholder="Nhập lại mật khẩu"
+                autoComplete="new-password"
+                className={`form-control form-control-lg ${
+                  errors.confirmPassword
+                    ? "is-invalid"
+                    : ""
+                }`}
+                {...register(
+                  "confirmPassword",
+                  {
+                    required:
+                      "Vui lòng nhập lại mật khẩu",
+                    validate: (value) =>
+                      value ===
+                        passwordValue ||
+                      "Mật khẩu không khớp"
+                  }
+                )}
+              />
+
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() =>
+                  setShowConfirmPassword(
+                    (v) => !v
+                  )
+                }
+              >
+                {showConfirmPassword ? (
+                  <EyeOff size={18} />
+                ) : (
+                  <Eye size={18} />
+                )}
+              </button>
+            </div>
+
+            {errors.confirmPassword && (
+              <div className="text-danger small mt-1">
+                {
+                  errors.confirmPassword
+                    .message
+                }
+              </div>
+            )}
           </div>
 
-          {formError && <div className="alert alert-warning py-2 small">{formError}</div>}
-          {error && <div className="alert alert-danger py-2 small">{error}</div>}
+          {formError && (
+            <div className="alert alert-warning py-2 small">
+              {formError}
+            </div>
+          )}
+
+          {error && (
+            <div className="alert alert-danger py-2 small">
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-info btn-lg w-100 fw-semibold text-dark"
+            className="btn btn-info btn-lg w-100 fw-semibold text-dark mt-2"
           >
-            {loading ? 'Đang xử lý...' : 'Đăng ký'}
+            {loading
+              ? "Đang xử lý..."
+              : "Đăng ký"}
           </button>
         </form>
 
-        <p className="mt-4 text-center auth-muted mb-0">
-          Đã có tài khoản? <Link to="/login" className="text-info fw-semibold">Đăng nhập</Link>
-        </p>
+        <div className="d-flex justify-content-between align-items-center mt-4 small">
+          <Link to="/forgot-password" className="auth-muted text-decoration-none">
+            Quên mật khẩu?
+          </Link>
+
+          <Link
+            to="/login"
+            className="text-info fw-semibold"
+          >
+            Đã có tài khoản? Đăng nhập
+          </Link>
+        </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 

@@ -1,46 +1,46 @@
 .transaction-page {
-  background: #f2f4f8;
+  background: var(--tx-page-bg);
   border-radius: 10px;
 }
 
 .transaction-toolbar {
-  background: #ffffff;
-  border: 1px solid #d7deeb;
+  background: var(--tx-toolbar-bg);
+  border: 1px solid var(--tx-toolbar-border);
   border-radius: 8px;
   padding: 12px;
 }
 
 .transaction-page .app-dark-surface {
-  background: #ffffff !important;
+  background: var(--tx-soft-bg) !important;
 }
 
 .transaction-page .app-dark-soft {
-  background: #ffffff !important;
-  border-color: #e5e7eb !important;
+  background: var(--tx-soft-bg) !important;
+  border-color: var(--tx-soft-border) !important;
 }
 
 .transaction-page .table > :not(caption) > * > * {
-  background-color: #ffffff !important;
-  color: #1f2937 !important;
-  border-color: #e5e7eb !important;
+  background-color: var(--tx-table-cell-bg) !important;
+  color: var(--tx-table-cell-color) !important;
+  border-color: var(--tx-table-cell-border) !important;
 }
 
 .transaction-page .table thead th {
-  color: #4b5563 !important;
-  background-color: #f9fafb !important;
+  color: var(--tx-table-head-color) !important;
+  background-color: var(--tx-table-head-bg) !important;
 }
 
 .transaction-page .table tbody tr:hover {
-  background: #f8fafc !important;
+  background: var(--tx-table-row-hover) !important;
 }
 
 .transaction-title {
-  color: #045678;
+  color: var(--tx-title-color);
 }
 
 .attendance-add-panel {
-  background: #ffffff;
-  border: 1px solid #d7deeb;
+  background: var(--tx-toolbar-bg);
+  border: 1px solid var(--tx-toolbar-border);
   border-radius: 8px;
   padding: 12px;
 }
@@ -48,10 +48,10 @@
 .attendance-search-list {
   max-height: 220px;
   overflow: auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--tx-search-list-border);
   border-radius: 8px;
   padding: 8px;
-  background: #f9fafb;
+  background: var(--tx-search-list-bg);
 }
 
 .attendance-search-item {
@@ -64,7 +64,7 @@
 }
 
 .attendance-search-item:hover {
-  background: #eef2ff;
+  background: var(--tx-hover-soft);
 }
 
 .multi-menu {
@@ -72,8 +72,8 @@
   left: 0;
   right: 0;
   top: calc(100% + 4px);
-  background: #fff;
-  border: 1px solid #d7deeb;
+  background: var(--tx-toolbar-bg);
+  border: 1px solid var(--tx-toolbar-border);
   border-radius: 8px;
   z-index: 30;
   max-height: 220px;
@@ -92,7 +92,7 @@
 }
 
 .multi-item:hover {
-  background: #f3f6ff;
+  background: var(--tx-hover-soft);
 }
 
 .transaction-contact-cell {
@@ -105,7 +105,7 @@
 
 .transaction-contact-phone {
   font-weight: 600;
-  color: #2e3c55;
+  color: var(--tx-contact-phone);
 }
 
 .transaction-contact-cell .btn {
@@ -115,13 +115,13 @@
 }
 
 .transaction-contact-cell .btn-success {
-  background: #1d9a5b;
-  border-color: #1d9a5b;
+  background: var(--tx-success-bg);
+  border-color: var(--tx-success-bg);
 }
 
 .transaction-contact-cell .btn-success:hover {
-  background: #16874f;
-  border-color: #16874f;
+  background: var(--tx-success-bg-hover);
+  border-color: var(--tx-success-bg-hover);
 }
 
 @media (max-width: 991px) {

@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../components/DataTable';
-import TripMobileView from '../components/mobile/TripMobileView';
 import api from '../services/api';
 import { buildTripColumns } from './trip/columns';
 import type { TripRow } from './trip/types';
@@ -144,15 +143,7 @@ const TripPage: React.FC = () => {
         </button>
       </div>
 
-      {isMobile ? (
-        <TripMobileView
-          rows={rows}
-          onDeleteRow={handleDeleteRow}
-          onCellChange={handleCellChange}
-          onManageBuses={(id) => navigate(`/trips/${id}/buses`)}
-          onManageRounds={(id) => navigate(`/trips/${id}/rounds`)}
-        />
-      ) : (
+      
         <DataTable
           title="Danh sách các chuyến đi"
           columns={columns}
@@ -165,7 +156,7 @@ const TripPage: React.FC = () => {
             refetch();
           }}
         />
-      )}
+  
 
       <style>{`
         .card .form-control,

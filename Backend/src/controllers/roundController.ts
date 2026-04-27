@@ -35,7 +35,23 @@ export const roundController = {
           }          
         });
 
-      res.json(rounds);
+      const passengerCount = await prisma.passenger.count({
+        where: {
+          bus: {
+            tripId,
+            trip: {
+              tenantId: req.tenantId,
+            },
+          },
+        },
+      });
+
+      const roundsWithStats = rounds.map((round) => ({
+        ...round,
+        passengerCount,
+      }));
+
+      res.json(roundsWithStats);
     } catch (error: any) {      
       res.status(500).json({
         message: 'Server error',
@@ -100,7 +116,22 @@ export const roundController = {
         }
       });
 
-      res.status(201).json(createdRound ?? round);
+      const passengerCount = await prisma.passenger.count({
+        where: {
+          bus: {
+            tripId,
+            trip: {
+              tenantId: req.tenantId,
+            },
+          },
+        },
+      });
+
+      const createdRoundWithStats = createdRound
+        ? { ...createdRound, passengerCount }
+        : { ...round, _count: { transactions: 0 }, passengerCount };
+
+      res.status(201).json(createdRoundWithStats);
     } catch (error: any) {
       console.error(' create round error:', error);
 

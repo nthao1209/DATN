@@ -12,6 +12,7 @@ import roleRoutes from './routes/roleRoute';
 import transactionRoutes from './routes/transactionRoute';
 dotenv.config()
 
+
 const app = express()
 
 app.use(cors())

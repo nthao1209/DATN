@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const authMiddleware_1 = require("../middleware/authMiddleware");
+const roleController_1 = require("../controllers/roleController");
+const router = (0, express_1.Router)();
+router.get('/roles', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, roleController_1.roleController.getAll);
+router.post('/roles', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, roleController_1.roleController.create);
+router.put('/roles/:id', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, roleController_1.roleController.update);
+router.delete('/roles/:id', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, roleController_1.roleController.delete);
+exports.default = router;

@@ -57,7 +57,7 @@ export const buildRoundColumns = ({
   {
     header: 'Số check-in',
     key: 'transactionCount',
-    render: (row) => (row.id ? row.transactionCount : '-'),
+    render: (row) => (row.id ? `${row.transactionCount}/${row.passengerCount}` : '-'),
   },
   {
     header: 'Thao tác',

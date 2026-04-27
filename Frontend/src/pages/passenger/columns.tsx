@@ -27,9 +27,11 @@ export const buildPassengerColumns = ({
   {
     header: 'Họ và tên',
     key: 'name',
+    width: '320px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
+        style={{ minWidth: 280 }}
         value={row.name}
         onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
         placeholder="Nhập tên"
@@ -44,7 +46,7 @@ export const buildPassengerColumns = ({
         className="form-control form-control-sm"
         inputMode="numeric"
         maxLength={10}
-        pattern="^[1-9][0-9]{9}$"
+        pattern="^0[0-9]{9}$"
         value={row.tel}
         onChange={(e) => handleCellChange(row.localId, 'tel', e.target.value.replace(/\D/g, ''))}
         placeholder="Nhập số điện thoại"
@@ -79,6 +81,7 @@ export const buildPassengerColumns = ({
             handleCellChange(row.localId, 'busId', nextBusId);
             handleCellChange(row.localId, 'busCode', nextBus?.busCode || '');
           }}
+          style={{ maxWidth: 120 }}
         >
           <option value="">-- Chọn xe --</option>
           {tripBuses.map((bus) => (
@@ -99,6 +102,7 @@ export const buildPassengerColumns = ({
         value={row.note}
         onChange={(e) => handleCellChange(row.localId, 'note', e.target.value)}
         placeholder="Ghi chú"
+        style={{ minWidth: 200 }}
       />
     ),
   },

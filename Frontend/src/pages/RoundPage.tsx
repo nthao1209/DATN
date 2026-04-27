@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Save } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
-import RoundMobileView from '../components/mobile/RoundMobileView';
 import api from '../services/api';
 import { buildRoundColumns } from './round/columns';
 import type { RoundRow } from './round/types';
@@ -41,6 +40,7 @@ const RoundPage: React.FC = () => {
       time: r.time || '',
       status: r.status === 'DONE' ? 'DONE' : 'DOING',
       transactionCount: Number(r?._count?.transactions || 0),
+      passengerCount: Number(r?.passengerCount || 0),
     }));
 
     const padded = [...mapped];
@@ -51,6 +51,7 @@ const RoundPage: React.FC = () => {
         time: '',
         status: 'DOING',
         transactionCount: 0,
+        passengerCount: 0,
       });
     }
 
@@ -82,6 +83,7 @@ const RoundPage: React.FC = () => {
         time: '',
         status: 'DOING',
         transactionCount: 0,
+        passengerCount: 0,
       },
     ]);
   };
@@ -148,9 +150,7 @@ const RoundPage: React.FC = () => {
         </button>
       </div>
 
-      {isMobile ? (
-        <RoundMobileView rows={rows} onDeleteRow={handleDeleteRow} onCellChange={handleCellChange} />
-      ) : (
+  
         <DataTable
           title="Danh sách các chặng"
           columns={columns}
@@ -163,7 +163,6 @@ const RoundPage: React.FC = () => {
             refetch();
           }}
         />
-      )}
 
       <style>{`
         .card .form-control,

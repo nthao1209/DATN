@@ -21,13 +21,25 @@ services:
     build: ./Backend
     container_name: backend_service
     restart: always
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run start"
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run dev"
     env_file:
       - ./Backend/.env
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public"
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
     ports:
       - "5000:5000"
+    volumes:
+      - ./Backend/src:/app/src
+      - ./Backend/prisma:/app/prisma
+      - ./Backend/.env:/app/.env
+      - ./Backend/tsconfig.json:/app/tsconfig.json
+      - ./Backend/tsconfig.seed.json:/app/tsconfig.seed.json
+      - ./Backend/package.json:/app/package.json
+      - ./Backend/nodemon.json:/app/nodemon.json
+      - /app/node_modules
+      - /app/dist
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,8 +50,23 @@ services:
     restart: always
     env_file:
       - ./Frontend/.env
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_AGGREGATION_TIMEOUT: "1000"
     ports:
       - "5173:5173"
+    volumes:
+      - ./Frontend/src:/app/src
+      - ./Frontend/public:/app/public
+      - ./Frontend/index.html:/app/index.html
+      - ./Frontend/vite.config.ts:/app/vite.config.ts
+      - ./Frontend/tsconfig.json:/app/tsconfig.json
+      - ./Frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./Frontend/eslint.config.js:/app/eslint.config.js
+      - /app/node_modules
+      - /app/dist
     depends_on:
       - backend
   mqtt-worker:

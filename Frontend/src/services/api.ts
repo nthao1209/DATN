@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { auth as fbAuth } from '../config/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
+import type { PassengerImportPreviewResponse } from '../pages/passenger/types';
 
 
 const axiosClient = axios.create({
@@ -59,7 +60,37 @@ axiosClient.interceptors.response.use(
       }
     }
 
-    const message = error.response?.data?.detail || error.response?.data?.message || "Lỗi kết nối server";
+    const method = String(originalRequest?.method || 'GET').toUpperCase();
+    const base = String(originalRequest?.baseURL || axiosClient.defaults.baseURL || '');
+    const path = String(originalRequest?.url || 'unknown-endpoint');
+    const endpoint = path.startsWith('http') ? path : `${base}${path}`;
+    const status = error.response?.status;
+    const responseData = error.response?.data;
+    const backendMessage =
+      responseData?.detail ||
+      responseData?.message ||
+      (typeof responseData === 'string' ? responseData : '');
+
+    let message = '';
+
+    if (error.code === 'ECONNABORTED') {
+      message = `Timeout khi gọi API ${method} ${endpoint}. Vui lòng kiểm tra server hoặc mạng.`;
+    } else if (!error.response) {
+      message = `Không thể kết nối server tại ${endpoint}. Lỗi mạng: ${error.message || 'Unknown network error'}`;
+    } else {
+      message = `[${status}] ${method} ${endpoint} - ${backendMessage || 'Server không trả về chi tiết lỗi'}`;
+    }
+
+    console.error('API Request Failed', {
+      method,
+      endpoint,
+      status,
+      code: error.code,
+      backendMessage,
+      responseData,
+      requestData: originalRequest?.data,
+    });
+
     return Promise.reject(new Error(message));
   }
 );
@@ -142,7 +173,7 @@ export const api = {
     axiosClient.delete(`/rounds/${id}`),
 
   // Passenger APIs
-  getPassengers: (tripId: string, busId?: string) =>
+  getPassengers: (tripId?: string, busId?: string) =>
     axiosClient.get<any[], any[]>(
       busId
         ? `/trips/${tripId}/passengers?busId=${busId}`
@@ -165,6 +196,21 @@ export const api = {
 
   deletePassenger: (id: string) =>
     axiosClient.delete(`/passengers/${id}`),
+
+  importPassengersPreview: (tripId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return axiosClient.post<PassengerImportPreviewResponse, PassengerImportPreviewResponse>(
+      `/trips/${tripId}/passengers/import-preview`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+  },
 
   // User APIs
   getUsers: () =>

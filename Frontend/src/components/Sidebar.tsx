@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard, Users, ShieldCheck, UserCircle,
+  LayoutDashboard, Users, UserCircle,
   MapPin, Route, Bus, Info, ChevronDown, Menu, X, Clock
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../redux/store';
+import { useTheme } from '../theme/ThemeContext';
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -13,6 +14,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
+  const { colors } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const { roleId } = useSelector((state: RootState) => state.auth);
@@ -35,41 +37,34 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     );
   };
 
-  // Determine menu items based on role
-  const getMenuItems = () => {
-    const isSuperAdmin = roleId === 1;
-    const isAdmin = roleId === 2;
-    const isBusManager = roleId === 3;
-
-    return {
-      dashboard: true, 
-      userManagement: isSuperAdmin,
-      roleManagement: isSuperAdmin,
-      trips: isAdmin,
-      passengers: isAdmin,
-      transactions: isBusManager,
-      about: true,
-    };
+  const menuConfig = {
+    dashboard: true,
+    userManagement: roleId === 1,
+    roleManagement: roleId === 1,
+    trips: roleId === 2,
+    passengers: roleId === 2,
+    transactions: roleId === 3,
+    about: true,
   };
-
-  const menuItems = getMenuItems();
 
   const MenuItem = ({ to, icon: Icon, label, badge }: any) => {
     const active = isActive(to);
     return (
-      <li className="nav-item">
+      <li className="nav-item mb-1">
         <Link
           to={to}
-          className={`nav-link d-flex align-items-center rounded transition-all ${
-            active ? 'bg-primary text-white shadow' : 'text-light hover-bg-light'
+          className={`nav-link d-flex align-items-center py-2.5 px-3 rounded-3 transition-all ${
+            active 
+              ? 'bg-primary text-white shadow-lg active-glow' 
+              : 'text-gray-400 hover-sidebar-dark'
           }`}
           title={label}
         >
-          <Icon size={18} className={collapsed ? 'm-0' : 'me-2'} />
+          <Icon size={19} className={collapsed ? 'mx-auto' : 'me-3'} strokeWidth={active ? 2.5 : 2} />
           {!collapsed && (
             <>
-              <span className="flex-grow-1">{label}</span>
-              {badge && <span className="badge bg-info rounded-pill ms-auto">{badge}</span>}
+              <span className="flex-grow-1" style={{ fontSize: '0.925rem' }}>{label}</span>
+              {badge && <span className="badge rounded-pill bg-danger ms-2" style={{ fontSize: '10px' }}>{badge}</span>}
             </>
           )}
         </Link>
@@ -79,120 +74,140 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
 
   return (
     <div
-      className="vh-100 shadow position-fixed top-0 start-0 border-end"
+      className="vh-100 position-fixed top-0 start-0 border-end border-dark-subtle"
       style={{
-        backgroundColor: '#0f172a',
-        color: '#e5e7eb',
-        borderColor: '#1e293b',
-        width: collapsed ? '70px' : '250px',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        backgroundColor: colors.surface,
+        backgroundImage: `linear-gradient(180deg, ${colors.surfaceLight} 0%, ${colors.surface} 100%)`,
+        color: colors.textPrimary,
+        width: collapsed ? '75px' : '260px',
+        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 1000,
         overflowY: 'auto'
       }}
     >
-      <div
-        className="p-2 d-flex justify-content-between align-items-center"
-        style={{ borderBottom: '1px solid #1e293b', background: '#111827' }}
-      >
-        {!collapsed && <h5 className="m-0 fw-bold">PANEL</h5>}
+      {/* Header / Logo Section */}
+      <div className="p-4 d-flex justify-content-between align-items-center">
+        {!collapsed && (
+          <div className="d-flex align-items-center gap-2">
+            <div className="bg-primary rounded-circle p-1 d-flex align-items-center justify-content-center shadow-primary">
+              <Bus size={20} color="white" />
+            </div>
+            <span className="fw-bold fs-5 tracking-tight text-white m-0">BusTrack</span>
+          </div>
+        )}
         <button
-          className="btn btn-sm text-light p-0 border-0 shadow-none"
+          className="btn btn-link text-gray-400 p-0 border-0 shadow-none hover-rotate"
           onClick={() => {
             setCollapsed(!collapsed);
             onToggle?.(!collapsed);
           }}
         >
-          {collapsed ? <Menu size={20} /> : <X size={20} />}
+          {collapsed ? <Menu size={22} /> : <X size={22} />}
         </button>
       </div>
 
-      <div className="p-2 pt-3">
-        <ul className="nav flex-column gap-1">
-          {menuItems.dashboard && (
-            <MenuItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-          )}
+      <div className="px-3 pt-2">
+        {!collapsed && <small className="text-gray-500 fw-bold mb-2 d-block ps-2" style={{ fontSize: '11px', letterSpacing: '0.05rem' }}>HỆ THỐNG</small>}
+        
+        <ul className="nav flex-column list-unstyled">
+          {menuConfig.dashboard && <MenuItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />}
+          
+          {menuConfig.userManagement && <MenuItem to="/users" icon={Users} label="Quản lý User" />}
 
-          {/* SuperAdmin Section */}
-          {menuItems.userManagement && (
-            <MenuItem to="/users" icon={Users} label="User Management" />
-          )}
-          {menuItems.roleManagement && (
-            <MenuItem to="/roles" icon={ShieldCheck} label="Role Management" />
-          )}
+          {menuConfig.roleManagement && <MenuItem to="/roles" icon={UserCircle} label="Quản lý Vai trò" />}
+          
+          {menuConfig.passengers && <MenuItem to="/passengers" icon={UserCircle} label="Hành khách" />}
 
-          {/* Admin Section */}
-          {menuItems.passengers && (
-            <MenuItem to="/passengers" icon={UserCircle} label="Passengers" />
-          )}
-
-          {menuItems.trips && (
-            <li className="nav-item">
+          {/* Trips Section */}
+          {menuConfig.trips && (
+            <li className="nav-item mb-1">
               <div
-                className={`nav-link d-flex justify-content-between align-items-center cursor-pointer rounded ${isActive('/trips') ? 'text-info fw-bold' : 'text-light'}`}
+                className={`nav-link d-flex justify-content-between align-items-center py-2.5 px-3 rounded-3 cursor-pointer transition-all ${
+                  isActive('/trips') ? 'text-info' : 'text-gray-400 hover-sidebar-dark'
+                }`}
                 onClick={() => !collapsed && toggleExpanded('trips')}
-                style={{ cursor: 'pointer' }}
               >
-                <div className="d-flex align-items-center">
-                  <MapPin onClick={() => navigate('/trips')} size={18} className={collapsed ? 'm-0' : 'me-2'} />
-                  {!collapsed && <span>Trips Management</span>}
+                <div className="d-flex align-items-center" onClick={(e) => { e.stopPropagation(); navigate('/trips'); }}>
+                  <MapPin size={19} className={collapsed ? 'mx-auto' : 'me-3'} />
+                  {!collapsed && <span style={{ fontSize: '0.925rem' }}>Quản lý Trip</span>}
                 </div>
                 {!collapsed && (
-                  <ChevronDown
-                    size={14}
-                    style={{
-                      transform: expandedItems.includes('trips') ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: '0.2s'
-                    }}
-                  />
+                  <ChevronDown size={14} className={`transition-all ${expandedItems.includes('trips') ? 'rotate-180' : ''}`} />
                 )}
               </div>
 
               {!collapsed && expandedItems.includes('trips') && (
-                <ul className="nav flex-column ps-3 small mt-1 gap-1">
-                  <li className="nav-item">
-                    <Link to="/trips" className={`nav-link py-1 ${location.pathname === '/trips' ? 'text-info fw-semibold' : 'text-white-50'}`}>
-                      • Danh sách Trip
+                <ul className="nav flex-column ms-4 ps-3 border-start border-gray-700 mt-1 mb-2 gap-1">
+                  <li>
+                    <Link to="/trips" className={`nav-link py-1.5 small ${location.pathname === '/trips' ? 'text-info fw-bold' : 'text-gray-500 hover-text-white'}`}>
+                       • Danh sách Trip
                     </Link>
                   </li>
-
-                  {currentTripId ? (
+                  {currentTripId && (
                     <>
-                      <li className="nav-item">
-                        <Link to={`/trips/${currentTripId}/rounds`} className={`nav-link py-1 ${isActive(`/trips/${currentTripId}/rounds`) ? 'text-info fw-bold' : 'text-white-50'}`}>
-                          <Route size={14} className="me-2" /> Rounds (Trip #{currentTripId})
+                      <li>
+                        <Link to={`/trips/${currentTripId}/rounds`} className={`nav-link py-1.5 small ${isActive(`/trips/${currentTripId}/rounds`) ? 'text-info fw-bold' : 'text-gray-500 hover-text-white'}`}>
+                          <Route size={14} className="me-2" /> Rounds
                         </Link>
                       </li>
-                      <li className="nav-item">
-                        <Link to={`/trips/${currentTripId}/buses`} className={`nav-link py-1 ${isActive(`/trips/${currentTripId}/buses`) ? 'text-info fw-bold' : 'text-white-50'}`}>
-                          <Bus size={14} className="me-2" /> Buses (Trip #{currentTripId})
+                      <li>
+                        <Link to={`/trips/${currentTripId}/buses`} className={`nav-link py-1.5 small ${isActive(`/trips/${currentTripId}/buses`) ? 'text-info fw-bold' : 'text-gray-500 hover-text-white'}`}>
+                          <Bus size={14} className="me-2" /> Buses
                         </Link>
                       </li>
                     </>
-                  ) : (
-                    <li className="nav-item ps-2 mt-1">
-                      <small className="text-white-50" style={{ fontSize: '11px' }}><i>Chọn 1 trip để xem chi tiết</i></small>
-                    </li>
                   )}
                 </ul>
               )}
             </li>
           )}
-
-          {menuItems.transactions && (
-            <MenuItem to="/transactions" icon={Clock} label="Transactions" />
+          {menuConfig.transactions && (
+            <MenuItem to="/transactions" icon={Clock} label="Giao dịch" />
           )}
-
-          {menuItems.about && (
-            <MenuItem to="/about" icon={Info} label="About us" />
-          )}
+          
         </ul>
+
+        <div className="mt-4 pt-4 border-top border-gray-800">
+          {!collapsed && <small className="text-gray-500 fw-bold mb-2 d-block ps-2" style={{ fontSize: '11px' }}>KHÁC</small>}
+          <MenuItem to="/about" icon={Info} label="Về chúng tôi" />
+        </div>
       </div>
 
       <style>{`
-        .hover-bg-light:hover { background: rgba(148, 163, 184, 0.14); }
-        .transition-all { transition: all 0.2s ease-in-out; }
+        .text-gray-400 { color: ${colors.textSecondary}; }
+        .text-gray-500 { color: ${colors.textMuted}; }
+        .border-gray-700 { border-color: ${colors.borderLight} !important; }
+        .border-gray-800 { border-color: ${colors.border} !important; }
+        
+        .hover-sidebar-dark:hover { 
+          background-color: rgba(255, 255, 255, 0.05);
+          color: ${colors.textPrimary} !important;
+        }
+
+        .hover-text-white:hover { color: ${colors.textPrimary} !important; }
+
+        .active-glow {
+          box-shadow: 0 4px 15px ${colors.primaryGlow};
+        }
+
+        .shadow-primary {
+          box-shadow: 0 0 10px ${colors.primaryGlow};
+        }
+
+        .hover-rotate:hover {
+          transform: rotate(90deg);
+          color: ${colors.textPrimary} !important;
+          transition: 0.3s;
+        }
+
+        .transition-all { transition: all 0.25s ease-in-out; }
+        .rotate-180 { transform: rotate(180deg); }
         .cursor-pointer { cursor: pointer; }
-        .nav-link { padding: 0.6rem 0.8rem; }
+        
+        /* Custom Scrollbar */
+        div::-webkit-scrollbar { width: 4px; }
+        div::-webkit-scrollbar-track { background: transparent; }
+        div::-webkit-scrollbar-thumb { background: ${colors.borderLight}; border-radius: 10px; }
       `}</style>
     </div>
   );

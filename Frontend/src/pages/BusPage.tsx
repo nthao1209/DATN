@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Save } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
-import BusMobileView from '../components/mobile/BusMobileView';
 import api from '../services/api';
 import { isValidPhoneNumber, normalizePhoneNumber } from '../utils/phone';
 import { buildBusColumns } from './bus/columns';
@@ -231,14 +230,7 @@ const BusPage: React.FC = () => {
         </button>
       </div>
 
-      {isMobile ? (
-        <BusMobileView
-          rows={rows}
-          managers={managers}
-          onDeleteRow={handleDeleteRow}
-          onCellChange={handleCellChange}
-        />
-      ) : (
+      
         <DataTable
           title="Danh sách các xe"
           columns={columns}
@@ -251,7 +243,7 @@ const BusPage: React.FC = () => {
             refetch();
           }}
         />
-      )}
+  
 
       <style>{`
         .card .form-control,

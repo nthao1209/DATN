@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Shield } from 'lucide-react';
 import DataTable from '../components/DataTable';
-import RoleMobileView from '../components/mobile/RoleMobileView';
 import api from '../services/api';
 import { buildRoleColumns } from './role-management/columns';
 import type { RoleRow } from './role-management/types';
@@ -150,9 +149,7 @@ const RoleManagementPage: React.FC = () => {
         </button>
       </div>
 
-      {isMobile ? (
-        <RoleMobileView rows={rows} onDeleteRow={handleDeleteRow} onCellChange={handleCellChange} />
-      ) : (
+      
         <DataTable
           title="Danh sách vai trò"
           columns={columns}
@@ -165,7 +162,7 @@ const RoleManagementPage: React.FC = () => {
             refetch();
           }}
         />
-      )}
+
 
       <style>{`
         .card .form-control,

@@ -1,3 +1,6 @@
+/* =========================
+   RESET & WRAPPER
+========================= */
 * {
   box-sizing: border-box;
 }
@@ -6,68 +9,276 @@ html,
 body,
 #root {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   background: radial-gradient(circle at 20% 20%, #1f2937 0%, #0b1220 45%, #060b16 100%);
   color: #e5e7eb;
 }
 
-a {
-  text-decoration: none;
-}
-
-.app-dark-surface {
-  background-color: rgba(17, 24, 39, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #e5e7eb;
-}
-
-.app-dark-soft {
-  background-color: #111827;
-  color: #cbd5e1;
-}
-
-.auth-shell {
+.auth-container {
   min-height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 24px;
-  background:
-    radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.25), transparent 35%),
-    radial-gradient(circle at 90% 0%, rgba(147, 51, 234, 0.2), transparent 40%),
-    linear-gradient(145deg, #020617 0%, #111827 55%, #0f172a 100%);
+  align-items: center;
+  padding: 10px;
+  background: #2b2738;
 }
 
 .auth-card {
   width: 100%;
-  max-width: 460px;
-  border-radius: 20px;
+  max-width: 1100px;
+  min-height: 640px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #1f1b2e;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+}
+
+/* =========================
+   DESKTOP LAYOUT
+========================= */
+.auth-card .row {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  flex-direction: row !important;
+  width: 100%;
+  margin: 0;
+  align-items: stretch;
+}
+
+/* =========================
+   LEFT SIDE
+========================= */
+.auth-left-slideshow {
+  position: relative;
+  overflow: hidden;
+  padding: 32px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  flex: 0 0 41.666667% !important;
+  max-width: 41.666667% !important;
+  min-height: 640px;
+  height: auto;
+}
+
+.slideshow-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 1.4s ease-in-out;
+  z-index: 0;
+}
+
+.slideshow-img.active {
+  opacity: 1;
+}
+
+.auth-left-slideshow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(-45deg,
+      rgba(124, 93, 250, 0.65),
+      rgba(0, 207, 239, 0.4),
+      rgba(31, 27, 46, 0.7));
+  background-size: 400% 400%;
+  animation: gradientMove 14s ease infinite;
+  z-index: 1;
+  mix-blend-mode: multiply;
+}
+
+/* =========================
+   RIGHT SIDE
+========================= */
+.auth-right {
+  background: #1f1b2e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  flex: 0 0 58.333333% !important;
+  max-width: 58.333333% !important;
+}
+
+.auth-form-wrapper {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* =========================
+   UI
+========================= */
+.tourism-frame {
+  position: relative;
+  z-index: 5;
+  padding: 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(10px);
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 24px 48px rgba(2, 6, 23, 0.55);
 }
 
-.auth-card .form-control {
-  background: rgba(15, 23, 42, 0.7);
-  border-color: rgba(148, 163, 184, 0.35);
-  color: #e2e8f0;
+.indicator {
+  width: 12px;
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.4);
+  transition: all 0.35s ease;
 }
 
-.auth-card .form-control::placeholder {
-  color: #94a3b8;
+.indicator.active {
+  width: 34px;
+  background: #fff;
 }
 
-.auth-card .form-control:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.2);
+.auth-input {
+  background: #2b2738 !important;
+  border: 1px solid #3e3a4e !important;
+  color: #fff !important;
+  border-radius: 12px;
+  padding: 12px 14px;
 }
 
-.auth-muted {
-  color: #94a3b8;
+/* =========================
+   TABLET
+========================= */
+@media (max-width: 992px) {
+  .auth-card {
+    min-height: auto;
+  }
+
+  .auth-left-slideshow {
+    padding: 22px;
+  }
+
+  .auth-right {
+    padding: 28px;
+  }
+
+  .auth-form-wrapper {
+    max-width: 100%;
+  }
+}
+
+/* =========================
+   MOBILE
+========================= */
+@media (max-width: 768px) {
+  .auth-container {
+    padding: 8px;
+    align-items: stretch;
+  }
+
+  .auth-card {
+    min-height: auto;
+    border-radius: 18px;
+  }
+
+  /* Chuyển dọc */
+  .auth-card .row {
+    flex-direction: column !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* LEFT lên trên */
+  .auth-left-slideshow {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100%;
+    min-height: 220px;
+    padding: 18px;
+  }
+
+  /* RIGHT xuống dưới */
+  .auth-right {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100%;
+    padding: 22px 16px;
+    align-items: flex-start;
+  }
+
+  .auth-form-wrapper {
+    max-width: 100%;
+  }
+
+  .logo-text {
+    font-size: 1rem;
+  }
+
+  .tourism-frame {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .tourism-frame h3 {
+    font-size: 1rem;
+    margin-bottom: 6px;
+  }
+
+  .tourism-frame p {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    margin-bottom: 0;
+  }
+
+  .auth-input,
+  .form-control {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  .indicator {
+    width: 10px;
+    height: 3px;
+  }
+
+  .indicator.active {
+    width: 24px;
+  }
+}
+
+/* =========================
+   SMALL MOBILE
+========================= */
+@media (max-width: 480px) {
+  .auth-left-slideshow {
+    min-height: 190px;
+    padding: 14px;
+  }
+
+  .auth-right {
+    padding: 18px 14px;
+  }
+
+  .tourism-frame h3 {
+    font-size: 0.95rem;
+  }
+
+  .tourism-frame p {
+    font-size: 0.75rem;
+  }
+}
+
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }

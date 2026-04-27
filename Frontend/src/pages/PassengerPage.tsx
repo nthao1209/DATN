@@ -1,26 +1,33 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save } from 'lucide-react';
+import { Plus, Save, Users, Filter, Bus, RefreshCw } from 'lucide-react';
 import DataTable from '../components/DataTable';
-import PassengerMobileView from '../components/mobile/PassengerMobileView';
+import { PassengerExcelImport } from '../components/passenger-import';
 import api from '../services/api';
 import { isValidPhoneNumber, normalizePhoneNumber } from '../utils/phone';
 import { buildPassengerColumns } from './passenger/columns';
-import type { BusesByTrip, PassengerBus, PassengerRow, PassengerTrip } from './passenger/types';
-
+import { useTheme } from '../theme/ThemeContext';
+import type {
+  BusesByTrip,
+  PassengerBus,
+  PassengerImportPreviewResponse,
+  PassengerRow,
+  PassengerTrip
+} from './passenger/types';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const EMPTY_ROWS_COUNT = 8;
+const isDraftRowEmpty = (row: PassengerRow) => !row.id && !row.name.trim() && !row.tel.trim() && !row.note.trim() && !row.busId;
 
 const PassengerPage: React.FC = () => {
+  const { colors, effects } = useTheme();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusId, setSelectedBusId] = useState<number | null>(null);
   const [rows, setRows] = useState<PassengerRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
-
+  // --- DATA FETCHING ---
   const { data: trips = [] } = useQuery<PassengerTrip[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
@@ -42,47 +49,27 @@ const PassengerPage: React.FC = () => {
     isLoading,
     isError,
     refetch,
+    isFetching
   } = useQuery<any[]>({
     queryKey: ['passengers', selectedTripId, selectedBusId],
-    queryFn: () => api.getPassengers(String(selectedTripId), selectedBusId ? String(selectedBusId) : undefined),
-    enabled: !!selectedTripId,
+    enabled: trips.length > 0,
+    queryFn: async () => {
+      if (selectedTripId) {
+        return api.getPassengers(String(selectedTripId), selectedBusId ? String(selectedBusId) : undefined);
+      }
+      const passengersPerTrip = await Promise.all(trips.map((trip) => api.getPassengers(String(trip.id))));
+      return passengersPerTrip.flat();
+    },
   });
 
+  // --- LOGIC XỬ LÝ DỮ LIỆU ---
   useEffect(() => {
-    const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
-    updateIsMobile();
-    window.addEventListener('resize', updateIsMobile);
-    return () => window.removeEventListener('resize', updateIsMobile);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedTripId && trips.length > 0) {
-      setSelectedTripId(Number(trips[0].id));
-    }
-  }, [trips, selectedTripId]);
-
-  useEffect(() => {
-    if (!selectedTripId) {
-      setSelectedBusId(null);
-      return;
-    }
-
-    const busesOfSelectedTrip = allBuses.filter(
-      (bus: any) => Number(bus.trip?.id ?? selectedTripId) === selectedTripId
-    );
-
-    if (!busesOfSelectedTrip.length) {
-      setSelectedBusId(null);
-      return;
-    }
-
-    if (selectedBusId === null) {
-      return;
-    }
-
-    const exists = busesOfSelectedTrip.some((bus) => Number(bus.id) === selectedBusId);
-    if (!exists) {
-      setSelectedBusId(null);
+    if (!selectedTripId) { setSelectedBusId(null); return; }
+    const busesOfSelectedTrip = allBuses.filter((bus: any) => Number(bus.trip?.id ?? selectedTripId) === selectedTripId);
+    if (!busesOfSelectedTrip.length) { setSelectedBusId(null); return; }
+    if (selectedBusId !== null) {
+      const exists = busesOfSelectedTrip.some((bus) => Number(bus.id) === selectedBusId);
+      if (!exists) setSelectedBusId(null);
     }
   }, [allBuses, selectedTripId, selectedBusId]);
 
@@ -93,43 +80,30 @@ const PassengerPage: React.FC = () => {
 
   useEffect(() => {
     if (!passengers) return;
-
-    const mapped: PassengerRow[] = passengers.map((passenger: any) => ({
-      id: passenger.id,
-      localId: `db_${passenger.id}`,
-      name: passenger.name || '',
-      tel: passenger.tel || '',
-      note: passenger.note || '',
-      tripId: passenger.bus?.trip?.id ? Number(passenger.bus.trip.id) : selectedTripId,
-      busId: passenger.bus?.id ? Number(passenger.bus.id) : null,
-      busCode: passenger.bus?.busCode || '',
+    const mapped: PassengerRow[] = passengers.map((p: any) => ({
+      id: p.id,
+      localId: `db_${p.id}`,
+      name: p.name || '',
+      tel: p.tel || '',
+      note: p.note || '',
+      tripId: p.bus?.trip?.id ? Number(p.bus.trip.id) : selectedTripId,
+      busId: p.bus?.id ? Number(p.bus.id) : null,
+      busCode: p.bus?.busCode || '',
     }));
-
     const padded = [...mapped];
     while (padded.length < EMPTY_ROWS_COUNT) {
-      padded.push({
-        localId: makeLocalId(),
-        name: '',
-        tel: '',
-        note: '',
-        tripId: selectedTripId,
-        busId: selectedBusId,
-        busCode: '',
-      });
+      padded.push({ localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' });
     }
-
     setRows(padded);
-  }, [passengers, selectedBusId]);
+  }, [passengers, selectedBusId, selectedTripId]);
 
   const busesByTrip = useMemo<BusesByTrip>(() => {
     const map: BusesByTrip = {};
-
     allBuses.forEach((bus: any) => {
       const tripId = Number(bus.trip?.id ?? selectedTripId ?? 0);
       if (!map[tripId]) map[tripId] = [];
       map[tripId].push(bus);
     });
-
     return map;
   }, [allBuses, selectedTripId]);
 
@@ -149,82 +123,58 @@ const PassengerPage: React.FC = () => {
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
 
+  // --- ACTIONS ---
   const handleCellChange = <K extends keyof PassengerRow>(localId: string, key: K, value: PassengerRow[K]) => {
-    setRows((prev) =>
-      prev.map((row) =>
-        row.localId === localId
-          ? {
-              ...row,
-              [key]: value,
-              ...(row.id ? { isEdited: true } : {}),
-            }
-          : row
-      )
-    );
+    setRows((prev) => prev.map((row) => row.localId === localId ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) } : row));
   };
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        localId: makeLocalId(),
-        name: '',
-        tel: '',
-        note: '',
-        tripId: selectedTripId,
-        busId: selectedBusId,
-        busCode: '',
-      },
-    ]);
+    setRows((prev) => [...prev, { localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' }]);
   };
 
   const handleDeleteRow = (row: PassengerRow) => {
-    if (row.id) {
-      setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
-    }
+    if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
     setRows((prev) => prev.filter((item) => item.localId !== row.localId));
   };
 
-  const handleSave = async () => {
-    const rowsToCreate = rows.filter(
-      (row) => !row.id && row.name.trim() && row.busId && row.tripId
-    );
-    const rowsToUpdate = rows.filter((row) => row.id && row.isEdited);
-
-    const invalidPhoneRow = rows.find((row) => row.name.trim() && row.tel.trim() && !isValidPhoneNumber(normalizePhoneNumber(row.tel)));
-    if (invalidPhoneRow) {
-      alert('Số điện thoại phải đủ 10 số và  bắt đầu bằng 0.');
+  const handleImportRows = (payload: PassengerImportPreviewResponse) => {
+    if (!selectedTripId) return;
+    if (!payload.rows.length) {
+      alert("File Excel không có dữ liệu hợp lệ.");
       return;
     }
+    setRows((prev) => {
+      const retainedRows = prev.filter((row) => !isDraftRowEmpty(row));
+      const importedRows: PassengerRow[] = payload.rows.map((row) => ({
+        localId: makeLocalId(),
+        name: row.name || '',
+        tel: row.tel || '',
+        note: row.note || '',
+        tripId: selectedTripId,
+        busId: row.busId ?? null,
+        busCode: row.busCode || '',
+      }));
+      return [...retainedRows, ...importedRows];
+    });
+  };
 
-    if (!rowsToCreate.length && !rowsToUpdate.length && !deletedIds.length) {
-      alert('Khong co thay doi nao');
+  const handleSave = async () => {
+    const rowsToCreate = rows.filter((row) => !row.id && row.name.trim() && row.busId && row.tripId);
+    const rowsToUpdate = rows.filter((row) => row.id && row.isEdited);
+    
+    const invalidPhoneRow = rows.find((row) => row.name.trim() && row.tel.trim() && !isValidPhoneNumber(row.tel));
+    if (invalidPhoneRow) {
+      alert(`Số điện thoại không hợp lệ: ${invalidPhoneRow.tel}`);
       return;
     }
 
     try {
       setIsSaving(true);
-
       await Promise.all([
-        ...rowsToCreate.map((row) =>
-          api.createPassenger(String(row.tripId), {
-            name: row.name.trim(),
-            note: row.note || null,
-            busId: row.busId,
-            tel: normalizePhoneNumber(row.tel) || null,
-          })
-        ),
-        ...rowsToUpdate.map((row) =>
-          api.updatePassenger(String(row.id), {
-            name: row.name.trim(),
-            note: row.note || null,
-            busId: row.busId,
-            tel: normalizePhoneNumber(row.tel) || null,
-          })
-        ),
+        ...rowsToCreate.map((row) => api.createPassenger(String(row.tripId), { name: row.name.trim(), note: row.note || null, busId: row.busId, tel: normalizePhoneNumber(row.tel) || null })),
+        ...rowsToUpdate.map((row) => api.updatePassenger(String(row.id), { name: row.name.trim(), note: row.note || null, busId: row.busId, tel: normalizePhoneNumber(row.tel) || null })),
         ...deletedIds.map((id) => api.deletePassenger(String(id))),
       ]);
-
       setDeletedIds([]);
       await refetch();
       alert('Đã lưu thành công');
@@ -234,102 +184,135 @@ const PassengerPage: React.FC = () => {
       setIsSaving(false);
     }
   };
+
   const columns = buildPassengerColumns({
-    trips,
+    trips: selectedTripId ? trips.filter(t => t.id === selectedTripId) : trips,
     busesByTrip,
     handleCellChange,
     handleDeleteRow,
   });
 
-  const mobileRows = visibleRows.length > 0 ? visibleRows : rows;
-
   return (
-    <div className="p-3 p-md-4">
-      <div className="mb-4">
-        <h1 className="h3 fw-bold mb-1">Quản lý Hành khách</h1>
-      </div>
-      <div className="d-grid gap-2 d-md-flex align-items-md-end mb-3 passenger-toolbar">
-        <div className="flex-grow-1">
-          <label className="form-label small fw-bold mb-1">Chuyến đi</label>
-          <select
-            className="form-select"
-            value={selectedTripId ?? ''}
-            onChange={(e) => setSelectedTripId(e.target.value ? Number(e.target.value) : null)}
+    <div className="animate-fade-in p-0 p-md-2" style={{ color: colors.textPrimary }}>
+      {/* Header Section */}
+      <div className="d-flex align-items-center justify-content-between mb-4">
+        <div className="d-flex align-items-center gap-3">
+          <div 
+            className="d-flex align-items-center justify-content-center rounded-circle"
+            style={{ width: '42px', height: '42px', backgroundColor: colors.primaryGlow }}
           >
-            <option value="">Chọn chuyến đi</option>
-            {trips.map((trip: any) => (
-              <option key={trip.id} value={trip.id}>
-                {trip.name}
-              </option>
-            ))}
-          </select>
+            <Users size={20} style={{ color: colors.primary }} />
+          </div>
+          <h1 className="h3 fw-bold m-0">Quản lý Hành khách</h1>
         </div>
-
-        <div className="flex-grow-1">
-          <label className="form-label small fw-bold mb-1">Lọc theo xe</label>
-          <select
-            className="form-select"
-            value={selectedBusId ?? ''}
-            onChange={(e) => setSelectedBusId(e.target.value ? Number(e.target.value) : null)}
-            disabled={!selectedTripId}
-          >
-            <option value="">Tất cả xe</option>
-            {busOptions.map((bus: any) => (
-              <option key={bus.id} value={bus.id}>
-                {bus.busCode} - {bus.registrationNumber}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="d-grid gap-2 d-md-flex align-items-md-end passenger-actions">
-          <button className="btn btn-primary d-flex align-items-center justify-content-center gap-1" onClick={handleAddRow}>
-            <Plus size={14} />
-            Thêm dòng
-          </button>
-          <button
-            className="btn btn-success d-flex align-items-center justify-content-center gap-1"
-            onClick={handleSave}
-            disabled={isSaving || dirtyCount === 0 || !selectedTripId}
-          >
-            <Save size={14} />
-            {isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}
-          </button>
-        </div>
+        <button 
+          className="btn-action-custom" 
+          onClick={() => refetch()} 
+          title="Làm mới"
+          style={{ 
+            backgroundColor: colors.surfaceLight, 
+            border: `1px solid ${colors.borderLight}`,
+            color: colors.textSecondary 
+          }}
+        >
+          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
+        </button>
       </div>
 
-      {isMobile ? (
-        <PassengerMobileView
-          rows={mobileRows}
-          trips={trips}
-          busesByTrip={busesByTrip}
-          onDeleteRow={handleDeleteRow}
-          onCellChange={handleCellChange}
-        />
-      ) : (
-        <DataTable
-          title="Danh sách hành khách"
-          columns={columns}
-          queryKey={['passengers-local', selectedTripId, selectedBusId]}
-          data={visibleRows}
-          isLoading={isLoading}
-          isError={isError}
-          onRefresh={refetch}
-        />
-      )}
+      {/* Toolbar / Filters */}
+      <div 
+        className="p-3 mb-4 shadow-sm" 
+        style={{ 
+          background: colors.surfaceLight,
+          backdropFilter: 'blur(8px)', 
+          borderRadius: effects.borderRadius.lg,
+          border: `1px solid ${colors.border}` 
+        }}
+      >
+        <div className="row g-3 align-items-end">
+          <div className="col-12 col-md-3">
+            <label className="small fw-bold mb-2 d-flex align-items-center gap-2" style={{ color: colors.textSecondary }}>
+              <Filter size={14} /> Chuyến đi
+            </label>
+            <select
+              className="form-select select-dark-custom"
+              style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+              value={selectedTripId ?? ''}
+              onChange={(e) => setSelectedTripId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Tất cả chuyến đi</option>
+              {trips.map((trip: any) => <option key={trip.id} value={trip.id}>{trip.name}</option>)}
+            </select>
+          </div>
+
+          <div className="col-12 col-md-3">
+            <label className="small fw-bold mb-2 d-flex align-items-center gap-2" style={{ color: colors.textSecondary }}>
+              <Bus size={14} /> Lọc theo xe
+            </label>
+            <select
+              className="form-select select-dark-custom"
+              style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+              value={selectedBusId ?? ''}
+              onChange={(e) => setSelectedBusId(e.target.value ? Number(e.target.value) : null)}
+              disabled={!selectedTripId}
+            >
+              <option value="">Tất cả xe</option>
+              {busOptions.map((bus: any) => (
+                <option key={bus.id} value={bus.id}>{bus.busCode} - {bus.registrationNumber}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-12 col-md-6 text-md-end">
+            <div className="d-flex flex-wrap gap-2 justify-content-md-end">
+              <PassengerExcelImport selectedTripId={selectedTripId} disabled={isSaving || !selectedTripId} onImported={handleImportRows} />
+              <button 
+                className="btn d-flex align-items-center gap-2 px-3 fw-bold" 
+                onClick={handleAddRow}
+                style={{ border: `1px solid ${colors.primary}`, color: colors.primary, borderRadius: '10px' }}
+              >
+                <Plus size={18} /> Thêm dòng
+              </button>
+              <button
+                className="btn d-flex align-items-center gap-2 px-4 fw-bold"
+                onClick={handleSave}
+                disabled={isSaving || dirtyCount === 0}
+                style={{ 
+                  backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
+                  color: colors.textPrimary,
+                  borderRadius: '10px',
+                  opacity: isSaving ? 0.7 : 1,
+                  boxShadow: dirtyCount > 0 ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
+                }}
+              >
+                <Save size={18} />
+                {isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Table */}
+      <DataTable
+        title="Danh sách hành khách"
+        columns={columns}
+        queryKey={['passengers-local', selectedTripId, selectedBusId]}
+        data={visibleRows}
+        isLoading={isLoading}
+        isError={isError}
+        onRefresh={refetch}
+      />
 
       <style>{`
-        .passenger-toolbar .form-select,
-        .passenger-toolbar .btn {
-          min-height: 44px;
-        }
-
-        @media (max-width: 767.98px) {
-          .passenger-mobile-card .form-control,
-          .passenger-mobile-card .form-select {
-            min-height: 44px;
-          }
-        }
+        .select-dark-custom { border-radius: 10px; height: 42px; outline: none; }
+        .select-dark-custom:focus { border-color: ${colors.primary} !important; box-shadow: 0 0 0 3px ${colors.primaryGlow}; }
+        .btn-action-custom { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 10px; transition: 0.2s; border: none; }
+        .btn-action-custom:hover { background-color: ${colors.border} !important; color: ${colors.textPrimary} !important; }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

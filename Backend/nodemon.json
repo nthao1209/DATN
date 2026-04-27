@@ -1,0 +1,14 @@
+{
+  "watch": ["src", "prisma"],
+  "ext": "ts,json",
+  "ignore": ["src/**/*.test.ts", "dist/**"],
+  "exec": "ts-node",
+  "args": "src/index.ts",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000,
+  "legacyWatch": true,
+  "polling": true,
+  "pollInterval": 1000
+}

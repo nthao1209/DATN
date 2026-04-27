@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, ClipboardCheck, RefreshCw, Plus, Search, Upload, X } from 'lucide-react';
+import { Save, ClipboardCheck, RefreshCw, Plus, Search, X } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import api from '../services/api';
 import { subscribeAttendanceUpdates } from '../services/mqtt';
@@ -18,9 +18,11 @@ import { keyOf } from './transaction/types';
 import TransactionFilters from './transaction/TransactionFilters';
 import { useTransactionSync } from './transaction/useTransactionSync';
 import useDebounce from '../hooks/useDebounce';
+import { useTheme } from '../theme/ThemeContext';
 import './transaction/TransactionPage.css';
 
 const TransactionPage: React.FC = () => {
+  const { colors } = useTheme();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
   const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
@@ -34,43 +36,7 @@ const TransactionPage: React.FC = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedSearchPassengerId, setSelectedSearchPassengerId] = useState<number | null>(null);
   const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
-
-  const parseBooleanCell = (value: unknown): boolean | undefined => {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'number') {
-      if (value === 1) return true;
-      if (value === 0) return false;
-      return undefined;
-    }
-
-    const raw = String(value ?? '').trim().toLowerCase();
-    if (!raw) return undefined;
-
-    if (['1', 'true', 'yes', 'y', 'x', 'co', 'có', 'di', 'đi'].includes(raw)) return true;
-    if (['0', 'false', 'no', 'n', 'khong', 'không'].includes(raw)) return false;
-    return undefined;
-  };
-
-  const normalizeRow = (row: Record<string, unknown>) => {
-    const normalized: Record<string, unknown> = {};
-    Object.entries(row).forEach(([key, value]) => {
-      const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
-      normalized[normalizedKey] = value;
-    });
-    return normalized;
-  };
-
-  const pickValue = (row: Record<string, unknown>, keys: string[]) => {
-    for (const key of keys) {
-      const value = row[key];
-      if (value !== undefined && value !== null && String(value).trim() !== '') {
-        return value;
-      }
-    }
-    return undefined;
-  };
-
+  
   const {
     data: trips = [],
     isLoading: tripsLoading,
@@ -396,7 +362,29 @@ const TransactionPage: React.FC = () => {
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
   return (
-    <div className="transaction-page p-2 p-md-3">
+    <div
+      className="transaction-page p-2 p-md-3"
+      style={{
+        ['--tx-page-bg' as string]: colors.background,
+        ['--tx-toolbar-bg' as string]: colors.surface,
+        ['--tx-toolbar-border' as string]: colors.border,
+        ['--tx-soft-bg' as string]: colors.surface,
+        ['--tx-soft-border' as string]: colors.border,
+        ['--tx-table-cell-bg' as string]: colors.surface,
+        ['--tx-table-cell-color' as string]: colors.textPrimary,
+        ['--tx-table-cell-border' as string]: colors.border,
+        ['--tx-table-head-color' as string]: colors.textSecondary,
+        ['--tx-table-head-bg' as string]: colors.surfaceLight,
+        ['--tx-table-row-hover' as string]: colors.surfaceLight,
+        ['--tx-title-color' as string]: colors.info,
+        ['--tx-search-list-bg' as string]: colors.surfaceLight,
+        ['--tx-search-list-border' as string]: colors.border,
+        ['--tx-hover-soft' as string]: colors.surface,
+        ['--tx-contact-phone' as string]: colors.textSecondary,
+        ['--tx-success-bg' as string]: colors.success,
+        ['--tx-success-bg-hover' as string]: colors.success,
+      } as React.CSSProperties}
+    >
       <div className="transaction-toolbar mb-3">
         <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
           <h4 className="transaction-title m-0 fw-bold d-flex align-items-center gap-2">
@@ -616,7 +604,7 @@ const TransactionPage: React.FC = () => {
           refetchTransactions();
           refetchPassengers();
         }}
-        showActionBar={false}
+        showActionBar={true}
         showPagination={true}
       />
     </div>

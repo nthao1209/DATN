@@ -7,5 +7,6 @@ export type RoundRow = {
   time: string;
   status: RoundStatus;
   transactionCount: number;
+  passengerCount: number;
   isEdited?: boolean;
 };

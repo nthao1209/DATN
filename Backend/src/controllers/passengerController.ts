@@ -1,8 +1,143 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
+import XLSX from 'xlsx';
 
 const prisma = new PrismaClient();
+
+type ImportField = 'name' | 'tel' | 'note' | 'bus';
+type SheetCell = string | number | boolean | Date | null | undefined;
+
+const HEADER_ALIASES: Record<ImportField, string[]> = {
+  name: ['name', 'hoten', 'ten', 'fullname', 'full name', 'ho va ten', 'hova ten','Họ và tên'],
+  tel: ['tel', 'phone', 'phonenumber', 'sodienthoai', 'sdt', 'mobile', 'dien thoai', 'Số điện thoại'],
+  note: ['note', 'ghichu', 'ghi chu', 'remark', 'remarks', 'description', 'mo ta', 'Ghi chú'],
+  bus: ['bus', 'buscode', 'maxe', 'ma xe', 'xe', 'bien so', 'bienso', 'registration', 'registrationnumber','Mã xe']
+};
+
+const normalizeText = (value: unknown): string =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+const toText = (value: SheetCell): string => String(value ?? '').trim();
+
+// Excel hay mat so 0 dau khi cot dien thoai o dang Number, nen bo sung quy tac phuc hoi an toan.
+const normalizeImportedPhone = (value: string): string => {
+  const digitsOnly = value.replace(/\D/g, '').trim();
+  if (digitsOnly.length === 9) {
+    return `0${digitsOnly}`;
+  }
+  return digitsOnly;
+};
+
+const isAliasMatched = (normalizedHeader: string, normalizedAlias: string): boolean =>
+  normalizedHeader === normalizedAlias ||
+  normalizedHeader.includes(normalizedAlias) ||
+  normalizedAlias.includes(normalizedHeader);
+
+const findMatchedHeader = (headers: string[], aliases: string[]): string | undefined => {
+  const normalizedAliases = aliases.map(normalizeText);
+  return headers.find((header) => {
+    const normalizedHeader = normalizeText(header);
+    return normalizedAliases.some((alias) => isAliasMatched(normalizedHeader, alias));
+  });
+};
+
+const scoreHeaderRow = (cells: SheetCell[]): number => {
+  // Cham diem de tim dong co kha nang la header cao nhat trong cac dong dau.
+  let score = 0;
+  const seen = new Set<ImportField>();
+
+  cells.forEach((cell) => {
+    const normalizedCell = normalizeText(cell);
+    if (!normalizedCell) {
+      return;
+    }
+
+    (Object.keys(HEADER_ALIASES) as ImportField[]).forEach((field) => {
+      if (seen.has(field)) {
+        return;
+      }
+
+      const matched = HEADER_ALIASES[field]
+        .map(normalizeText)
+        .some((alias) => isAliasMatched(normalizedCell, alias));
+
+      if (matched) {
+        seen.add(field);
+        score += 1;
+      }
+    });
+  });
+
+  return score;
+};
+
+const parseRowsFromWorksheet = (worksheet: XLSX.WorkSheet): Record<string, unknown>[] => {
+  // Doc sheet theo ma tran de xu ly duoc file co dong tieu de khong nam o dong dau tien.
+  const matrix = XLSX.utils.sheet_to_json<SheetCell[]>(worksheet, {
+    header: 1,
+    raw: false,
+    defval: '',
+    blankrows: false
+  });
+
+  if (!matrix.length) {
+    return [];
+  }
+
+  const scanLimit = Math.min(10, matrix.length);
+  let bestHeaderRowIndex = 0;
+  let bestScore = -1;
+
+  for (let i = 0; i < scanLimit; i += 1) {
+    const score = scoreHeaderRow(matrix[i] ?? []);
+    if (score > bestScore) {
+      bestScore = score;
+      bestHeaderRowIndex = i;
+    }
+  }
+
+  const headerCells = matrix[bestHeaderRowIndex] ?? [];
+  const headers = headerCells.map((cell, index) => {
+    const text = toText(cell);
+    return text || `col_${index + 1}`;
+  });
+
+  return matrix
+    .slice(bestHeaderRowIndex + 1)
+    .map((rowCells) => {
+      const row: Record<string, unknown> = {};
+      headers.forEach((header, index) => {
+        row[header] = toText(rowCells?.[index]);
+      });
+      return row;
+    })
+    .filter((row) => Object.values(row).some((value) => String(value ?? '').trim() !== ''));
+};
+
+const buildHeaderMap = (headers: string[]): Record<ImportField, string | undefined> => ({
+  // Map ten cot trong file nguoi dung vao cot noi bo cua he thong.
+  name: findMatchedHeader(headers, HEADER_ALIASES.name),
+  tel: findMatchedHeader(headers, HEADER_ALIASES.tel),
+  note: findMatchedHeader(headers, HEADER_ALIASES.note),
+  bus: findMatchedHeader(headers, HEADER_ALIASES.bus)
+});
+
+const readMappedValue = (
+  row: Record<string, unknown>,
+  fieldMap: Record<ImportField, string | undefined>,
+  field: ImportField
+): string => {
+  const headerKey = fieldMap[field];
+  if (!headerKey) {
+    return '';
+  }
+  return String(row[headerKey] ?? '').trim();
+};
 
 export const passengerController = {
 
@@ -135,6 +270,113 @@ export const passengerController = {
     }
   },
 
+  importPreview: async (req: AuthRequest, res: Response) => {
+    try {
+      const tripId = Number(req.params.tripId);
+
+      if (!tripId) {
+        return res.status(400).json({ message: 'Missing tripId' });
+      }
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: 'Vui long chon file Excel' });
+      }
+
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        return res.status(400).json({ message: 'File Excel khong co sheet hop le' });
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = parseRowsFromWorksheet(worksheet);
+
+      if (!rawRows.length) {
+        return res.json({
+          rows: [],
+          totalRows: 0,
+          importedRows: 0,
+          unmatchedBusValues: [],
+          matchedColumns: {}
+        });
+      }
+
+      const headers = Object.keys(rawRows[0] ?? {});
+      const headerMap = buildHeaderMap(headers);
+
+      const buses = await prisma.bus.findMany({
+        where: {
+          tripId,
+          trip: {
+            tenantId: req.tenantId
+          }
+        },
+        select: {
+          id: true,
+          busCode: true,
+          registrationNumber: true
+        }
+      });
+
+      const busLookup = new Map<string, number>();
+      buses.forEach((bus) => {
+        busLookup.set(normalizeText(bus.id), bus.id);
+        busLookup.set(normalizeText(bus.busCode), bus.id);
+        if (bus.registrationNumber) {
+          busLookup.set(normalizeText(bus.registrationNumber), bus.id);
+        }
+      });
+
+      const unmatchedBusValues = new Set<string>();
+      const previewRows = rawRows
+        .map((rawRow, index) => {
+          const name = readMappedValue(rawRow, headerMap, 'name');
+          const telRaw = normalizeImportedPhone(readMappedValue(rawRow, headerMap, 'tel'));
+          const note = readMappedValue(rawRow, headerMap, 'note');
+          const busRaw = readMappedValue(rawRow, headerMap, 'bus');
+
+          if (!name && !telRaw && !note && !busRaw) {
+            return null;
+          }
+
+          const normalizedBus = normalizeText(busRaw);
+          const matchedBusId = normalizedBus ? busLookup.get(normalizedBus) ?? null : null;
+
+          if (busRaw && !matchedBusId) {
+            unmatchedBusValues.add(busRaw);
+          }
+
+          return {
+            localId: `excel_${Date.now()}_${index}`,
+            name,
+            tel: telRaw,
+            note,
+            tripId,
+            busId: matchedBusId,
+            busCode: busRaw
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      return res.json({
+        rows: previewRows,
+        totalRows: rawRows.length,
+        importedRows: previewRows.length,
+        unmatchedBusValues: Array.from(unmatchedBusValues),
+        matchedColumns: headerMap
+      });
+    } catch (error) {
+      console.error('❌ import passenger preview error:', error);
+      return res.status(500).json({ message: 'Server error' });
+    }
+  },
+
   update: async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
@@ -211,7 +453,6 @@ export const passengerController = {
         return res.status(401).json({ message: 'Unauthorized' });
       }
 
-      // 🔥 check passenger thuộc tenant
       const existing = await prisma.passenger.findFirst({
         where: {
           id: Number(id),

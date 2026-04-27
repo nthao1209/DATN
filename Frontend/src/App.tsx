@@ -6,10 +6,12 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth as fbAuth } from './config/firebase';
 import { api } from './services/api';
 import { authSuccess, logout } from './redux/slice/authSlice';
+import { ThemeProvider } from './theme/ThemeContext';
 
 // Pages
 import Login from '../src/pages/Register-Login/LoginPage';
 import Register from '../src/pages/Register-Login/RegisterPage';
+import ForgotPasswordPage from '../src/pages/Register-Login/ForgotPasswordPage';
 import SetupOrg from '../src/pages/Register-Login/SetupOrgPage';
 import Dashboard from '../src/pages/DashboardPage';
 import Layout from './components/Layout';
@@ -71,13 +73,14 @@ const App: React.FC = () => {
   }
 
   return (
-    <Router>
-      <Routes>
-        {!user ? (
-          <>
-            <Route path="/login" element={<Login />} />
+    <ThemeProvider>
+      <Router>
+        <Routes>
+          {!user ? (
+            <>
+              <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<div>Trang quên mật khẩu</div>} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="*" element={<Navigate to="/login" />} />
           </>
         ) : (
@@ -86,15 +89,16 @@ const App: React.FC = () => {
             /* Đã đăng nhập nhưng chưa tạo/tham gia tổ chức -> Chuyển tới SetupOrgPage */
             <>
               <Route path="/setup-org" element={<SetupOrg />} />
-              <Route path="/setup" element={<Navigate to="/setup-org" replace />} />
               <Route path="*" element={<Navigate to="/setup-org" />} />
+
             </>
           ) : (
             /* NHÓM 3: ĐÃ CÓ TENANT -> VÀO APP CHÍNH */
             <>
+              <Route path="/setup-org" element={<SetupOrg />} />
+
               <Route element={<Layout />}>
                 {/* Dashboard - tất cả roles đều có thể xem */}
-                <Route path="/setup-org" element={<SetupOrg />} />
                 <Route path="/dashboard" element={<Dashboard />} />
 
                 {/* SuperAdmin Routes - Role 1 */}
@@ -167,6 +171,7 @@ const App: React.FC = () => {
         )}
       </Routes>
     </Router>
+    </ThemeProvider>
   );
 };
 

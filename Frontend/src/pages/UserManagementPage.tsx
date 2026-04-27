@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Save, Users } from 'lucide-react';
 import DataTable from '../components/DataTable';
-import UserMobileView from '../components/mobile/UserMobileView';
 import api from '../services/api';
 import { format } from 'date-fns';
 import { buildUserColumns } from './user-management/columns';
@@ -138,9 +137,7 @@ const UserManagementPage: React.FC = () => {
         </button>
       </div>
 
-      {isMobile ? (
-        <UserMobileView rows={rows} onDeleteRow={handleDeleteRow} onCellChange={handleCellChange} />
-      ) : (
+  
         <DataTable
           title="Danh sách tài khoản"
           columns={columns}
@@ -154,7 +151,7 @@ const UserManagementPage: React.FC = () => {
             refetch();
           }}
         />
-      )}
+    
 
       <style>{`
         .card .form-control,
