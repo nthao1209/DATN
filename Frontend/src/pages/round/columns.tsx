@@ -63,8 +63,8 @@ export const buildRoundColumns = ({
     header: 'Thao tác',
     key: 'actions',
     render: (row) => (
-      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-        <Trash2 size={14} />
+      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)} title="Xóa chặng">
+        <Trash2 size={20} color="#dc3545" />
       </button>
     ),
   },

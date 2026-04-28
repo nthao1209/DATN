@@ -298,7 +298,48 @@ function DataTable<T extends object>({
         }
         
         .table-row-dark:hover {
-          background: rgba(56, 189, 248, 0.03) !important;
+          background: rgba(251, 244, 236, 0.03) !important;
+        }
+        
+        .custom-table {
+            background-color: transparent !important;
+            color: ${colors.textPrimary} !important;
+            border-color: ${colors.border} !important;
+        }
+        .custom-table :not(caption) > * > * {
+            background-color: transparent !important; /* Xóa nền trắng mặc định của Bootstrap */
+            color: ${colors.textPrimary} !important;
+            border-bottom-width: 1px;
+            border-color: ${colors.border} !important;
+            box-shadow: none !important; /* Xóa shadow nếu có */
+        }
+        .table-row-dark:hover td {
+            background-color: rgba(56, 189, 248, 0.04) !important; /* Màu xanh mờ khi di chuột */
+        }
+        .td-content input, 
+        .td-content select,
+        .td-content textarea {
+            background-color: ${colors.background} !important; /* Màu nền tối sâu */
+            border: 1px solid ${colors.borderLight} !important;
+            color: ${colors.textPrimary} !important;
+            border-radius: 6px;
+        }
+        .td-content input::placeholder,
+        .td-content textarea::placeholder {
+            color: ${colors.textMuted} !important; /* Dùng màu xám mờ từ theme */
+            opacity: 0.6; /* Chỉnh độ mờ cho vừa mắt */
+            font-size: 0.8rem;
+        }
+        .td-content input::-webkit-input-placeholder,
+        .td-content textarea::-webkit-input-placeholder {
+            color: ${colors.textMuted} !important;
+        }
+        .td-content input:focus::placeholder {
+            opacity: 0.3;
+        }
+        .td-content input, 
+        .td-content textarea {
+            color: ${colors.textPrimary} !important; /* Màu chữ trắng sáng để dễ đọc */
         }
 
         @media (max-width: 1150px) {
@@ -341,7 +382,6 @@ function DataTable<T extends object>({
             justify-content: flex-end;
             text-align: right;
           }
-          /* ÉP CÁC Ô NHẬP LIỆU KHÔNG TRÀN VIỀN */
           .td-content input, .td-content select, .td-content .form-control, .td-content .form-select {
             width: 100% !important;
             max-width: 100% !important;

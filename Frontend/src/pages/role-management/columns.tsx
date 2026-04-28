@@ -17,35 +17,35 @@ export const buildRoleColumns = ({
 }: BuildRoleColumnsParams): Column<RoleRow>[] => [
   { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
   {
-    header: 'Ten Role',
+    header: 'Tên Role',
     key: 'name',
     render: (row) => (
       <input
         className="form-control form-control-sm"
         value={row.name}
         onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
-        placeholder="Ten role"
+        placeholder="Tên role"
       />
     ),
   },
   {
-    header: 'Mo ta',
+    header: 'Mô tả',
     key: 'description',
     render: (row) => (
       <input
         className="form-control form-control-sm"
         value={row.description}
         onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
-        placeholder="Mo ta role"
+        placeholder="Mô tả role"
       />
     ),
   },
   {
-    header: 'Thao tac',
+    header: 'Thao tác',
     key: 'actions',
     render: (row) => (
-      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-        <Trash2 size={14} />
+      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)} title="Xóa role">
+        <Trash2 size={20} color="#dc3545" />
       </button>
     ),
   },

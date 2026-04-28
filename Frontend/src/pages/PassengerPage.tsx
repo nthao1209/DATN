@@ -18,6 +18,7 @@ import type {
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const EMPTY_ROWS_COUNT = 8;
 const isDraftRowEmpty = (row: PassengerRow) => !row.id && !row.name.trim() && !row.tel.trim() && !row.note.trim() && !row.busId;
+const normalizeGroupKey = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
 const PassengerPage: React.FC = () => {
   const { colors, effects } = useTheme();
@@ -26,6 +27,7 @@ const PassengerPage: React.FC = () => {
   const [rows, setRows] = useState<PassengerRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [importResetToken, setImportResetToken] = useState(0);
 
   // --- DATA FETCHING ---
   const { data: trips = [] } = useQuery<PassengerTrip[]>({
@@ -43,6 +45,18 @@ const PassengerPage: React.FC = () => {
       return busesPerTrip.flat();
     },
   });
+
+  const busTripIdMap = useMemo(() => {
+    const map = new Map<number, number>();
+    allBuses.forEach((bus: any) => {
+      const busId = Number(bus.id);
+      const tripId = Number(bus.trip?.id ?? 0);
+      if (busId && tripId) {
+        map.set(busId, tripId);
+      }
+    });
+    return map;
+  }, [allBuses]);
 
   const {
     data: passengers = [],
@@ -86,7 +100,11 @@ const PassengerPage: React.FC = () => {
       name: p.name || '',
       tel: p.tel || '',
       note: p.note || '',
-      tripId: p.bus?.trip?.id ? Number(p.bus.trip.id) : selectedTripId,
+      tripId: p.bus?.trip?.id
+        ? Number(p.bus.trip.id)
+        : p.bus?.id
+          ? busTripIdMap.get(Number(p.bus.id)) ?? selectedTripId
+          : selectedTripId,
       busId: p.bus?.id ? Number(p.bus.id) : null,
       busCode: p.bus?.busCode || '',
     }));
@@ -95,7 +113,7 @@ const PassengerPage: React.FC = () => {
       padded.push({ localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' });
     }
     setRows(padded);
-  }, [passengers, selectedBusId, selectedTripId]);
+  }, [busTripIdMap, passengers, selectedBusId, selectedTripId]);
 
   const busesByTrip = useMemo<BusesByTrip>(() => {
     const map: BusesByTrip = {};
@@ -112,10 +130,60 @@ const PassengerPage: React.FC = () => {
     return busesByTrip[selectedTripId] || [];
   }, [busesByTrip, selectedTripId]);
 
+  const isAllTripsAllBusesView = selectedTripId === null && selectedBusId === null;
+
   const visibleRows = useMemo(() => {
     if (!selectedBusId) return rows;
     return rows.filter((row) => row.busId === selectedBusId);
   }, [rows, selectedBusId]);
+
+  const displayRows = useMemo<PassengerRow[]>(() => {
+    if (!isAllTripsAllBusesView) {
+      return visibleRows;
+    }
+
+    const grouped = new Map<string, PassengerRow>();
+
+    rows
+      .filter((row) => !isDraftRowEmpty(row))
+      .forEach((row) => {
+        const nameKey = normalizeGroupKey(row.name);
+        const telKey = normalizeGroupKey(row.tel);
+        const groupKey = `${nameKey}|${telKey}`;
+        const tripId = row.tripId ?? (row.busId ? busTripIdMap.get(row.busId) ?? null : null);
+
+        const current = grouped.get(groupKey);
+        const currentAssignments = current?.tripAssignments ?? {};
+        const nextAssignments = { ...currentAssignments };
+
+        if (tripId) {
+          const existingAssignment = nextAssignments[tripId];
+          nextAssignments[tripId] = {
+            tripId,
+            busId: row.busId ?? existingAssignment?.busId ?? null,
+            busCode: row.busCode || existingAssignment?.busCode || '',
+            tripName: existingAssignment?.tripName,
+          };
+        }
+
+        if (!current) {
+          grouped.set(groupKey, {
+            ...row,
+            localId: `group_${groupKey}`,
+            tripAssignments: nextAssignments,
+          });
+          return;
+        }
+
+        grouped.set(groupKey, {
+          ...current,
+          note: current.note || row.note,
+          tripAssignments: nextAssignments,
+        });
+      });
+
+    return Array.from(grouped.values());
+  }, [busTripIdMap, isAllTripsAllBusesView, rows, visibleRows]);
 
   const dirtyCount = useMemo(() => {
     const created = rows.filter((row) => !row.id && row.name.trim() && row.busId).length;
@@ -129,10 +197,12 @@ const PassengerPage: React.FC = () => {
   };
 
   const handleAddRow = () => {
+    if (isAllTripsAllBusesView) return;
     setRows((prev) => [...prev, { localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' }]);
   };
 
   const handleDeleteRow = (row: PassengerRow) => {
+    if (isAllTripsAllBusesView) return;
     if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
     setRows((prev) => prev.filter((item) => item.localId !== row.localId));
   };
@@ -159,6 +229,7 @@ const PassengerPage: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (isAllTripsAllBusesView) return;
     const rowsToCreate = rows.filter((row) => !row.id && row.name.trim() && row.busId && row.tripId);
     const rowsToUpdate = rows.filter((row) => row.id && row.isEdited);
     
@@ -177,6 +248,7 @@ const PassengerPage: React.FC = () => {
       ]);
       setDeletedIds([]);
       await refetch();
+      setImportResetToken((prev) => prev + 1);
       alert('Đã lưu thành công');
     } catch (error: any) {
       alert(error?.message || 'Lỗi khi lưu');
@@ -188,6 +260,7 @@ const PassengerPage: React.FC = () => {
   const columns = buildPassengerColumns({
     trips: selectedTripId ? trips.filter(t => t.id === selectedTripId) : trips,
     busesByTrip,
+    readOnly: isAllTripsAllBusesView,
     handleCellChange,
     handleDeleteRow,
   });
@@ -265,29 +338,35 @@ const PassengerPage: React.FC = () => {
 
           <div className="col-12 col-md-6 text-md-end">
             <div className="d-flex flex-wrap gap-2 justify-content-md-end">
-              <PassengerExcelImport selectedTripId={selectedTripId} disabled={isSaving || !selectedTripId} onImported={handleImportRows} />
-              <button 
-                className="btn d-flex align-items-center gap-2 px-3 fw-bold" 
-                onClick={handleAddRow}
-                style={{ border: `1px solid ${colors.primary}`, color: colors.primary, borderRadius: '10px' }}
-              >
-                <Plus size={18} /> Thêm dòng
-              </button>
-              <button
-                className="btn d-flex align-items-center gap-2 px-4 fw-bold"
-                onClick={handleSave}
-                disabled={isSaving || dirtyCount === 0}
-                style={{ 
-                  backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-                  color: colors.textPrimary,
-                  borderRadius: '10px',
-                  opacity: isSaving ? 0.7 : 1,
-                  boxShadow: dirtyCount > 0 ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
-                }}
-              >
-                <Save size={18} />
-                {isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}
-              </button>
+              {!isAllTripsAllBusesView ? (
+                <>
+                  <PassengerExcelImport selectedTripId={selectedTripId} resetToken={importResetToken} disabled={isSaving || !selectedTripId} onImported={handleImportRows} />
+                  <button 
+                    className="btn d-flex align-items-center gap-2 px-3 fw-bold" 
+                    onClick={handleAddRow}
+                    style={{ border: `1px solid ${colors.primary}`, color: colors.primary, borderRadius: '10px' }}
+                  >
+                    <Plus size={18} /> Thêm dòng
+                  </button>
+                  <button
+                    className="btn d-flex align-items-center gap-2 px-4 fw-bold"
+                    onClick={handleSave}
+                    disabled={isSaving || dirtyCount === 0}
+                    style={{ 
+                      backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
+                      color: colors.textPrimary,
+                      borderRadius: '10px',
+                      opacity: isSaving ? 0.7 : 1,
+                      boxShadow: dirtyCount > 0 ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
+                    }}
+                  >
+                    <Save size={18} />
+                    {isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}
+                  </button>
+                </>
+              ) : (
+                <div className="small text-muted align-self-center">Chế độ xem tổng hợp, chỉ hiển thị dữ liệu.</div>
+              )}
             </div>
           </div>
         </div>
@@ -298,7 +377,7 @@ const PassengerPage: React.FC = () => {
         title="Danh sách hành khách"
         columns={columns}
         queryKey={['passengers-local', selectedTripId, selectedBusId]}
-        data={visibleRows}
+        data={displayRows}
         isLoading={isLoading}
         isError={isError}
         onRefresh={refetch}

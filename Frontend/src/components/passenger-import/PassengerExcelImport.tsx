@@ -6,17 +6,23 @@ import type { PassengerImportPreviewResponse } from '../../pages/passenger/types
 type PassengerExcelImportProps = {
   selectedTripId: number | null;
   disabled?: boolean;
+  resetToken?: number;
   onImported: (payload: PassengerImportPreviewResponse) => void;
 };
 
 const PassengerExcelImport: React.FC<PassengerExcelImportProps> = ({
   selectedTripId,
   disabled = false,
+  resetToken = 0,
   onImported,
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [lastResultText, setLastResultText] = useState('');
+
+  React.useEffect(() => {
+    setLastResultText('');
+  }, [selectedTripId, resetToken]);
 
   const handleOpenPicker = () => {
     inputRef.current?.click();

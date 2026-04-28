@@ -22,6 +22,22 @@ const normalizeText = (value: unknown): string =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
 
+const normalizeBusLookupKeys = (value: unknown): string[] => {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const keys = new Set<string>([normalized]);
+
+  if (/^\d+$/.test(normalized)) {
+    const strippedLeadingZeros = normalized.replace(/^0+(?=\d)/, '');
+    keys.add(strippedLeadingZeros);
+  }
+
+  return Array.from(keys);
+};
+
 const toText = (value: SheetCell): string => String(value ?? '').trim();
 
 // Excel hay mat so 0 dau khi cot dien thoai o dang Number, nen bo sung quy tac phuc hoi an toan.
@@ -326,10 +342,10 @@ export const passengerController = {
 
       const busLookup = new Map<string, number>();
       buses.forEach((bus) => {
-        busLookup.set(normalizeText(bus.id), bus.id);
-        busLookup.set(normalizeText(bus.busCode), bus.id);
+        normalizeBusLookupKeys(bus.id).forEach((key) => busLookup.set(key, bus.id));
+        normalizeBusLookupKeys(bus.busCode).forEach((key) => busLookup.set(key, bus.id));
         if (bus.registrationNumber) {
-          busLookup.set(normalizeText(bus.registrationNumber), bus.id);
+          normalizeBusLookupKeys(bus.registrationNumber).forEach((key) => busLookup.set(key, bus.id));
         }
       });
 
@@ -345,8 +361,10 @@ export const passengerController = {
             return null;
           }
 
-          const normalizedBus = normalizeText(busRaw);
-          const matchedBusId = normalizedBus ? busLookup.get(normalizedBus) ?? null : null;
+          const normalizedBusKeys = normalizeBusLookupKeys(busRaw);
+          const matchedBusId = normalizedBusKeys
+            .map((key) => busLookup.get(key))
+            .find((value): value is number => value !== undefined) ?? null;
 
           if (busRaw && !matchedBusId) {
             unmatchedBusValues.add(busRaw);

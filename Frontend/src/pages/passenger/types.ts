@@ -8,6 +8,14 @@ export type PassengerRow = {
   busId: number | null;
   busCode?: string;
   isEdited?: boolean;
+  tripAssignments?: Record<number, PassengerTripAssignment>;
+};
+
+export type PassengerTripAssignment = {
+  tripId: number;
+  busId: number | null;
+  busCode: string;
+  tripName?: string;
 };
 
 export type PassengerTrip = {

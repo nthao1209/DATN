@@ -19,7 +19,6 @@ import TransactionFilters from './transaction/TransactionFilters';
 import { useTransactionSync } from './transaction/useTransactionSync';
 import useDebounce from '../hooks/useDebounce';
 import { useTheme } from '../theme/ThemeContext';
-import './transaction/TransactionPage.css';
 
 const TransactionPage: React.FC = () => {
   const { colors } = useTheme();

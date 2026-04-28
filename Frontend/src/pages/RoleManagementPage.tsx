@@ -13,7 +13,6 @@ const RoleManagementPage: React.FC = () => {
   const [rows, setRows] = useState<RoleRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
 
   const { data: roles = [], isLoading, isError, refetch } = useQuery<any[]>({
@@ -21,12 +20,7 @@ const RoleManagementPage: React.FC = () => {
     queryFn: () => api.get('/roles'),
   });
 
-  useEffect(() => {
-    const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
-    updateIsMobile();
-    window.addEventListener('resize', updateIsMobile);
-    return () => window.removeEventListener('resize', updateIsMobile);
-  }, []);
+  
 
   useEffect(() => {
 

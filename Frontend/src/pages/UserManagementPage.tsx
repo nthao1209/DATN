@@ -14,7 +14,6 @@ const UserManagementPage: React.FC = () => {
   const [rows, setRows] = useState<UserRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   const initializedRef = useRef(false);
 
@@ -23,12 +22,7 @@ const UserManagementPage: React.FC = () => {
     queryFn: () => api.get('/users'),
   });
 
-  useEffect(() => {
-    const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
-    updateIsMobile();
-    window.addEventListener('resize', updateIsMobile);
-    return () => window.removeEventListener('resize', updateIsMobile);
-  }, []);
+
 
   useEffect(() => {
     if (initializedRef.current) return;
