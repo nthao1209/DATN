@@ -3,7 +3,7 @@ import mqtt from 'mqtt';
 
 export type MqttBrokerStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
 
-const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084/mqtt';
+const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084';
 const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || '';
 const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || '';
 
@@ -30,7 +30,10 @@ export const useMqttBrokerStatus = () => {
     client.on('error', () => setStatus('error'));
 
     return () => {
-      client.end(true);
+      client.removeAllListeners();
+      if (client.connected) {
+        client.end(true);
+      }
     };
   }, []);
 

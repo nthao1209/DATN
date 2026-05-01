@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Search, Plus, RotateCw, Filter, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Search, Plus, RotateCw, Filter, Mic, MicOff, X } from 'lucide-react';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface FilterConfig {
@@ -24,6 +25,51 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
 }) => {
   const { colors, effects } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false); // Trạng thái mở rộng trên mobile
+  const [searchValue, setSearchValue] = useState('');
+  const onSearchRef = useRef(onSearch);
+
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
+
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  useEffect(() => {
+    onSearchRef.current(searchValue);
+  }, [searchValue]);
+
+  useEffect(() => {
+    if (listening) {
+      setSearchValue(transcript);
+    }
+  }, [listening, transcript]);
+
+  const handleVoiceSearchToggle = async () => {
+    if (!browserSupportsSpeechRecognition) return;
+
+    if (listening) {
+      SpeechRecognition.stopListening();
+      setSearchValue(transcript.trim());
+      return;
+    }
+
+    resetTranscript();
+    setSearchValue('');
+
+    try {
+      await SpeechRecognition.startListening({
+        continuous: true,
+        language: 'vi-VN',
+      });
+    } catch {
+      // Ignore browser permission/runtime errors; the button state stays unchanged.
+    }
+  };
 
   const mainSearchStyle: React.CSSProperties = {
     backgroundColor: colors.background,
@@ -87,10 +133,47 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
               className="form-control ps-5 shadow-none custom-placeholder"
               placeholder="Tìm kiếm ..."
               style={mainSearchStyle}
-              onChange={(e) => onSearch(e.target.value)}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
               onFocus={(e) => (e.target.style.borderColor = colors.primary)}
               onBlur={(e) => (e.target.style.borderColor = colors.border)}
             />
+            <button
+              type="button"
+              className="position-absolute top-50 translate-middle-y border-0 p-0"
+              style={{
+                right: '12px',
+                zIndex: 5,
+                width: '28px',
+                height: '28px',
+                borderRadius: '999px',
+                backgroundColor: listening ? colors.primary : 'transparent',
+                color: listening ? colors.textPrimary : colors.textMuted,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: browserSupportsSpeechRecognition ? 'pointer' : 'not-allowed',
+                opacity: browserSupportsSpeechRecognition ? 1 : 0.5,
+              }}
+              onClick={handleVoiceSearchToggle}
+              disabled={!browserSupportsSpeechRecognition}
+              title={
+                browserSupportsSpeechRecognition
+                  ? listening
+                    ? 'Dừng tìm kiếm bằng giọng nói'
+                    : 'Tìm kiếm bằng giọng nói'
+                  : 'Trình duyệt không hỗ trợ nhận dạng giọng nói'
+              }
+              aria-label={
+                browserSupportsSpeechRecognition
+                  ? listening
+                    ? 'Dừng tìm kiếm bằng giọng nói'
+                    : 'Tìm kiếm bằng giọng nói'
+                  : 'Trình duyệt không hỗ trợ nhận dạng giọng nói'
+              }
+            >
+              {listening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
           </div>
         </div>
 

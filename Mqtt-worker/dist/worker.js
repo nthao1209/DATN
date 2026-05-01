@@ -38,15 +38,19 @@ async function init() {
             if (!data.passengerId || !data.roundId || !data.busId) {
                 throw new Error("Dữ liệu thiếu passengerId, roundId hoặc busId");
             }
+            const incomingTimestamp = Number(data.timestamp || Date.now());
+            const safeTimestamp = Number.isFinite(incomingTimestamp) ? incomingTimestamp : Date.now();
             const query = `
                 INSERT INTO "Transaction" ("passengerId", "roundId", "busId", "checkIn", "checkOut", "note", "updatedAt")
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, TO_TIMESTAMP($7 / 1000.0))
                 ON CONFLICT ("passengerId", "roundId") 
                 DO UPDATE SET 
+                    "busId" = EXCLUDED."busId",
                     "checkIn" = EXCLUDED."checkIn",
                     "checkOut" = EXCLUDED."checkOut",
                     "note" = EXCLUDED."note",
-                    "updatedAt" = NOW()
+                    "updatedAt" = EXCLUDED."updatedAt"
+                WHERE "Transaction"."updatedAt" < EXCLUDED."updatedAt"
                 RETURNING id;
             `;
             const values = [
@@ -55,10 +59,17 @@ async function init() {
                 data.busId,
                 data.checkIn || false,
                 data.checkOut || false,
-                data.note || ""
+                data.note || "",
+                safeTimestamp
             ];
             const res = await pool.query(query, values);
             const updatedInfo = res.rows[0];
+            if (!updatedInfo) {
+                if (process.env.NODE_ENV === 'development') {
+                    console.log(`⏭️ [${prj}] Ignored stale attendance payload for Passenger ${data.passengerId} in Round ${data.roundId}`);
+                }
+                return;
+            }
             const tripLookup = await pool.query('SELECT "tripId" FROM "Bus" WHERE id = $1 LIMIT 1', [data.busId]);
             const tripId = Number(tripLookup.rows[0]?.tripId || 0);
             if (tripId) {
@@ -72,7 +83,7 @@ async function init() {
                     checkIn: Boolean(data.checkIn),
                     checkOut: Boolean(data.checkOut),
                     note: data.note || '',
-                    updatedAt: new Date().toISOString(),
+                    updatedAt: new Date(safeTimestamp).toISOString(),
                 }), { qos: 1, retain: false });
             }
             if (process.env.NODE_ENV === 'development') {

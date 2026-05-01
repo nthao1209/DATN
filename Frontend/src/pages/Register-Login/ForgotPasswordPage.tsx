@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Mail, Send, CircleCheckBig } from "lucide-react";
+import { Mail, CircleCheckBig } from "lucide-react";
 
 import AuthLayout from "../../layouts/AuthLayout";
 import { auth, sendPasswordResetEmail } from "../../config/firebase";

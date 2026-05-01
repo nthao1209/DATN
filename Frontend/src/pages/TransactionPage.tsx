@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, ClipboardCheck, RefreshCw, Plus, Search, X } from 'lucide-react';
+import { Save, ClipboardCheck, RefreshCw, UserPlus } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import api from '../services/api';
 import { subscribeAttendanceUpdates } from '../services/mqtt';
@@ -19,6 +19,7 @@ import TransactionFilters from './transaction/TransactionFilters';
 import { useTransactionSync } from './transaction/useTransactionSync';
 import useDebounce from '../hooks/useDebounce';
 import { useTheme } from '../theme/ThemeContext';
+import { OFFLINE_QUEUE_SYNCED_EVENT } from '../services/offlineSync';
 
 const TransactionPage: React.FC = () => {
   const { colors } = useTheme();
@@ -28,12 +29,9 @@ const TransactionPage: React.FC = () => {
   const [draftMap, setDraftMap] = useState<Record<string, DraftCell>>({});
   const [busDropdownOpen, setBusDropdownOpen] = useState(false);
   const [roundDropdownOpen, setRoundDropdownOpen] = useState(false);
-  const [nameFilter, setNameFilter] = useState('');
   const [departureRoundFilter, setDepartureRoundFilter] = useState<number | null>(null);
   const [returnRoundFilter, setReturnRoundFilter] = useState<number | null>(null);
   const [showAddPassengerPanel, setShowAddPassengerPanel] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedSearchPassengerId, setSelectedSearchPassengerId] = useState<number | null>(null);
   const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
   
   const {
@@ -72,15 +70,7 @@ const TransactionPage: React.FC = () => {
     enabled: !!selectedTripId,
   });
 
-  const {
-    data: searchPassengers = [],
-    isLoading: searchPassengersLoading,
-  } = useQuery<any[]>({
-    queryKey: ['attendance-search-passengers', selectedTripId, searchKeyword],
-    queryFn: () => api.searchPassengersByNameForAttendance(String(selectedTripId), searchKeyword),
-    enabled: !!selectedTripId && showAddPassengerPanel && searchKeyword.trim().length >= 1,
-  });
-
+  
   const {
     data: transactions = [],
     isLoading: transactionsLoading,
@@ -100,8 +90,6 @@ const TransactionPage: React.FC = () => {
   useEffect(() => {
     setExtraPassengers([]);
     setShowAddPassengerPanel(false);
-    setSearchKeyword('');
-    setSelectedSearchPassengerId(null);
   }, [selectedTripId]);
 
   useEffect(() => {
@@ -174,6 +162,23 @@ const TransactionPage: React.FC = () => {
     if (!storageKey) return;
     localStorage.setItem(storageKey, debouncedDraftJson);
   }, [debouncedDraftJson, storageKey]);
+
+  useEffect(() => {
+    const handleQueueSynced = (event: Event) => {
+      const detail = (event as CustomEvent<{ storageKey?: string }>).detail;
+      if (!detail?.storageKey || detail.storageKey !== storageKey) {
+        return;
+      }
+
+      setDraftMap({});
+      localStorage.removeItem(storageKey);
+      refetchTransactions();
+      refetchPassengers();
+    };
+
+    window.addEventListener(OFFLINE_QUEUE_SYNCED_EVENT, handleQueueSynced as EventListener);
+    return () => window.removeEventListener(OFFLINE_QUEUE_SYNCED_EVENT, handleQueueSynced as EventListener);
+  }, [refetchPassengers, refetchTransactions, storageKey]);
 
   const txMap = useMemo(() => {
     const map: Record<string, DraftCell> = {};
@@ -254,12 +259,7 @@ const TransactionPage: React.FC = () => {
     return Array.from(map.values());
   }, [busFilteredPassengers, transactionBackedPassengers, extraPassengers]);
 
-  const nameFilteredPassengers = useMemo(() => {
-    const keyword = nameFilter.trim().toLowerCase();
-    if (!keyword) return displayedPassengers;
-    return displayedPassengers.filter((p) => p.name.toLowerCase().includes(keyword));
-  }, [displayedPassengers, nameFilter]);
-
+  
   const selectedRounds = useMemo(
     () => rounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
     [rounds, selectedRoundIds]
@@ -286,16 +286,16 @@ const TransactionPage: React.FC = () => {
     const summary: Record<number, { checkIn: number; checkOut: number; total: number }> = {};
     selectedRounds.forEach((round) => {
       const roundId = Number(round.id);
-      const total = nameFilteredPassengers.length;
-      const checkIn = nameFilteredPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkIn)).length;
-      const checkOut = nameFilteredPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkOut)).length;
+      const total = displayedPassengers.length;
+      const checkIn = displayedPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkIn)).length;
+      const checkOut = displayedPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkOut)).length;
       summary[roundId] = { checkIn, checkOut, total };
     });
     return summary;
-  }, [nameFilteredPassengers, selectedRounds, txMap, draftMap]);
+  }, [displayedPassengers, selectedRounds, txMap, draftMap]);
 
   const visiblePassengers = useMemo(() => {
-    return nameFilteredPassengers.filter((p) => {
+    return displayedPassengers.filter((p) => {
       if (departureRoundFilter && !isPresentAtRound(p.id, departureRoundFilter, 'checkIn')) {
         return false;
       }
@@ -306,19 +306,24 @@ const TransactionPage: React.FC = () => {
 
       return true;
     });
-  }, [nameFilteredPassengers, departureRoundFilter, returnRoundFilter, txMap, draftMap]);
+  }, [displayedPassengers, departureRoundFilter, returnRoundFilter, txMap, draftMap]);
 
-  const tableRows = useMemo<TransactionTableRow[]>(() => {
-    const rows: TransactionTableRow[] = [...visiblePassengers];
-    rows.push({
-      id: -1,
-      name: 'Tổng điểm danh',
-      tel: '',
-      busId: null,
-      busName: '',
-      isSummary: true,
-    });
-    return rows;
+  const tableHeaderSummary = useMemo(() => {
+    const totalPassengers = displayedPassengers.length;
+    const totalCheckIn = selectedRounds.reduce(
+      (sum, round) => sum + (roundSummary[Number(round.id)]?.checkIn ?? 0),
+      0
+    );
+    const totalCheckOut = selectedRounds.reduce(
+      (sum, round) => sum + (roundSummary[Number(round.id)]?.checkOut ?? 0),
+      0
+    );
+
+    return { totalPassengers, totalCheckIn, totalCheckOut };
+  }, [displayedPassengers, selectedRounds, roundSummary]);
+
+  const tableData = useMemo<TransactionTableRow[]>(() => {
+    return [...visiblePassengers];
   }, [visiblePassengers]);
 
   const tableColumns = useMemo(
@@ -332,281 +337,146 @@ const TransactionPage: React.FC = () => {
     [selectedRounds, roundSummary, txMap, draftMap]
   );
 
-  const toggleBus = (busId: number) => {
-    setSelectedBusIds((prev) =>
-      prev.includes(busId) ? prev.filter((id) => id !== busId) : [...prev, busId]
-    );
-  };
-
-  const toggleRound = (roundId: number) => {
-    setSelectedRoundIds((prev) =>
-      prev.includes(roundId) ? prev.filter((id) => id !== roundId) : [...prev, roundId]
-    );
-  };
+  
 
   const dirtyEntries = useMemo(
     () => Object.values(draftMap).filter((entry) => entry.dirty),
     [draftMap]
   );
 
-  const { isSaving, isOnline, hasPendingSync, handleSave } = useTransactionSync({
+  const { isSaving, handleSave } = useTransactionSync({
     dirtyEntries,
     selectedTripId,
     storageKey,
-    setDraftMap,
-    refetchTransactions,
-    refetchPassengers,
   });
 
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
   return (
-    <div
-      className="transaction-page p-2 p-md-3"
-      style={{
-        ['--tx-page-bg' as string]: colors.background,
-        ['--tx-toolbar-bg' as string]: colors.surface,
-        ['--tx-toolbar-border' as string]: colors.border,
-        ['--tx-soft-bg' as string]: colors.surface,
-        ['--tx-soft-border' as string]: colors.border,
-        ['--tx-table-cell-bg' as string]: colors.surface,
-        ['--tx-table-cell-color' as string]: colors.textPrimary,
-        ['--tx-table-cell-border' as string]: colors.border,
-        ['--tx-table-head-color' as string]: colors.textSecondary,
-        ['--tx-table-head-bg' as string]: colors.surfaceLight,
-        ['--tx-table-row-hover' as string]: colors.surfaceLight,
-        ['--tx-title-color' as string]: colors.info,
-        ['--tx-search-list-bg' as string]: colors.surfaceLight,
-        ['--tx-search-list-border' as string]: colors.border,
-        ['--tx-hover-soft' as string]: colors.surface,
-        ['--tx-contact-phone' as string]: colors.textSecondary,
-        ['--tx-success-bg' as string]: colors.success,
-        ['--tx-success-bg-hover' as string]: colors.success,
-      } as React.CSSProperties}
-    >
-      <div className="transaction-toolbar mb-3">
-        <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-          <h4 className="transaction-title m-0 fw-bold d-flex align-items-center gap-2">
-            <ClipboardCheck size={20}  /> Điểm danh hành khách
-          </h4>
-          <div className="d-flex align-items-center gap-2 flex-wrap">
-            {!isOnline && <span className="badge text-bg-warning">Offline: đang lưu tạm local</span>}
-            {isOnline && hasPendingSync && <span className="badge text-bg-info">Có dữ liệu chờ đồng bộ</span>}
+    <>
+      <div className="transaction-page p-0 p-md-3 animate-fade-in mb-5"> {/* Thêm mb-5 để không bị cái summary che mất dòng cuối bảng */}
+        
+        {/* Header & Main Actions - FIX tràn chữ trên Mobile */}
+        <div className="d-flex align-items-center justify-content-between mb-3 px-3 mt-3">
+          <div className="d-flex align-items-center gap-2 overflow-hidden">
+            <div className="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle" 
+                 style={{ width: '38px', height: '38px', backgroundColor: colors.primaryGlow }}>
+              <ClipboardCheck size={20} style={{ color: colors.primary }} />
+            </div>
+            <h1 className="h5 fw-bold text-white m-0 text-truncate">Điểm danh</h1>
           </div>
-          <div className="d-flex align-items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-outline-primary btn-sm"
-              onClick={() => {
-                if (selectedBusIds.length !== 1) {
-                  alert('Vui lòng chỉ chọn 1 xe để thêm khách ngoài biên chế.');
-                  return;
-                }
-                setShowAddPassengerPanel((prev) => !prev);
-              }}
-            >
-              <Plus size={14} className="me-1" /> Thêm khách ngoài biên chế
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm"
-              onClick={() => {
-                refetchTransactions();
-                refetchPassengers();
-              }}
-            >
-              <RefreshCw size={14} className="me-1" /> Tải lại
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={handleSave}
-              disabled={isSaving || !dirtyEntries.length}
-            >
-              <Save size={14} className="me-1" /> {isSaving ? 'Đang lưu...' : `Lưu (${dirtyEntries.length})`}
-            </button>
+          <div className="d-flex gap-2 flex-shrink-0">
+             <button className="btn-icon-custom" onClick={() => { refetchTransactions(); refetchPassengers(); }}>
+                <RefreshCw size={18} color="white" />
+             </button>
+             <button 
+                className="btn-custom-action" 
+                onClick={handleSave} 
+                disabled={isSaving || !dirtyEntries.length}
+                style={{ backgroundColor: dirtyEntries.length > 0 ? colors.success : colors.surfaceLight, padding: '0 12px' }}
+             >
+                <Save size={18} />
+                <span className="d-none d-sm-inline">Lưu ({dirtyEntries.length})</span>
+             </button>
           </div>
         </div>
 
-        <TransactionFilters
-          trips={trips}
-          buses={buses}
-          rounds={rounds}
-          selectedTripId={selectedTripId}
-          selectedBusIds={selectedBusIds}
-          selectedRoundIds={selectedRoundIds}
-          busDropdownOpen={busDropdownOpen}
-          roundDropdownOpen={roundDropdownOpen}
-          setSelectedTripId={setSelectedTripId}
-          setBusDropdownOpen={setBusDropdownOpen}
-          setRoundDropdownOpen={setRoundDropdownOpen}
-          toggleBus={toggleBus}
-          toggleRound={toggleRound}
-          onTripChange={() => setDraftMap({})}
-        />
-
-        {showAddPassengerPanel && (
-          <div className="attendance-add-panel mt-3">
-            <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
-              <h6 className="m-0 fw-bold">Thêm khách đang ngồi xe khác</h6>
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => {
-                  setShowAddPassengerPanel(false);
-                  setSearchKeyword('');
-                  setSelectedSearchPassengerId(null);
-                }}
-              >
-                <X size={14} />
+        {/* Filters Toolbar - FIX layout button Khách ngoài biên chế */}
+        <div className="px-3 mb-4">
+          <div className="toolbar-glass p-3">
+            <TransactionFilters
+              trips={trips} buses={buses} rounds={rounds}
+              selectedTripId={selectedTripId} selectedBusIds={selectedBusIds} selectedRoundIds={selectedRoundIds}
+              busDropdownOpen={busDropdownOpen} roundDropdownOpen={roundDropdownOpen}
+              setSelectedTripId={setSelectedTripId} setBusDropdownOpen={setBusDropdownOpen} setRoundDropdownOpen={setRoundDropdownOpen}
+              toggleBus={(id) => setSelectedBusIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
+              toggleRound={(id) => setSelectedRoundIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
+              onTripChange={() => setDraftMap({})}
+            />
+            
+            <div className="mt-3 pt-3 border-top d-flex flex-column gap-2" style={{ borderColor: `${colors.border}44` }}>
+              <button className="btn-outline-custom w-100" onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
+                      style={{ minHeight: '44px' }}> {/* Tăng height để không bị tràn chữ */}
+                 <UserPlus size={16} /> <span style={{ fontSize: '13px' }}>Khách ngoài biên chế</span>
               </button>
-            </div>
-
-            <div className="input-group input-group-sm mb-2">
-              <span className="input-group-text"><Search size={14} /></span>
-              <input
-                className="form-control"
-                value={searchKeyword}
-                onChange={(e) => {
-                  setSearchKeyword(e.target.value);
-                  setSelectedSearchPassengerId(null);
-                }}
-                placeholder="Tìm hành khách theo tên..."
-              />
-            </div>
-
-            <div className="attendance-search-list">
-              {searchKeyword.trim().length < 1 ? (
-                <div className="text-muted small">Nhập tên để tìm kiếm.</div>
-              ) : searchPassengersLoading ? (
-                <div className="text-muted small">Đang tìm...</div>
-              ) : searchPassengers.length === 0 ? (
-                <div className="text-muted small">Không tìm thấy hành khách phù hợp.</div>
-              ) : (
-                searchPassengers.map((p: any) => {
-                  const id = Number(p.id);
-                  const assignedBusName = p.bus?.busCode || p.bus?.registrationNumber || 'Chưa rõ';
-                  return (
-                    <label key={id} className="attendance-search-item">
-                      <input
-                        type="radio"
-                        name="attendance-search-passenger"
-                        checked={selectedSearchPassengerId === id}
-                        onChange={() => setSelectedSearchPassengerId(id)}
-                      />
-                      <span>
-                        <strong>{p.name}</strong> - {p.tel || '-'} - Biên chế: {assignedBusName}
-                      </span>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="mt-2 d-flex justify-content-end">
-              <button
-                className="btn btn-sm btn-primary"
-                disabled={!selectedSearchPassengerId || selectedBusIds.length !== 1}
-                onClick={() => {
-                  if (!selectedSearchPassengerId || selectedBusIds.length !== 1) return;
-                  const picked = searchPassengers.find((p: any) => Number(p.id) === selectedSearchPassengerId);
-                  if (!picked) return;
-
-                  const assignedBusName = picked.bus?.busCode || picked.bus?.registrationNumber || 'Chưa rõ';
-                  const actualBusId = Number(selectedBusIds[0]);
-
-                  setExtraPassengers((prev) => {
-                    if (prev.some((x) => x.id === Number(picked.id))) return prev;
-                    return [
-                      ...prev,
-                      {
-                        id: Number(picked.id),
-                        name: picked.name || '',
-                        tel: picked.tel || '',
-                        busId: actualBusId,
-                        busName: assignedBusName,
-                        assignedBusName,
-                      },
-                    ];
-                  });
-
-                  setSelectedSearchPassengerId(null);
-                  setSearchKeyword('');
-                  setShowAddPassengerPanel(false);
-                }}
-              >
-                Xác nhận thêm vào bảng
-              </button>
+              <div className="row g-2">
+                <div className="col-6">
+                   <select className="form-select-custom w-100" value={departureRoundFilter ?? ''} onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}>
+                      <option value="">Lượt đi: Tất cả</option>
+                      {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                   </select>
+                </div>
+                <div className="col-6">
+                   <select className="form-select-custom w-100" value={returnRoundFilter ?? ''} onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}>
+                      <option value="">Lượt về: Tất cả</option>
+                      {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                   </select>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      <div className="row g-2 mt-2 mb-3">
-        <div className="col-12 col-md-6">
-          <label className="form-label form-label-sm mb-1">Lọc theo tên</label>
-          <input
-            className="form-control form-control-sm"
-            placeholder="Nhập tên hành khách..."
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
+        {/* Main Table */}
+        <div className="position-relative pb-5"> {/* Thêm padding bottom lớn để không bị summary che */}
+          <DataTable<TransactionTableRow>
+            title="Danh sách điểm danh"
+            titleActions={
+              <div className="d-none d-lg-flex align-items-center gap-2 flex-wrap justify-content-end">
+                <span
+                  className="badge rounded-pill px-3 py-2 fw-semibold"
+                  style={{
+                    backgroundColor: colors.primaryGlow,
+                    color: colors.primary,
+                    border: `1px solid ${colors.primary}55`,
+                  }}
+                >
+                  {tableHeaderSummary.totalPassengers} khách
+                </span>
+                <span className="small fw-semibold" style={{ color: colors.textMuted }}>
+                  |
+                </span>
+                <span className="small fw-semibold text-white">
+                  {tableHeaderSummary.totalCheckIn} CÓ MẶT LƯỢT ĐI
+                </span>
+                <span className="small fw-semibold" style={{ color: colors.textMuted }}>
+                  -
+                </span>
+                <span className="small fw-semibold text-white">
+                  {tableHeaderSummary.totalCheckOut} CÓ MẶT LƯỢT VỀ
+                </span>
+              </div>
+            }
+            queryKey={[
+            'transaction-table',
+            selectedTripId,
+            selectedBusIds.join(','),
+            selectedRoundIds.join(','),
+            departureRoundFilter,
+            returnRoundFilter,
+            dirtyEntries.length,
+          ]}
+            data={tableData}
+            columns={tableColumns}
+            isLoading={isLoading}
+            onRefresh={() => { refetchTransactions(); refetchPassengers(); }}
           />
         </div>
-        <div className="col-12 col-md-6">
-          <label className="form-label form-label-sm mb-1">Lọc lượt đi</label>
-          <select
-            className="form-select form-select-sm"
-            value={departureRoundFilter ?? ''}
-            onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">Tất cả</option>
-            {selectedRounds.map((round) => (
-              <option key={round.id} value={round.id}>
-                {round.name || `Chặng ${round.id}`}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="col-12 col-md-6">
-          <label className="form-label form-label-sm mb-1">Lọc lượt về</label>
-          <select
-            className="form-select form-select-sm"
-            value={returnRoundFilter ?? ''}
-            onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">Tất cả</option>
-            {selectedRounds.map((round) => (
-              <option key={round.id} value={round.id}>
-                {round.name || `Chặng ${round.id}`}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
-      <DataTable<TransactionTableRow>
-        title="Bảng điểm danh"
-        queryKey={[
-          'transaction-table',
-          selectedTripId,
-          selectedBusIds.join(','),
-          selectedRoundIds.join(','),
-          nameFilter,
-          departureRoundFilter,
-          returnRoundFilter,
-          dirtyEntries.length,
-        ]}
-        data={tableRows}
-        columns={tableColumns}
-        isLoading={isLoading}
-        isError={false}
-        onRefresh={() => {
-          refetchTransactions();
-          refetchPassengers();
-        }}
-        showActionBar={true}
-        showPagination={true}
-      />
-    </div>
+        <style>{`
+          .toolbar-glass { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border-radius: 16px; border: 1px solid ${colors.border}; }
+          .btn-custom-action { display: flex; align-items: center; gap: 8px; height: 40px; color: white; font-weight: 700; border-radius: 10px; border: none; }
+          .btn-icon-custom { width: 40px; height: 40px; border-radius: 10px; border: 1px solid ${colors.border}; background: ${colors.surfaceLight}; color: ${colors.textSecondary}; display: flex; align-items: center; justify-content: center; }
+          .btn-outline-custom { background: transparent; border: 1px solid ${colors.primary}55; color: ${colors.primary}; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
+          .form-select-custom { background: ${colors.background}; color: ${colors.textPrimary}; border: 1px solid ${colors.border}; height: 40px; border-radius: 10px; padding: 0 8px; font-size: 12px; outline: none; }
+          
+          /* Animation quay */
+          .spin { animation: spin 1s linear infinite; }
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
+
+      </div>
+  </>
   );
 };
 

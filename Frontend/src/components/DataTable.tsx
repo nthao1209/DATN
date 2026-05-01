@@ -15,7 +15,8 @@ export interface Column<T> {
 }
 
 interface DataTableProps<T> {
-  title: string;
+  title: React.ReactNode;
+  titleActions?: React.ReactNode;
   columns: Column<T>[];
   queryKey: any[];
   fetchFn?: () => Promise<T[]>;
@@ -33,6 +34,7 @@ interface DataTableProps<T> {
 
 function DataTable<T extends object>({
   title,
+  titleActions,
   columns,
   queryKey,
   fetchFn,
@@ -98,7 +100,6 @@ function DataTable<T extends object>({
     return tableData.filter((item: any) => {
       const matchesSearch = debouncedSearchText === '' || 
         smartMatch(JSON.stringify(item), debouncedSearchText);
-
       const matchesColumnFilters = Object.keys(columnFilters).every(key => {
         const filterVal = columnFilters[key].toLowerCase();
         if (!filterVal) return true;
@@ -138,12 +139,15 @@ function DataTable<T extends object>({
             </div>
             <h5 className="mb-0 fw-bold text-white" style={{ letterSpacing: '-0.02em' }}>{title}</h5>
           </div>
-          {isFetching && !isLoading && (
-            <div className="d-flex align-items-center gap-2 text-info small animate-pulse">
-              <Loader2 size={14} className="spin" />
-              <span>Đang đồng bộ...</span>
-            </div>
-          )}
+          <div className="d-flex align-items-center gap-3">
+            {titleActions}
+            {isFetching && !isLoading && (
+              <div className="d-flex align-items-center gap-2 text-info small animate-pulse">
+                <Loader2 size={14} className="spin" />
+                <span>Đang đồng bộ...</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

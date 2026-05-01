@@ -162,7 +162,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
             </li>
           )}
           {menuConfig.transactions && (
-            <MenuItem to="/transactions" icon={Clock} label="Giao dịch" />
+            <MenuItem to="/transactions" icon={Clock} label="Điểm danh" />
           )}
           
         </ul>

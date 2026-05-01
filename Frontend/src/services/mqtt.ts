@@ -1,4 +1,5 @@
 import mqtt, { type MqttClient } from 'mqtt';
+import type { OfflineAction } from './offlineSync';
 
 export type AttendanceUpdateEvent = {
   type: 'attendance.updated' | 'attendance.changed';
@@ -13,10 +14,11 @@ export type AttendanceUpdateEvent = {
   updatedAt?: string;
 };
 
-const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084/mqtt';
+const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084';
 const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || '';
 const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || '';
 const MQTT_UI_TOPIC_PREFIX = import.meta.env.VITE_MQTT_UI_TOPIC_PREFIX || 'attendance/ui/trip';
+const MQTT_ATTENDANCE_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ATTENDANCE_TOPIC_PREFIX || 'attendance';
 
 const getClientId = () => `web_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 
@@ -86,5 +88,56 @@ export const publishAttendanceUpdate = (tripId: number, payload?: Partial<Attend
 
   client.on('error', () => {
     client.end(true);
+  });
+};
+
+export const publishAttendanceAction = (action: OfflineAction) => {
+  const client = mqtt.connect(MQTT_WS_URL, {
+    username: MQTT_USERNAME || undefined,
+    password: MQTT_PASSWORD || undefined,
+    clientId: getClientId(),
+    clean: true,
+    reconnectPeriod: 3000,
+    connectTimeout: 10000,
+    keepalive: 30,
+  });
+
+  const topic = `${MQTT_ATTENDANCE_TOPIC_PREFIX}/${action.tripId}/${action.busId}/${action.roundId}/check`;
+  const payload = {
+    passengerId: action.passengerId,
+    roundId: action.roundId,
+    busId: action.busId,
+    checkIn: action.checkIn,
+    checkOut: action.checkOut,
+    note: action.note || '',
+    timestamp: action.timestamp,
+  };
+
+  return new Promise<void>((resolve, reject) => {
+    const finish = (handler: () => void) => {
+      client.removeAllListeners('connect');
+      client.removeAllListeners('message');
+      client.removeAllListeners('error');
+      client.removeAllListeners('close');
+      client.end(true, handler);
+    };
+
+    client.on('connect', () => {
+      client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (error) => {
+        if (error) {
+          finish(() => reject(error));
+          return;
+        }
+        finish(() => resolve());
+      });
+    });
+
+    client.on('error', (error) => {
+      finish(() => reject(error));
+    });
+
+    client.on('close', () => {
+      finish(() => reject(new Error('Không thể kết nối MQTT để đồng bộ offline.')));
+    });
   });
 };

@@ -23,6 +23,7 @@ import UserManagementPage from './pages/UserManagementPage';
 import RoleManagementPage from './pages/RoleManagementPage';
 import TransactionPage from './pages/TransactionPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import SyncManager from './components/common/SyncManager';
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
@@ -74,6 +75,7 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
+      <SyncManager />
       <Router>
         <Routes>
           {!user ? (

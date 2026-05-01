@@ -1,87 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import api from '../../services/api';
-import { publishAttendanceUpdate } from '../../services/mqtt';
+import { useEffect, useRef, useState } from 'react';
 import type { DraftCell } from './types';
+import { offlineService, OFFLINE_QUEUE_SYNCED_EVENT, OFFLINE_QUEUE_UPDATED_EVENT, type OfflineAction } from '../../services/offlineSync';
 
 type UseTransactionSyncParams = {
   dirtyEntries: DraftCell[];
   selectedTripId: number | null;
   storageKey: string;
-  setDraftMap: React.Dispatch<React.SetStateAction<Record<string, DraftCell>>>;
-  refetchTransactions: () => Promise<unknown>;
-  refetchPassengers: () => Promise<unknown>;
+};
+
+type SyncBanner = {
+  tone: 'info' | 'success' | 'warning' | 'danger';
+  label: string;
 };
 
 export const useTransactionSync = ({
   dirtyEntries,
   selectedTripId,
   storageKey,
-  setDraftMap,
-  refetchTransactions,
-  refetchPassengers,
 }: UseTransactionSyncParams) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [syncBanner, setSyncBanner] = useState<SyncBanner | null>(null);
   const isSyncingRef = useRef(false);
-
-  const syncDrafts = useCallback(
-    async (silent = false) => {
-      if (!dirtyEntries.length || !isOnline || isSyncingRef.current) {
-        return false;
-      }
-
-      try {
-        isSyncingRef.current = true;
-        setIsSaving(true);
-        await Promise.all(
-          dirtyEntries.map((entry) => {
-            if (entry.transactionId) {
-              return api.updateTransaction(String(entry.transactionId), {
-                checkIn: entry.checkIn,
-                checkOut: entry.checkOut,
-                note: entry.note?.trim() || null,
-                expectedUpdatedAt: entry.updatedAt,
-              });
-            }
-            return api.createTransaction({
-              passengerId: entry.passengerId,
-              roundId: entry.roundId,
-              busId: entry.busId,
-              checkIn: entry.checkIn,
-              checkOut: entry.checkOut,
-              note: entry.note?.trim() || null,
-            });
-          })
-        );
-
-        setDraftMap({});
-        if (storageKey) localStorage.removeItem(storageKey);
-        await Promise.all([refetchTransactions(), refetchPassengers()]);
-
-        if (selectedTripId) {
-          publishAttendanceUpdate(selectedTripId);
-        }
-
-        if (!silent) {
-          alert('Đã lưu điểm danh thành công');
-        }
-        return true;
-      } catch (error: any) {
-        const message = error?.message || 'Lỗi khi lưu điểm danh';
-        if (message.toLowerCase().includes('vui lòng tải lại')) {
-          await Promise.all([refetchTransactions(), refetchPassengers()]);
-        }
-        if (!silent) {
-          alert(message);
-        }
-        return false;
-      } finally {
-        setIsSaving(false);
-        isSyncingRef.current = false;
-      }
-    },
-    [dirtyEntries, isOnline, refetchPassengers, refetchTransactions, selectedTripId, setDraftMap, storageKey]
-  );
 
   const handleSave = async () => {
     if (!dirtyEntries.length) {
@@ -89,12 +29,53 @@ export const useTransactionSync = ({
       return;
     }
 
-    if (!isOnline) {
-      alert('Đang offline. Dữ liệu đã lưu tạm local, sẽ tự đồng bộ khi có mạng.');
+    if (!selectedTripId) {
+      alert('Không xác định được chuyến đi để đồng bộ');
       return;
     }
 
-    await syncDrafts(false);
+    if (isSyncingRef.current) {
+      return;
+    }
+
+    try {
+      isSyncingRef.current = true;
+      setIsSaving(true);
+
+      const queueActions = dirtyEntries.map<OfflineAction>((entry) => ({
+        id: '',
+        tripId: selectedTripId,
+        passengerId: entry.passengerId,
+        roundId: entry.roundId,
+        busId: entry.busId,
+        checkIn: entry.checkIn,
+        checkOut: entry.checkOut,
+        note: entry.note?.trim() || '',
+        timestamp: Date.now(),
+        status: 'pending',
+        storageKey,
+      }));
+
+      queueActions.forEach((action) => {
+        offlineService.upsertQueue(action);
+      });
+
+      setSyncBanner(
+        isOnline
+          ? { tone: 'info', label: 'Đã đưa vào hàng đợi, hệ thống sẽ đẩy lên MQTT khi sẵn sàng' }
+          : { tone: 'warning', label: 'Offline: dữ liệu đã được lưu tạm để đồng bộ sau' }
+      );
+
+      if (!isOnline) {
+        alert('Đang offline. Dữ liệu đã lưu vào hàng đợi đồng bộ local.');
+      }
+
+      window.dispatchEvent(new Event(OFFLINE_QUEUE_UPDATED_EVENT));
+      return true;
+    } finally {
+      setIsSaving(false);
+      isSyncingRef.current = false;
+    }
   };
 
   useEffect(() => {
@@ -111,14 +92,22 @@ export const useTransactionSync = ({
   }, []);
 
   useEffect(() => {
-    if (!isOnline || !dirtyEntries.length) return;
-    void syncDrafts(true);
-  }, [dirtyEntries.length, isOnline, syncDrafts]);
+    const handleQueueSynced = (event: Event) => {
+      const detail = (event as CustomEvent<{ storageKey?: string }>).detail;
+      if (detail?.storageKey && detail.storageKey === storageKey) {
+        setSyncBanner({ tone: 'success', label: 'Đã đồng bộ lên máy chủ' });
+      }
+    };
+
+    window.addEventListener(OFFLINE_QUEUE_SYNCED_EVENT, handleQueueSynced as EventListener);
+    return () => window.removeEventListener(OFFLINE_QUEUE_SYNCED_EVENT, handleQueueSynced as EventListener);
+  }, [storageKey]);
 
   return {
     isSaving,
     isOnline,
-    hasPendingSync: dirtyEntries.length > 0,
+    hasPendingSync: dirtyEntries.length > 0 || offlineService.getQueueByStorageKey(storageKey).length > 0,
+    syncBanner,
     handleSave,
   };
 };
