@@ -9,16 +9,21 @@ import { registerRequest } from "../../redux/slice/authSlice";
 import { type RootState } from "../../redux/store";
 import { auth } from "../../config/firebase";
 import AuthLayout from "../../layouts/AuthLayout";
+import * as yup from "yup";
+import {yupResolver} from "@hookform/resolvers/yup";
+import {useSnackbar} from "notistack";
 
-type RegisterFormData = {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-};
+const schema = yup.object({
+  name: yup.string().required("Họ tên không được để trống"),
+  email: yup.string().email("Email không hợp lệ").required("Email không được để trống"),
+  password: yup.string().min(6, "Tối thiểu 6 ký tự").required("Mật khẩu không được để trống"),
+  confirmPassword: yup.string().oneOf([yup.ref("password")], "Mật khẩu không khớp").required("Vui lòng nhập lại mật khẩu")
+}).required();
+
 
 const Register: React.FC = () => {
   const dispatch = useDispatch();
+  const { enqueueSnackbar } = useSnackbar();
 
   const { loading, error, statusMessage } = useSelector(
     (state: RootState) => state.auth
@@ -38,9 +43,10 @@ const Register: React.FC = () => {
   const {
     register,
     handleSubmit,
-    watch,
-    formState: { errors }
-  } = useForm<RegisterFormData>({
+    formState: { errors, isValid }
+  } = useForm({
+    resolver: yupResolver(schema),
+    mode: "onChange",
     defaultValues: {
       name: "",
       email: "",
@@ -48,8 +54,6 @@ const Register: React.FC = () => {
       confirmPassword: ""
     }
   });
-
-  const passwordValue = watch("password");
 
   const onSubmit = handleSubmit(
     async (data) => {
@@ -63,9 +67,7 @@ const Register: React.FC = () => {
           );
 
         if (methods.length > 0) {
-          setFormError(
-            "Email này đã được sử dụng"
-          );
+          enqueueSnackbar("Email đã được sử dụng", { variant: "warning" });
           return;
         }
 
@@ -76,10 +78,11 @@ const Register: React.FC = () => {
             password: data.password
           })
         );
+       
+        enqueueSnackbar("Đăng ký thành công!", { variant: "success" });
+
       } catch {
-        setFormError(
-          "Không thể kiểm tra email lúc này"
-        );
+        enqueueSnackbar("Không thể kiểm tra email", { variant: "error"});
       }
     }
   );
@@ -128,10 +131,7 @@ const Register: React.FC = () => {
               className={`form-control form-control-lg ${
                 errors.name ? "is-invalid" : ""
               }`}
-              {...register("name", {
-                required:
-                  "Họ tên không được để trống"
-              })}
+              {...register("name")}
             />
 
             {errors.name && (
@@ -151,16 +151,7 @@ const Register: React.FC = () => {
               className={`form-control form-control-lg ${
                 errors.email ? "is-invalid" : ""
               }`}
-              {...register("email", {
-                required:
-                  "Email không được để trống",
-                pattern: {
-                  value:
-                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                  message:
-                    "Email không hợp lệ"
-                }
-              })}
+              {...register("email")}
             />
 
             {errors.email && (
@@ -180,21 +171,14 @@ const Register: React.FC = () => {
                     ? "text"
                     : "password"
                 }
-                placeholder="Tối thiểu 8 ký tự"
+                placeholder="Tối thiểu 6 ký tự"
                 autoComplete="new-password"
                 className={`form-control form-control-lg ${
                   errors.password
                     ? "is-invalid"
                     : ""
                 }`}
-                {...register("password", {
-                  required:
-                    "Mật khẩu không được để trống",
-                  minLength: {
-                    value: 8,
-                    message: "Tối thiểu 8 ký tự"
-                  }
-                })}
+                {...register("password")}
               />
 
               <button
@@ -236,17 +220,7 @@ const Register: React.FC = () => {
                     ? "is-invalid"
                     : ""
                 }`}
-                {...register(
-                  "confirmPassword",
-                  {
-                    required:
-                      "Vui lòng nhập lại mật khẩu",
-                    validate: (value) =>
-                      value ===
-                        passwordValue ||
-                      "Mật khẩu không khớp"
-                  }
-                )}
+                {...register("confirmPassword")}
               />
 
               <button
@@ -290,7 +264,7 @@ const Register: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={!isValid || loading}
             className="btn btn-info btn-lg w-100 fw-semibold text-dark mt-2"
           >
             {loading

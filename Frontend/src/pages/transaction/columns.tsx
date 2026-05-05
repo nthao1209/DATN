@@ -1,6 +1,7 @@
 import PassengerActionButtons from '../../components/PassengerActionButtons';
 import type { Column } from '../../components/DataTable';
 import type { DraftCell, RoundOption, RoundSummary, TransactionTableRow } from './types';
+import { useTheme} from '../../theme/ThemeContext'; 
 
 type BuildColumnsParams = {
   selectedRounds: RoundOption[];
@@ -15,6 +16,7 @@ export const buildTransactionColumns = ({
   getCell,
   setCell,
 }: BuildColumnsParams): Column<TransactionTableRow>[] => {
+  const {colors} = useTheme();
   const dynamicRoundCols: Column<TransactionTableRow>[] = selectedRounds.flatMap((round) => {
     const roundId = Number(round.id);
     const roundLabel = round.name || `Round ${round.id}`;
@@ -115,18 +117,40 @@ export const buildTransactionColumns = ({
     {
       header: 'Liên lạc',
       key: 'contact',
-      width: '170px',
+      width: '180px', // Tăng nhẹ width để thoải mái layout
       render: (row) => {
         if (row.isSummary) return <span className="text-muted">-</span>;
+        
         return (
-          <div className="transaction-contact-cell">
-            <div className="d-flex flex-column gap-1">
-              <div className="transaction-contact-phone">{row.tel || '-'}</div>
-              <span className="badge rounded-pill text-bg-light border align-self-start text-muted">
-                Biên chế: {row.assignedBusName || row.busName || 'Chưa rõ'}
-              </span>
+          <div className="transaction-contact-cell d-flex align-items-center justify-content-between gap-2">
+            <div className="d-flex flex-column gap-1 overflow-hidden">
+              <div className="transaction-contact-phone fw-bold" style={{ fontSize: '13px' }}>
+                {row.tel || '-'}
+              </div>
+              
+              {/* Badge Biên chế - Đã đổi sang màu Warning nổi bật */}
+              <div 
+                className="px-2 py-0.5 rounded-pill d-inline-flex align-items-center shadow-sm"
+                style={{ 
+                  backgroundColor: `${colors.warning}15`, // Nền vàng mờ
+                  border: `1px solid ${colors.warning}44`, // Viền vàng mờ
+                  width: 'fit-content'
+                }}
+              >
+                <span style={{ color: colors.warning, fontSize: '10px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                  Biên chế: {row.assignedBusName || row.busName || 'N/A'}
+                </span>
+              </div>
             </div>
-            {row.tel ? <PassengerActionButtons passenger={{ name: row.name, phone: row.tel }} compact /> : null}
+
+            {row.tel ? (
+              <div className="d-flex gap-1">
+                <PassengerActionButtons 
+                  passenger={{ name: row.name, phone: row.tel }} 
+                  compact 
+                />
+              </div>
+            ) : null}
           </div>
         );
       },

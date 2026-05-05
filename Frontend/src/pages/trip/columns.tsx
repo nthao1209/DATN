@@ -1,4 +1,4 @@
-import { Trash2, BusFront, RotateCw } from 'lucide-react';
+import { Trash2, BusFront, Route } from 'lucide-react';
 import type { Column } from '../../components/DataTable';
 import type { TripRow, TripStatus } from './types';
 
@@ -80,7 +80,7 @@ export const buildTripColumns = ({
             onClick={() => onManageRounds(row.id!)}
             title="Bấm vào để quản lý round của chuyến này"
           >
-            <RotateCw size={14} className="me-1 opacity-75" />
+            <Route size={14} className="me-1 opacity-75" />
             <span>{row.roundCount}</span>
           </button>
         </div>

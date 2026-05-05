@@ -1,20 +1,26 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff } from "lucide-react";
 import { loginRequest } from "../../redux/slice/authSlice";
 import {type RootState } from "../../redux/store";
 import AuthLayout from '../../layouts/AuthLayout';
+import * as yup from "yup";
+import { yupResolver } from "@hookform/resolvers/yup";
 
-type LoginFormData = {
-  email: string;
-  password: string;
-};
+
+const schema = yup.object({
+  email: yup.string()
+    .required("Email không được để trống")
+    .email("Email không hợp lệ"),
+  password: yup.string()
+    .required("Mật khẩu không được để trống")
+    .min(6, "Mật khẩu tối thiểu 6 ký tự")
+}).required();
 
 const Login: React.FC = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
 
   const { loading, error } = useSelector(
     (state: RootState) => state.auth
@@ -26,8 +32,9 @@ const Login: React.FC = () => {
   const {
     register,
     handleSubmit,
-    formState: { errors }
-  } = useForm<LoginFormData>({
+    formState: { errors, isValid }
+  } = useForm({
+    resolver: yupResolver(schema),
     defaultValues: {
       email: "",
       password: ""
@@ -41,10 +48,6 @@ const Login: React.FC = () => {
         password: data.password
       })
     );
-
-    navigate("/setup-org", {
-      replace: true
-    });
   });
 
   return (
@@ -71,16 +74,7 @@ const Login: React.FC = () => {
                   ? "is-invalid"
                   : ""
               }`}
-              {...register("email", {
-                required:
-                  "Email không được để trống",
-                pattern: {
-                  value:
-                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                  message:
-                    "Email không hợp lệ"
-                }
-              })}
+              {...register("email")}
             />
 
             {errors.email && (
@@ -110,15 +104,7 @@ const Login: React.FC = () => {
                     ? "is-invalid"
                     : ""
                 }`}
-                {...register("password", {
-                  required:
-                    "Mật khẩu không được để trống",
-                  minLength: {
-                    value: 6,
-                    message:
-                      "Mật khẩu tối thiểu 6 ký tự"
-                  }
-                })}
+                {...register("password")} 
               />
 
               <button
@@ -154,7 +140,7 @@ const Login: React.FC = () => {
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={ !isValid || loading}
             className="btn btn-info btn-lg w-100 fw-semibold text-dark mt-2"
           >
             {loading

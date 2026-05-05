@@ -1,5 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Route,
+  RouterProvider,
+} from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { type RootState } from './redux/store';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -24,21 +30,36 @@ import RoleManagementPage from './pages/RoleManagementPage';
 import TransactionPage from './pages/TransactionPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import SyncManager from './components/common/SyncManager';
+import { UnsavedChangesProvider } from './components/common/UnsavedChangesContext';
+
+const SETUP_ORG_COMPLETE_KEY = 'bustrack-setup-org-complete';
+
+const SetupOrgGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { roleId } = useSelector((state: RootState) => state.auth);
+
+  if (roleId !== 1 && sessionStorage.getItem(SETUP_ORG_COMPLETE_KEY) !== 'true') {
+    return <Navigate to="/setup-org" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
-  const { user, hasTenant, loading, roleId } = useSelector((state: RootState) => state.auth);
+  const { user, loading, roleId } = useSelector((state: RootState) => state.auth);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(fbAuth, async (firebaseUser) => {
       try {
         if (!firebaseUser) {
+          sessionStorage.removeItem(SETUP_ORG_COMPLETE_KEY);
           dispatch(logout());
           return;
         }
 
         if (!firebaseUser.emailVerified) {
+          sessionStorage.removeItem(SETUP_ORG_COMPLETE_KEY);
           dispatch(logout());
           return;
         }
@@ -56,6 +77,7 @@ const App: React.FC = () => {
           })
         );
       } catch (error) {
+        sessionStorage.removeItem(SETUP_ORG_COMPLETE_KEY);
         dispatch(logout());
       } finally {
         setIsBootstrapping(false);
@@ -64,6 +86,115 @@ const App: React.FC = () => {
 
     return () => unsubscribe();
   }, [dispatch]);
+
+  const router = useMemo(() => {
+    const publicRoutes = createRoutesFromElements(
+      <>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </>
+    );
+
+    const systemAdminRoutes = createRoutesFromElements(
+      <>
+        <Route path="/setup-org" element={<Navigate to="/users" replace />} />
+
+        <Route element={<Layout />}>
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute allowedRoles={[1]}>
+                <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/roles"
+            element={
+              <ProtectedRoute allowedRoles={[1]}>
+                <RoleManagementPage />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+
+        <Route path="/" element={<Navigate to="/users" replace />} />
+        <Route path="*" element={<Navigate to="/users" replace />} />
+      </>
+    );
+
+    const tenantRoutes = createRoutesFromElements(
+      <>
+        <Route path="/setup-org" element={<SetupOrg />} />
+
+        <Route element={<SetupOrgGate><Layout /></SetupOrgGate>}>
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={[2]}>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/trips"
+            element={
+              <ProtectedRoute allowedRoles={[2]}>
+                <TripPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/trips/:id/rounds"
+            element={
+              <ProtectedRoute allowedRoles={[2]}>
+                <RoundPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/trips/:id/buses"
+            element={
+              <ProtectedRoute allowedRoles={[2]}>
+                <BusPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/passengers"
+            element={
+              <ProtectedRoute allowedRoles={[2]}>
+                <PassengerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/transactions"
+            element={
+              <ProtectedRoute allowedRoles={[3]}>
+                <TransactionPage />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+
+        <Route path="/" element={<Navigate to="/setup-org" replace />} />
+        <Route path="*" element={<Navigate to="/setup-org" replace />} />
+      </>
+    );
+
+    if (!user) {
+      return createBrowserRouter(publicRoutes);
+    }
+
+    if (roleId === 1) {
+      return createBrowserRouter(systemAdminRoutes);
+    }
+
+    return createBrowserRouter(tenantRoutes);
+  }, [roleId, user]);
 
   if (isBootstrapping || (loading && !user)) {
     return (
@@ -75,104 +206,10 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <SyncManager />
-      <Router>
-        <Routes>
-          {!user ? (
-            <>
-              <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="*" element={<Navigate to="/login" />} />
-          </>
-        ) : (
-          /* NHÓM 2: ĐÃ ĐĂNG NHẬP NHƯNG CHƯA CÓ TENANT */
-          (!hasTenant && roleId !== 1) ? (
-            /* Đã đăng nhập nhưng chưa tạo/tham gia tổ chức -> Chuyển tới SetupOrgPage */
-            <>
-              <Route path="/setup-org" element={<SetupOrg />} />
-              <Route path="*" element={<Navigate to="/setup-org" />} />
-
-            </>
-          ) : (
-            /* NHÓM 3: ĐÃ CÓ TENANT -> VÀO APP CHÍNH */
-            <>
-              <Route path="/setup-org" element={<SetupOrg />} />
-
-              <Route element={<Layout />}>
-                {/* Dashboard - tất cả roles đều có thể xem */}
-                <Route path="/dashboard" element={<Dashboard />} />
-
-                {/* SuperAdmin Routes - Role 1 */}
-                <Route
-                  path="/users"
-                  element={
-                    <ProtectedRoute allowedRoles={[1]}>
-                      <UserManagementPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/roles"
-                  element={
-                    <ProtectedRoute allowedRoles={[1]}>
-                      <RoleManagementPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Admin Routes - Role 2 */}
-                <Route
-                  path="/trips"
-                  element={
-                    <ProtectedRoute allowedRoles={[2]}>
-                      <TripPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/trips/:id/rounds"
-                  element={
-                    <ProtectedRoute allowedRoles={[2]}>
-                      <RoundPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/trips/:id/buses"
-                  element={
-                    <ProtectedRoute allowedRoles={[2]}>
-                      <BusPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/passengers"
-                  element={
-                    <ProtectedRoute allowedRoles={[2]}>
-                      <PassengerPage />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* BusManager Routes - Role 3 */}
-                <Route
-                  path="/transactions"
-                  element={
-                    <ProtectedRoute allowedRoles={[3]}>
-                      <TransactionPage />
-                    </ProtectedRoute>
-                  }
-                />
-              </Route>
-              
-              {/* Mặc định vào dashboard */}
-              <Route path="*" element={<Navigate to="/dashboard" />} />
-            </>
-          )
-        )}
-      </Routes>
-    </Router>
+      <UnsavedChangesProvider>
+        <SyncManager />
+        <RouterProvider router={router} />
+      </UnsavedChangesProvider>
     </ThemeProvider>
   );
 };

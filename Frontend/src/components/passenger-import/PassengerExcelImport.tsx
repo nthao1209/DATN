@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import api from '../../services/api';
 import type { PassengerImportPreviewResponse } from '../../pages/passenger/types';
+import { useSnackbar } from 'notistack';
 
 type PassengerExcelImportProps = {
   selectedTripId: number | null;
@@ -19,6 +20,7 @@ const PassengerExcelImport: React.FC<PassengerExcelImportProps> = ({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [lastResultText, setLastResultText] = useState('');
+  const { enqueueSnackbar } = useSnackbar();
 
   React.useEffect(() => {
     setLastResultText('');
@@ -48,7 +50,7 @@ const PassengerExcelImport: React.FC<PassengerExcelImportProps> = ({
 
       setLastResultText(text);
     } catch (error: any) {
-      alert(error?.message || 'Lỗi khi import file Excel');
+      enqueueSnackbar(error?.message || 'Lỗi khi import file Excel', { variant: 'error' });
     } finally {
       setIsUploading(false);
       event.target.value = '';

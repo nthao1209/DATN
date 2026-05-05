@@ -1,75 +1,188 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useForm } from 'react-hook-form';
 import { type RootState } from '../redux/store';
 import { logout } from '../redux/slice/authSlice';
 import { 
-  LogOut, Building, Settings, Briefcase,
-  Bell, LayoutGrid, Map, ChevronDown
+  LogOut, Building, Briefcase,
+  Bell, LayoutGrid, Map, ChevronDown,
+  Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 import { useTheme } from '../theme/ThemeContext';
+import { auth, signOut } from '../config/firebase';
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from 'firebase/auth';
+import * as yup from 'yup';
+import { yupResolver } from '@hookform/resolvers/yup';
+import {enqueueSnackbar} from 'notistack';
+import { useUnsavedChanges } from './common/UnsavedChangesContext';
+
+
+const schema = yup.object({
+  currentPassword : yup.string().required("Mật khẩu hiện tại không được để trống"),
+  newPassword: yup.string()
+    .required("Mật khẩu mới không được để trống")
+    .min(6, "Mật khẩu mới phải có ít nhất 6 ký tự"),
+  confirmPassword: yup.string()
+    .required("Vui lòng xác nhận mật khẩu mới")
+    .oneOf([yup.ref('newPassword')], "Mật khẩu xác nhận không khớp")
+}).required();
+
 
 const TopBar: React.FC = () => {
-  const { colors } = useTheme();
+  const { colors, isDarkMode, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentTenant } = useSelector((state: RootState) => state.auth);
+  const { currentTenant, user } = useSelector((state: RootState) => state.auth);
   const mqttStatus = useMqttBrokerStatus();
+  const { state: unsavedChanges, clearUnsavedChanges } = useUnsavedChanges();
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const {
+    register: registerPassword,
+    handleSubmit: handlePasswordSubmit,
+    reset: resetPasswordForm,
+    formState: { errors: passwordErrors , isValid},
+  } = useForm({
+    resolver: yupResolver(schema),
+    mode: 'onChange',
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
+
+  useEffect(() => {
+    if (!isChangePasswordOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsChangePasswordOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isChangePasswordOpen]);
 
   const statusMeta = {
-    connecting: { label: 'Connecting', color: colors.warning, bg: 'rgba(245, 158, 11, 0.1)' },
-    connected: { label: 'Connected', color: colors.success, bg: 'rgba(16, 185, 129, 0.1)' },
-    reconnecting: { label: 'Reconnecting', color: colors.info, bg: 'rgba(59, 130, 246, 0.1)' },
-    disconnected: { label: 'Disconnected', color: colors.danger, bg: 'rgba(239, 68, 68, 0.1)' },
-    error: { label: 'Error', color: colors.warning, bg: 'rgba(249, 115, 22, 0.1)' },
-  }[mqttStatus] || { label: 'Unknown', color: colors.textSecondary, bg: 'rgba(148, 163, 184, 0.1)' };
+    connecting: { label: 'Connecting', color: colors.warning, bg: `${colors.warning}15` },
+    connected: { label: 'Connected', color: colors.success, bg: `${colors.success}15` },
+    reconnecting: { label: 'Reconnecting', color: colors.info, bg: `${colors.info}15` },
+    disconnected: { label: 'Disconnected', color: colors.danger, bg: `${colors.danger}15` },
+    error: { label: 'Error', color: colors.warning, bg: `${colors.warning}15` },
+  }[mqttStatus] || { label: 'Unknown', color: colors.textSecondary, bg: `${colors.textSecondary}15` };
 
   const handleLogout = () => {
+    if (unsavedChanges.isDirty) {
+      enqueueSnackbar(unsavedChanges.message || 'Bạn có thay đổi chưa lưu. Hãy lưu trước khi đăng xuất.', { variant: 'warning' });
+      return;
+    }
+
     dispatch(logout());
+    clearUnsavedChanges();
     navigate('/login');
   };
+
+  const openChangePasswordModal = () => {
+    setPasswordError(null);
+    resetPasswordForm();
+    setIsChangePasswordOpen(true);
+  };
+
+  const closeChangePasswordModal = () => {
+    if (isSavingPassword) return;
+    setPasswordError(null);
+    resetPasswordForm();
+    setIsChangePasswordOpen(false);
+  };
+
+  const handleChangePassword = handlePasswordSubmit(async (formData) => {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      enqueueSnackbar("Không tìm thấy tài khoản", { variant: "error" });
+      return;
+    }
+
+    setIsSavingPassword(true);
+
+    try {
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        formData.currentPassword
+      );
+
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, formData.newPassword);
+
+      enqueueSnackbar("Đổi mật khẩu thành công", { variant: "success" });
+
+      await signOut(auth);
+      dispatch(logout());
+      clearUnsavedChanges();
+      resetPasswordForm();
+      setIsChangePasswordOpen(false);
+      navigate('/login');
+    } catch (error: any) {
+      if (error?.code === 'auth/wrong-password') {
+        enqueueSnackbar('Mật khẩu hiện tại không đúng.', { variant: "error" });
+      } else if (error?.code === 'auth/requires-recent-login') {
+        enqueueSnackbar('Phiên đăng nhập đã cũ. Vui lòng đăng xuất và đăng nhập lại trước khi đổi mật khẩu.', { variant: "error" });
+      } else {
+        enqueueSnackbar('Không thể đổi mật khẩu lúc này. Vui lòng thử lại sau.', { variant: "error" });
+      }
+    } finally {
+      setIsSavingPassword(false);
+    }
+  });
 
   return (
     <>
       <nav className="navbar navbar-expand px-4 sticky-top transition-all" 
         style={{ 
           borderBottom: `1px solid ${colors.border}`,
-          background: 'rgba(15, 23, 42, 0.8)',
+          backgroundColor: isDarkMode ? 'rgba(2, 6, 23, 0.7)' : 'rgba(255, 255, 255, 0.8)',
           backdropFilter: 'blur(12px)',
           height: '64px',
           zIndex: 999
         }}>
         <div className="d-flex align-items-center justify-content-between w-100">
           
-          {/* Left Side: Tenant Info & Status */}
           <div className="d-flex align-items-center gap-3">
-            <div className="d-flex align-items-center gap-2 px-2 py-1 rounded-2 bg-dark-subtle border border-gray-800">
-              <Building size={16} className="text-info" />
-              <span className="text-white fw-semibold small tracking-tight">
-                {currentTenant?.name || 'Hệ thống'}
-              </span>
-            </div>
-
-            <div className="d-flex align-items-center gap-2 px-3 py-1 rounded-pill" 
+            <div className="status-badge-container" 
               style={{ 
                 border: `1px solid ${statusMeta.color}44`, 
                 background: statusMeta.bg,
-                transition: 'all 0.3s'
               }}>
               <span className={`status-dot ${mqttStatus === 'connected' ? 'pulse' : ''}`} 
                     style={{ backgroundColor: statusMeta.color }}></span>
-              <span style={{ color: statusMeta.color, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>
+              <span className="status-label" style={{ color: statusMeta.color }}>
                 {statusMeta.label}
+              </span>
+            </div>
+
+            <div className="tenant-badge" style={{ backgroundColor: colors.surfaceLight, border: `1px solid ${colors.border}` }}>
+              <Building size={14} className="text-primary" />
+              <span style={{ color: colors.textPrimary }}>
+                {currentTenant?.name || 'Hệ thống'}
               </span>
             </div>
           </div>
 
-          {/* Right Side: Tools & Profile */}
           <div className="d-flex align-items-center gap-2">
             
             {/* Quick Actions Group */}
-            <div className="d-flex align-items-center gap-1 border-end border-gray-800 pe-3 me-2">
+            <div className="d-flex align-items-center gap-1 border-end pe-3 me-2" style={{ borderColor: colors.border }}>
               {[
                 { icon: Briefcase, label: 'Projects' },
                 { icon: Bell, label: 'Notifications' },
@@ -80,45 +193,53 @@ const TopBar: React.FC = () => {
                   <item.icon size={18} />
                 </button>
               ))}
+              
+              {/* Theme Toggle Button */}
+              <button 
+                className="btn-icon-topbar theme-toggle-btn" 
+                onClick={toggleTheme} 
+                title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {isDarkMode ? <Sun size={18} color="#fbbf24" /> : <Moon size={18} color="#6366f1" />}
+              </button>
             </div>
 
-            {/* User Profile Dropdown */}
             <div className="dropdown">
               <div 
-                className="d-flex align-items-center gap-2 cursor-pointer p-1 rounded-pill border border-gray-800 hover-bg-gray"
+                className="d-flex align-items-center gap-2 cursor-pointer p-1 pe-2 rounded-pill border hover-bg-custom"
+                style={{ borderColor: colors.border }}
                 data-bs-toggle="dropdown"
-                aria-expanded="false"
               >
-                <div className="bg-gradient-primary rounded-circle d-flex align-items-center justify-content-center" 
-                     style={{ width: '32px', height: '32px' }}>
-                  <span className="text-white fw-bold small">T</span>
+                <div className="profile-avatar">
+                  {user?.name.charAt(0).toUpperCase()}
                 </div>
-                <ChevronDown size={14} className="text-gray-500 me-1" />
+                <div className="d-none d-md-block">
+                    <p className="m-0 small fw-bold leading-none" style={{ color: colors.textPrimary, fontSize: '13px' }}>
+                        {currentTenant?.role?.name}
+                    </p>
+                </div>
+                <ChevronDown size={16} style={{ color: colors.textSecondary }} />
               </div>
 
-              <ul className="dropdown-menu dropdown-menu-end shadow-lg border-gray-800 animate-slide-up" 
-                  style={{ backgroundColor: colors.surfaceLight, minWidth: '220px', borderRadius: '12px', marginTop: '10px' }}>
-                <li className="px-3 py-3 border-bottom border-gray-700">
-                  <p className="text-gray-400 small mb-0">Tài khoản quản trị</p>
-                  <p className="text-white fw-bold mb-0">{currentTenant?.name}</p>
-                </li>
-                
+              <ul className="dropdown-menu dropdown-menu-end shadow-lg animate-slide-up" 
+                  style={{ 
+                    backgroundColor: colors.surface, 
+                    border: `1px solid ${colors.border}`,
+                    minWidth: '240px', 
+                    borderRadius: '16px', 
+                    marginTop: '12px' 
+                  }}>
                 <li>
-                  <button className="dropdown-item d-flex align-items-center gap-2 py-2 mt-2" onClick={() => navigate('/select-tenant')}>
-                    <Building size={16} className="text-info" /> <span>Quản lý tổ chức</span>
-                  </button>
-                </li>
-                <li>
-                  <button className="dropdown-item d-flex align-items-center gap-2 py-2" onClick={() => navigate('/settings')}>
-                    <Settings size={16} className="text-secondary" /> <span>Cài đặt hệ thống</span>
+                  <button className="dropdown-item d-flex align-items-center gap-3 py-2" onClick={openChangePasswordModal}>
+                    <ShieldCheck size={16} /> <span>Đổi mật khẩu</span>
                   </button>
                 </li>
                 
-                <li className="my-2 border-top border-gray-700"></li>
+                <li className="my-2 border-top" style={{ borderColor: colors.border }}></li>
                 
-                <li>
-                  <button className="dropdown-item d-flex align-items-center gap-2 py-2 mb-2 text-danger-emphasis" onClick={handleLogout}>
-                    <LogOut size={16} /> <span className="fw-semibold">Đăng xuất</span>
+                <li className="mb-2">
+                  <button className="dropdown-item d-flex align-items-center gap-3 py-2 text-danger" onClick={handleLogout}>
+                    <LogOut size={16} /> <span className="fw-bold">Đăng xuất</span>
                   </button>
                 </li>
               </ul>
@@ -127,79 +248,223 @@ const TopBar: React.FC = () => {
         </div>
       </nav>
 
+      {isChangePasswordOpen && (
+        <div className="password-modal-overlay" onClick={closeChangePasswordModal}>
+          <div className="password-modal shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="d-flex align-items-start justify-content-between gap-3 p-4 border-bottom" style={{ borderColor: colors.border }}>
+              <div>
+                <div className="d-flex align-items-center gap-2 mb-2" style={{ color: colors.primary }}>
+                  <LockKeyhole size={18} />
+                  <span className="fw-semibold small text-uppercase">Thông tin cá nhân</span>
+                </div>
+                <h5 className="m-0 fw-bold" style={{ color: colors.textPrimary }}>Đổi mật khẩu</h5>
+                <p className="mb-0 small" style={{ color: colors.textMuted }}>
+                  Cập nhật mật khẩu cho tài khoản đang đăng nhập.
+                </p>
+              </div>
+              <button className="btn-close-password" onClick={closeChangePasswordModal} type="button">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="p-4">
+              <div className="mb-3">
+                <label className="form-label small fw-semibold" style={{ color: colors.textSecondary }}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  className="form-control password-input"
+                  value={user?.email || auth.currentUser?.email || ''}
+                  disabled
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label small fw-semibold" style={{ color: colors.textSecondary }}>
+                  Mật khẩu hiện tại
+                </label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  className="form-control password-input"
+                  {...registerPassword('currentPassword')}
+                  placeholder="Nhập mật khẩu hiện tại"
+                  required
+                />
+                {passwordErrors.currentPassword && (
+                  <div className="text-danger small mt-1">{passwordErrors.currentPassword.message}</div>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label small fw-semibold" style={{ color: colors.textSecondary }}>
+                  Mật khẩu mới
+                </label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  className="form-control password-input"
+                  {...registerPassword('newPassword')}
+                  placeholder="Tối thiểu 6 ký tự"
+                  required
+                />
+                {passwordErrors.newPassword && (
+                  <div className="text-danger small mt-1">{passwordErrors.newPassword.message}</div>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label small fw-semibold" style={{ color: colors.textSecondary }}>
+                  Xác nhận mật khẩu mới
+                </label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  className="form-control password-input"
+                  {...registerPassword('confirmPassword')}
+                  placeholder="Nhập lại mật khẩu mới"
+                  required
+                />
+                {passwordErrors.confirmPassword && (
+                  <div className="text-danger small mt-1">{passwordErrors.confirmPassword.message}</div>
+                )}
+              </div>
+
+              {passwordError && (
+                <div className="alert alert-danger d-flex align-items-start gap-2 small mb-3 py-2">
+                  <CircleAlert size={18} className="mt-0.5 flex-shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              <div className="d-flex gap-2 justify-content-end">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary px-4"
+                  onClick={closeChangePasswordModal}
+                  disabled={isSavingPassword}
+                >
+                  Hủy
+                </button>
+                <button type="submit" className="btn btn-primary px-4" disabled={!isValid || isSavingPassword}>
+                  {isSavingPassword ? 'Đang lưu...' : 'Đổi mật khẩu'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
-        .border-gray-700 { border-color: ${colors.borderLight} !important; }
-        .border-gray-800 { border-color: ${colors.border} !important; }
-        .text-gray-400 { color: ${colors.textSecondary}; }
-        .text-gray-500 { color: ${colors.textMuted}; }
+        .status-badge-container {
+            display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 20px; transition: all 0.3s;
+        }
+        .status-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05rem; }
         
-        .bg-gradient-primary {
-          background: linear-gradient(135deg, ${colors.info} 0%, ${colors.primary} 100%);
+        .tenant-badge {
+            display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
         }
 
         .btn-icon-topbar {
-          background: transparent;
-          border: none;
-          color: ${colors.textSecondary};
-          padding: 8px;
-          border-radius: 8px;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          background: transparent; border: none; color: ${colors.textSecondary};
+          padding: 8px; border-radius: 10px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
         }
-
         .btn-icon-topbar:hover {
-          background: rgba(255, 255, 255, 0.05);
-          color: ${colors.textPrimary};
-          transform: translateY(-1px);
+          background: ${colors.surfaceLight}; color: ${colors.primary}; transform: translateY(-1px);
         }
 
-        .hover-bg-gray:hover {
-          background: rgba(255, 255, 255, 0.03);
-          transition: 0.2s;
+        .theme-toggle-btn:hover { background: ${isDarkMode ? 'rgba(251, 191, 36, 0.1)' : 'rgba(99, 102, 241, 0.1)'} !important; }
+
+        .profile-avatar {
+          width: 28px; height: 28px; border-radius: 50%;
+          background: linear-gradient(135deg, ${colors.primary} 0%, ${colors.info} 100%);
+          color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;
         }
 
-        .status-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          display: inline-block;
-        }
+        .hover-bg-custom:hover { background: ${colors.surfaceLight}; transition: 0.2s; }
 
-        .pulse {
-          animation: pulse-animation 2s infinite;
-        }
-
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+        .pulse { animation: pulse-animation 2s infinite; }
         @keyframes pulse-animation {
-          0% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.7); }
-          70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-          100% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0); }
+          0% { box-shadow: 0 0 0 0px ${statusMeta.color}77; }
+          70% { box-shadow: 0 0 0 6px ${statusMeta.color}00; }
+          100% { box-shadow: 0 0 0 0px ${statusMeta.color}00; }
         }
 
         .dropdown-item {
-          color: ${colors.textSecondary};
-          transition: 0.2s;
-          margin: 0 8px;
-          width: calc(100% - 16px);
-          border-radius: 6px;
+          color: ${colors.textSecondary}; transition: 0.2s; margin: 0 8px; width: calc(100% - 16px); border-radius: 8px; font-size: 14px;
+        }
+        .dropdown-item:hover { background-color: ${colors.surfaceLight}; color: ${colors.textPrimary}; transform: translateX(4px); }
+        .dropdown-item svg { color: ${colors.textMuted}; transition: 0.2s; }
+        .dropdown-item:hover svg { color: ${colors.primary}; }
+
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+        .password-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 3000;
+          background: rgba(2, 6, 23, 0.82);
+          backdrop-filter: blur(10px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
         }
 
-        .dropdown-item:hover {
-          background-color: rgba(255, 255, 255, 0.05);
+        .password-modal {
+          width: 100%;
+          max-width: 520px;
+          border-radius: 20px;
+          overflow: hidden;
+          background: ${colors.surface};
+          border: 1px solid ${colors.border};
+        }
+
+        .btn-close-password {
+          width: 36px;
+          height: 36px;
+          border: none;
+          border-radius: 50%;
+          background: ${colors.surfaceLight};
+          color: ${colors.textSecondary};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: 0.2s;
+          flex-shrink: 0;
+        }
+
+        .btn-close-password:hover {
+          background: ${colors.borderLight};
           color: ${colors.textPrimary};
         }
 
-        .animate-slide-up {
-          animation: slideUp 0.3s ease-out;
+        .password-input {
+          background: ${isDarkMode ? 'rgba(15, 23, 42, 0.8)' : '#fff'};
+          border: 1px solid ${colors.border};
+          color: ${colors.textPrimary};
+          border-radius: 12px;
+          padding: 0.75rem 0.875rem;
         }
 
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+        .password-input:focus {
+          background: ${isDarkMode ? 'rgba(15, 23, 42, 0.8)' : '#fff'};
+          color: ${colors.textPrimary};
+          border-color: ${colors.primary};
+          box-shadow: 0 0 0 0.2rem ${colors.primaryGlow};
         }
 
-        .cursor-pointer { cursor: pointer; }
+        .password-input:disabled {
+          opacity: 0.75;
+          background: ${colors.surfaceLight};
+        }
+
+        .text-danger {
+          color: ${colors.danger} !important;
+        }
       `}</style>
     </>
   );

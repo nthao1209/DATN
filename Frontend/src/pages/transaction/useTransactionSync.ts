@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { enqueueSnackbar } from 'notistack';
 import type { DraftCell } from './types';
 import { offlineService, OFFLINE_QUEUE_SYNCED_EVENT, OFFLINE_QUEUE_UPDATED_EVENT, type OfflineAction } from '../../services/offlineSync';
 
@@ -25,12 +26,12 @@ export const useTransactionSync = ({
 
   const handleSave = async () => {
     if (!dirtyEntries.length) {
-      alert('Không có thay đổi nào để lưu');
+      enqueueSnackbar('Không có thay đổi nào để lưu', { variant: 'info' });
       return;
     }
 
     if (!selectedTripId) {
-      alert('Không xác định được chuyến đi để đồng bộ');
+      enqueueSnackbar('Không xác định được chuyến đi để đồng bộ', { variant: 'warning' });
       return;
     }
 
@@ -67,7 +68,7 @@ export const useTransactionSync = ({
       );
 
       if (!isOnline) {
-        alert('Đang offline. Dữ liệu đã lưu vào hàng đợi đồng bộ local.');
+        enqueueSnackbar('Đang offline. Dữ liệu đã lưu vào hàng đợi đồng bộ local.', { variant: 'warning' });
       }
 
       window.dispatchEvent(new Event(OFFLINE_QUEUE_UPDATED_EVENT));
@@ -92,10 +93,19 @@ export const useTransactionSync = ({
   }, []);
 
   useEffect(() => {
+    let timeoutId : ReturnType<typeof setTimeout>; 
     const handleQueueSynced = (event: Event) => {
       const detail = (event as CustomEvent<{ storageKey?: string }>).detail;
       if (detail?.storageKey && detail.storageKey === storageKey) {
         setSyncBanner({ tone: 'success', label: 'Đã đồng bộ lên máy chủ' });
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+
+        timeoutId = setTimeout(() =>{
+          setSyncBanner(null);
+      },300);
       }
     };
 

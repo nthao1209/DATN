@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useSnackbar } from 'notistack';
 
 const ImportExcel: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
+  const { enqueueSnackbar } = useSnackbar();
 
   const upload = () => {
     if (!file) {
-      alert('Please select a file first');
+      enqueueSnackbar('Please select a file first', { variant: 'warning' });
       return;
     }
 
@@ -16,9 +18,11 @@ const ImportExcel: React.FC = () => {
     axios.post('http://localhost:3000/api/import', formData)
       .then((response) => {
         console.log('File uploaded successfully:', response.data);
+        enqueueSnackbar('File uploaded successfully', { variant: 'success' });
       })
       .catch((error) => {
         console.error('Error uploading file:', error);
+        enqueueSnackbar('Error uploading file', { variant: 'error' });
       });
   };
 

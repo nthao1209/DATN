@@ -8,9 +8,11 @@ import {
 import StatCard from '../components/StatCard';
 import TenantSelector from '../components/TenantSelector';
 import { useTheme } from '../theme/ThemeContext';
+import { useSnackbar } from 'notistack';
 
 const Dashboard: React.FC = () => {
   const { colors } = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const [showTenantSelector, setShowTenantSelector] = useState(false);
   const { currentTenant, roleId } = useSelector((state: RootState) => state.auth);
   const canViewJoinCode = [1, 2].includes(roleId || 0);
@@ -18,7 +20,7 @@ const Dashboard: React.FC = () => {
   const copyJoinCode = () => {
     if (currentTenant?.joinCode) {
       navigator.clipboard.writeText(currentTenant.joinCode);
-      alert("Đã sao chép mã mời!");
+      enqueueSnackbar('Đã sao chép mã mời!', { variant: 'success' });
     }
   };
 

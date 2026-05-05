@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, UserCircle,
-  MapPin, Route, Bus, Info, ChevronDown, Menu, X, Clock
+  MapPin, Route, Bus, ChevronDown, Menu, X, Clock, LogOut
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -14,10 +14,10 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
-  const { roleId } = useSelector((state: RootState) => state.auth);
+  const { roleId, user } = useSelector((state: RootState) => state.auth); // Giả sử bạn có user trong auth state
   const [collapsed, setCollapsed] = useState(isCollapsed);
   const [expandedItems, setExpandedItems] = useState<string[]>(['trips']);
 
@@ -38,11 +38,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   };
 
   const menuConfig = {
-    dashboard: true,
+    dashboard: roleId === 2,
     userManagement: roleId === 1,
     roleManagement: roleId === 1,
     trips: roleId === 2,
-    passengers: roleId === 2,
+    passengers:  roleId === 2,
     transactions: roleId === 3,
     about: true,
   };
@@ -50,20 +50,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   const MenuItem = ({ to, icon: Icon, label, badge }: any) => {
     const active = isActive(to);
     return (
-      <li className="nav-item mb-1">
+      <li className="nav-item mb-1 px-2">
         <Link
           to={to}
-          className={`nav-link d-flex align-items-center py-2.5 px-3 rounded-3 transition-all ${
+          className={`nav-link d-flex align-items-center py-2 px-3 rounded-3 transition-all ${
             active 
-              ? 'bg-primary text-white shadow-lg active-glow' 
-              : 'text-gray-400 hover-sidebar-dark'
+              ? 'active-item text-white' 
+              : 'text-sidebar hover-sidebar'
           }`}
-          title={label}
+          title={collapsed ? label : ""}
+          style={{ 
+            backgroundColor: active ? colors.primary : 'transparent',
+            boxShadow: active ? `0 8px 16px -4px ${colors.primary}66` : 'none'
+          }}
         >
-          <Icon size={19} className={collapsed ? 'mx-auto' : 'me-3'} strokeWidth={active ? 2.5 : 2} />
+          <Icon 
+            size={19} 
+            className={collapsed ? 'mx-auto' : 'me-3'} 
+            strokeWidth={active ? 2.5 : 2}
+            style={{ color: active ? '#fff' : 'inherit' }}
+          />
           {!collapsed && (
             <>
-              <span className="flex-grow-1" style={{ fontSize: '0.925rem' }}>{label}</span>
+              <span className="flex-grow-1 fw-medium" style={{ fontSize: '0.875rem' }}>{label}</span>
               {badge && <span className="badge rounded-pill bg-danger ms-2" style={{ fontSize: '10px' }}>{badge}</span>}
             </>
           )}
@@ -74,62 +83,61 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
 
   return (
     <div
-      className="vh-100 position-fixed top-0 start-0 border-end border-dark-subtle"
+      className="vh-100 position-fixed top-0 start-0 border-end border-sidebar d-flex flex-column"
       style={{
         backgroundColor: colors.surface,
-        backgroundImage: `linear-gradient(180deg, ${colors.surfaceLight} 0%, ${colors.surface} 100%)`,
+        backgroundImage: isDarkMode 
+          ? `linear-gradient(180deg, ${colors.surfaceLight} 0%, ${colors.surface} 100%)` 
+          : 'none',
         color: colors.textPrimary,
-        width: collapsed ? '75px' : '260px',
+        width: collapsed ? '78px' : '260px',
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-        zIndex: 1000,
-        overflowY: 'auto'
+        zIndex: 1050,
       }}
     >
-      {/* Header / Logo Section */}
+      {/* 1. Header / Logo Section */}
       <div className="p-4 d-flex justify-content-between align-items-center">
         {!collapsed && (
-          <div className="d-flex align-items-center gap-2">
-            <div className="bg-primary rounded-circle p-1 d-flex align-items-center justify-content-center shadow-primary">
-              <Bus size={20} color="white" />
+          <div className="d-flex align-items-center gap-2 animate-fade-in">
+            <div className="logo-box">
+              <Bus size={18} color="white" />
             </div>
-            <span className="fw-bold fs-5 tracking-tight text-white m-0">BusTrack</span>
+            <span className="logo-text">BusTrack</span>
           </div>
         )}
         <button
-          className="btn btn-link text-gray-400 p-0 border-0 shadow-none hover-rotate"
+          className="btn-toggle-sidebar"
           onClick={() => {
             setCollapsed(!collapsed);
             onToggle?.(!collapsed);
           }}
         >
-          {collapsed ? <Menu size={22} /> : <X size={22} />}
+          {collapsed ? <Menu size={20} /> : <X size={20} />}
         </button>
       </div>
 
-      <div className="px-3 pt-2">
-        {!collapsed && <small className="text-gray-500 fw-bold mb-2 d-block ps-2" style={{ fontSize: '11px', letterSpacing: '0.05rem' }}>HỆ THỐNG</small>}
+      {/* 2. Menu Section */}
+      <div className="px-2 pt-2 flex-grow-1 sidebar-content" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+        {!collapsed && <small className="fw-bold mb-2 d-block ps-4 group-label">HỆ THỐNG</small>}
         
         <ul className="nav flex-column list-unstyled">
           {menuConfig.dashboard && <MenuItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />}
-          
           {menuConfig.userManagement && <MenuItem to="/users" icon={Users} label="Quản lý User" />}
-
           {menuConfig.roleManagement && <MenuItem to="/roles" icon={UserCircle} label="Quản lý Vai trò" />}
-          
-          {menuConfig.passengers && <MenuItem to="/passengers" icon={UserCircle} label="Hành khách" />}
+          {menuConfig.passengers && <MenuItem to="/passengers" icon={Users} label="Hành khách" />}
 
           {/* Trips Section */}
           {menuConfig.trips && (
-            <li className="nav-item mb-1">
+            <li className="nav-item mb-1 px-2">
               <div
-                className={`nav-link d-flex justify-content-between align-items-center py-2.5 px-3 rounded-3 cursor-pointer transition-all ${
-                  isActive('/trips') ? 'text-info' : 'text-gray-400 hover-sidebar-dark'
+                className={`nav-link d-flex justify-content-between align-items-center py-2 px-3 rounded-3 cursor-pointer transition-all ${
+                  isActive('/trips') ? 'text-primary-custom' : 'text-sidebar hover-sidebar'
                 }`}
                 onClick={() => !collapsed && toggleExpanded('trips')}
               >
                 <div className="d-flex align-items-center" onClick={(e) => { e.stopPropagation(); navigate('/trips'); }}>
                   <MapPin size={19} className={collapsed ? 'mx-auto' : 'me-3'} />
-                  {!collapsed && <span style={{ fontSize: '0.925rem' }}>Quản lý Trip</span>}
+                  {!collapsed && <span className="fw-medium" style={{ fontSize: '0.875rem' }}>Quản lý Trip</span>}
                 </div>
                 {!collapsed && (
                   <ChevronDown size={14} className={`transition-all ${expandedItems.includes('trips') ? 'rotate-180' : ''}`} />
@@ -137,22 +145,55 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
               </div>
 
               {!collapsed && expandedItems.includes('trips') && (
-                <ul className="nav flex-column ms-4 ps-3 border-start border-gray-700 mt-1 mb-2 gap-1">
+                <ul className="nav flex-column ms-4 ps-3 border-start border-sub-menu mt-1 mb-2 gap-1 animate-slide-down">
                   <li>
-                    <Link to="/trips" className={`nav-link py-1.5 small ${location.pathname === '/trips' ? 'text-info fw-bold' : 'text-gray-500 hover-text-white'}`}>
+                    <Link 
+                      to="/trips" 
+                      className={`nav-link py-2 px-3 small rounded-3 transition-all ${
+                        location.pathname === '/trips' 
+                          ? 'bg-primary text-white shadow-sm fw-bold' 
+                          : 'hover-text-primary'
+                      }`}
+                      style={{ 
+                        color: location.pathname === '/trips' ? '#fff' : colors.textMuted,
+                        backgroundColor: location.pathname === '/trips' ? colors.primary : 'transparent'
+                      }}
+                    >
                        • Danh sách Trip
                     </Link>
                   </li>
                   {currentTripId && (
                     <>
                       <li>
-                        <Link to={`/trips/${currentTripId}/rounds`} className={`nav-link py-1.5 small ${isActive(`/trips/${currentTripId}/rounds`) ? 'text-info fw-bold' : 'text-gray-500 hover-text-white'}`}>
-                          <Route size={14} className="me-2" /> Rounds
+                        <Link 
+                          to={`/trips/${currentTripId}/rounds`} 
+                          className={`nav-link py-2 px-3 small rounded-3 transition-all d-flex align-items-center ${
+                            isActive(`/trips/${currentTripId}/rounds`) 
+                              ? 'bg-primary text-white shadow-sm fw-bold' 
+                              : 'hover-text-primary'
+                          }`}
+                          style={{ 
+                            color: isActive(`/trips/${currentTripId}/rounds`) ? '#fff' : colors.textMuted,
+                            backgroundColor: isActive(`/trips/${currentTripId}/rounds`) ? colors.primary : 'transparent'
+                          }}
+                        >
+                          <Route size={14} className="me-2" /> Chặng đi
                         </Link>
                       </li>
                       <li>
-                        <Link to={`/trips/${currentTripId}/buses`} className={`nav-link py-1.5 small ${isActive(`/trips/${currentTripId}/buses`) ? 'text-info fw-bold' : 'text-gray-500 hover-text-white'}`}>
-                          <Bus size={14} className="me-2" /> Buses
+                        <Link 
+                          to={`/trips/${currentTripId}/buses`} 
+                          className={`nav-link py-2 px-3 small rounded-3 transition-all d-flex align-items-center ${
+                            isActive(`/trips/${currentTripId}/buses`) 
+                              ? 'bg-primary text-white shadow-sm fw-bold' 
+                              : 'hover-text-primary'
+                          }`}
+                          style={{ 
+                            color: isActive(`/trips/${currentTripId}/buses`) ? '#fff' : colors.textMuted,
+                            backgroundColor: isActive(`/trips/${currentTripId}/buses`) ? colors.primary : 'transparent'
+                          }}
+                        >
+                          <Bus size={14} className="me-2" /> Đội xe
                         </Link>
                       </li>
                     </>
@@ -161,53 +202,89 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
               )}
             </li>
           )}
-          {menuConfig.transactions && (
-            <MenuItem to="/transactions" icon={Clock} label="Điểm danh" />
-          )}
           
+          {menuConfig.transactions && <MenuItem to="/transactions" icon={Clock} label="Điểm danh" />}
         </ul>
+      </div>
 
-        <div className="mt-4 pt-4 border-top border-gray-800">
-          {!collapsed && <small className="text-gray-500 fw-bold mb-2 d-block ps-2" style={{ fontSize: '11px' }}>KHÁC</small>}
-          <MenuItem to="/about" icon={Info} label="Về chúng tôi" />
-        </div>
+      {/* 3. Footer / User Section */}
+      <div className="p-3 mt-auto border-top border-sidebar shadow-inner">
+         <div className={`d-flex align-items-center ${collapsed ? 'justify-content-center' : 'gap-3'} p-2 rounded-3 hover-sidebar-light cursor-pointer`}>
+            <div className="avatar-mini flex-shrink-0">
+               {user?.name?.charAt(0).toUpperCase() || 'A'}
+            </div>
+            {!collapsed && (
+              <div className="overflow-hidden flex-grow-1">
+                 <p className="m-0 small fw-bold text-truncate" style={{ color: colors.textPrimary }}>Thảo Admin</p>
+                 <p className="m-0 text-muted text-truncate" style={{ fontSize: '10px' }}>Manager System</p>
+              </div>
+            )}
+            {!collapsed && <LogOut size={14} className="text-muted hover-text-danger" />}
+         </div>
       </div>
 
       <style>{`
-        .text-gray-400 { color: ${colors.textSecondary}; }
-        .text-gray-500 { color: ${colors.textMuted}; }
-        .border-gray-700 { border-color: ${colors.borderLight} !important; }
-        .border-gray-800 { border-color: ${colors.border} !important; }
+        /* Sidebar Typography & Elements */
+        .text-sidebar { color: ${colors.textSecondary}; }
+        .text-primary-custom { color: ${colors.primary} !important; }
+        .border-sidebar { border-color: ${isDarkMode ? colors.border : '#e2e8f0'} !important; }
+        .border-sub-menu { border-color: ${colors.primary}22 !important; }
+        .group-label { fontSize: 10px; letter-spacing: 0.08rem; opacity: 0.7; }
         
-        .hover-sidebar-dark:hover { 
-          background-color: rgba(255, 255, 255, 0.05);
-          color: ${colors.textPrimary} !important;
+        /* Logo Styling */
+        .logo-box {
+          background: linear-gradient(135deg, ${colors.primary} 0%, ${colors.info} 100%);
+          width: 32px; height: 32px; border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          box-shadow: 0 4px 10px ${colors.primary}44;
+        }
+        .logo-text {
+          font-weight: 800; font-size: 1.25rem; letter-spacing: -0.5px;
+          background: linear-gradient(to right, ${colors.textPrimary}, ${colors.textSecondary});
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
-        .hover-text-white:hover { color: ${colors.textPrimary} !important; }
+        /* Hover & Active Effects */
+        .hover-sidebar:hover { 
+          background-color: ${isDarkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)'};
+          color: ${colors.primary} !important;
+          transform: translateX(4px);
+        }
+        .bg-sub-active { background-color: ${colors.primary}11; }
+        .hover-text-primary:hover { color: ${colors.primary} !important; background-color: ${colors.primary}08; }
+        .hover-text-danger:hover { color: #ef4444 !important; }
+        
+        .active-item { transition: all 0.3s ease; }
 
-        .active-glow {
-          box-shadow: 0 4px 15px ${colors.primaryGlow};
+        /* Buttons */
+        .btn-toggle-sidebar {
+          background: none; border: none; color: ${colors.textMuted};
+          padding: 6px; border-radius: 8px; transition: 0.2s;
+        }
+        .btn-toggle-sidebar:hover {
+          background: ${colors.surfaceLight}; color: ${colors.primary};
         }
 
-        .shadow-primary {
-          box-shadow: 0 0 10px ${colors.primaryGlow};
+        /* User Avatar */
+        .avatar-mini {
+          width: 34px; height: 34px; border-radius: 10px;
+          background: ${isDarkMode ? colors.primaryGlow : colors.primary};
+          color: ${isDarkMode ? colors.primary : '#fff'};
+          display: flex; align-items: center; justify-content: center; 
+          font-weight: 800; font-size: 14px;
         }
+        .hover-sidebar-light:hover { background-color: ${isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'}; }
 
-        .hover-rotate:hover {
-          transform: rotate(90deg);
-          color: ${colors.textPrimary} !important;
-          transition: 0.3s;
-        }
-
-        .transition-all { transition: all 0.25s ease-in-out; }
+        /* Animations */
+        .animate-slide-down { animation: slideDown 0.3s ease-out; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
         .rotate-180 { transform: rotate(180deg); }
-        .cursor-pointer { cursor: pointer; }
-        
+        .transition-all { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+
         /* Custom Scrollbar */
-        div::-webkit-scrollbar { width: 4px; }
-        div::-webkit-scrollbar-track { background: transparent; }
-        div::-webkit-scrollbar-thumb { background: ${colors.borderLight}; border-radius: 10px; }
+        .sidebar-content::-webkit-scrollbar { width: 4px; }
+        .sidebar-content::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: ${colors.primary}22; border-radius: 10px; }
       `}</style>
     </div>
   );

@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar.tsx";
 import TopBar from "./AppHeader";
 import { useTheme } from '../theme/ThemeContext';
+import { UnsavedChangesGuard } from './common/UnsavedChangesContext';
 
 const Layout: React.FC = () => {
   const { colors } = useTheme();
@@ -20,6 +21,7 @@ const Layout: React.FC = () => {
     }}>
       {/* Sidebar cố định bên trái */}
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={setSidebarCollapsed} />
+      <UnsavedChangesGuard />
       
       {/* Vùng nội dung chính */}
       <div style={{ 

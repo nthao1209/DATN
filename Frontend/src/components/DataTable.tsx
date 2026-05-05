@@ -50,7 +50,7 @@ function DataTable<T extends object>({
   showPagination = true
 }: DataTableProps<T>) {
   
-  const { colors, effects } = useTheme();
+  const { colors, effects, isDarkMode } = useTheme();
 
   // --- LOGIC TÌM KIẾM THÔNG MINH ---
   const normalizeText = (text: string) => {
@@ -137,7 +137,7 @@ function DataTable<T extends object>({
             <div className="p-2 rounded-3" style={{ backgroundColor: colors.primaryGlow, color: colors.primary }}>
               <ListFilter size={20} />
             </div>
-            <h5 className="mb-0 fw-bold text-white" style={{ letterSpacing: '-0.02em' }}>{title}</h5>
+            <h5 className="mb-0 fw-bold " style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>{title}</h5>
           </div>
           <div className="d-flex align-items-center gap-3">
             {titleActions}
@@ -223,42 +223,30 @@ function DataTable<T extends object>({
         </div>
       </div>
 
-       {showPagination && !isLoading && !isError && filteredData.length > 0 && (
-
-        <div className="card-footer bg-transparent py-4 px-4 border-top border-gray-800 d-flex flex-wrap justify-content-between align-items-center gap-3">
-
+      {showPagination && !isLoading && !isError && filteredData.length > 0 && (
+        <div className="card-footer bg-transparent py-4 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3"
+             style={{ borderTop: `1px solid ${colors.border}` }}>
           <div className="d-flex align-items-center gap-4">
-
-            <span className="text-gray-500 small">
-
-              Hiển thị <span className="text-white fw-bold">{((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filteredData.length)}</span> trên <span className="text-white fw-bold">{filteredData.length}</span>
-
+            <span style={{ color: colors.textMuted, fontSize: '0.85rem' }}>
+              Hiển thị <span className="fw-bold" style={{ color: colors.textPrimary }}>{((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filteredData.length)}</span> trên <span className="fw-bold" style={{ color: colors.textPrimary }}>{filteredData.length}</span>
             </span>
-
             <div className="d-flex align-items-center gap-2">
-
               <select
-
-                className="form-select form-select-sm bg-dark border-gray-700 text-gray-400 rounded-pill px-3"
-
-                style={{ width: 95, fontSize: '11px', height: '28px' }}
-
+                className="form-select-dynamic"
+                style={{ 
+                  backgroundColor: isDarkMode ? colors.background : '#fff', 
+                  border: `1px solid ${colors.border}`,
+                  color: colors.textSecondary,
+                  width: 105, fontSize: '11px', height: '30px', borderRadius: '20px', paddingLeft: '12px'
+                }}
                 value={pageSize}
-
                 onChange={(e) => handlePageSizeChange(e.target.value)}
-
               >
-
                 {pageSizeOptions.map((size) => (
-
                   <option key={size} value={size}>{size} dòng</option>
-
                 ))}
-
               </select>
-
             </div>
-
           </div>
 
           <nav>
@@ -268,7 +256,6 @@ function DataTable<T extends object>({
                   <ChevronLeft size={16} />
                 </button>
               </li>
-
               {[...Array(totalPages)].map((_, i) => {
                 const pageNum = i + 1;
                 if (totalPages > 5 && (pageNum > 2 && pageNum < totalPages && Math.abs(pageNum - currentPage) > 1)) {

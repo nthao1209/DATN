@@ -22,7 +22,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { OFFLINE_QUEUE_SYNCED_EVENT } from '../services/offlineSync';
 
 const TransactionPage: React.FC = () => {
-  const { colors } = useTheme();
+  const { colors, effects, isDarkMode } = useTheme();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
   const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
@@ -309,7 +309,7 @@ const TransactionPage: React.FC = () => {
   }, [displayedPassengers, departureRoundFilter, returnRoundFilter, txMap, draftMap]);
 
   const tableHeaderSummary = useMemo(() => {
-    const totalPassengers = displayedPassengers.length;
+    const totalPassengers = visiblePassengers.length;
     const totalCheckIn = selectedRounds.reduce(
       (sum, round) => sum + (roundSummary[Number(round.id)]?.checkIn ?? 0),
       0
@@ -322,29 +322,12 @@ const TransactionPage: React.FC = () => {
     return { totalPassengers, totalCheckIn, totalCheckOut };
   }, [displayedPassengers, selectedRounds, roundSummary]);
 
-  const tableData = useMemo<TransactionTableRow[]>(() => {
-    return [...visiblePassengers];
-  }, [visiblePassengers]);
-
-  const tableColumns = useMemo(
-    () =>
-      buildTransactionColumns({
-        selectedRounds,
-        roundSummary,
-        getCell,
-        setCell,
-      }),
-    [selectedRounds, roundSummary, txMap, draftMap]
-  );
-
-  
-
   const dirtyEntries = useMemo(
     () => Object.values(draftMap).filter((entry) => entry.dirty),
     [draftMap]
   );
 
-  const { isSaving, handleSave } = useTransactionSync({
+  const { isSaving, isOnline, syncBanner, hasPendingSync, handleSave } = useTransactionSync({
     dirtyEntries,
     selectedTripId,
     storageKey,
@@ -353,130 +336,225 @@ const TransactionPage: React.FC = () => {
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
   return (
-    <>
-      <div className="transaction-page p-0 p-md-3 animate-fade-in mb-5"> {/* Thêm mb-5 để không bị cái summary che mất dòng cuối bảng */}
+    <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5">
+      
+      {/* Header Section */}
+      <div className="d-flex align-items-center justify-content-between mb-4 px-2">
+        <div className="d-flex align-items-center gap-3">
+          <div 
+            className="d-flex align-items-center justify-content-center rounded-circle shadow-sm"
+            style={{ 
+                width: '42px', height: '42px', 
+                backgroundColor: isDarkMode ? colors.primaryGlow : `${colors.primary}15`,
+                border: `1px solid ${colors.primary}33`
+            }}
+          >
+            <ClipboardCheck size={20} style={{ color: colors.primary }} />
+          </div>
+          <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Điểm danh</h1>
+        </div>
         
-        {/* Header & Main Actions - FIX tràn chữ trên Mobile */}
-        <div className="d-flex align-items-center justify-content-between mb-3 px-3 mt-3">
-          <div className="d-flex align-items-center gap-2 overflow-hidden">
-            <div className="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle" 
-                 style={{ width: '38px', height: '38px', backgroundColor: colors.primaryGlow }}>
-              <ClipboardCheck size={20} style={{ color: colors.primary }} />
-            </div>
-            <h1 className="h5 fw-bold text-white m-0 text-truncate">Điểm danh</h1>
-          </div>
-          <div className="d-flex gap-2 flex-shrink-0">
-             <button className="btn-icon-custom" onClick={() => { refetchTransactions(); refetchPassengers(); }}>
-                <RefreshCw size={18} color="white" />
-             </button>
-             <button 
-                className="btn-custom-action" 
+        <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            <span
+              className="badge rounded-pill px-3 py-2 fw-semibold"
+              style={{
+                backgroundColor: isOnline ? `${colors.success}15` : `${colors.warning}15`,
+                color: isOnline ? colors.success : colors.warning,
+                border: `1px solid ${isOnline ? `${colors.success}33` : `${colors.warning}33`}`,
+              }}
+            >
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+            {hasPendingSync && (
+              <span
+                className="badge rounded-pill px-3 py-2 fw-semibold"
+                style={{
+                  backgroundColor: `${colors.info}15`,
+                  color: colors.info,
+                  border: `1px solid ${colors.info}33`,
+                }}
+              >
+                Có dữ liệu chờ đồng bộ
+              </span>
+            )}
+            <button className="btn-refresh-custom shadow-sm" onClick={() => { refetchTransactions(); refetchPassengers(); }}
+                    style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}>
+                <RefreshCw size={18} />
+            </button>
+            <button 
+                className="btn-custom-action-save shadow-sm" 
                 onClick={handleSave} 
-                disabled={isSaving || !dirtyEntries.length}
-                style={{ backgroundColor: dirtyEntries.length > 0 ? colors.success : colors.surfaceLight, padding: '0 12px' }}
-             >
+                disabled={isSaving || !Object.values(draftMap).filter(e => e.dirty).length}
+                style={{ 
+                    backgroundColor: Object.values(draftMap).filter(e => e.dirty).length > 0 ? colors.success : colors.surfaceLight,
+                    color: Object.values(draftMap).filter(e => e.dirty).length > 0 ? '#fff' : colors.textMuted
+                }}
+            >
                 <Save size={18} />
-                <span className="d-none d-sm-inline">Lưu ({dirtyEntries.length})</span>
-             </button>
+                <span className="d-none d-sm-inline">Lưu ({Object.values(draftMap).filter(e => e.dirty).length})</span>
+            </button>
+        </div>
+      </div>
+
+      {syncBanner && (
+        <div className="mb-3 px-2">
+          <div
+            className="d-flex align-items-start gap-2 px-3 py-2 rounded-3"
+            style={{
+              backgroundColor:
+                syncBanner.tone === 'success'
+                  ? `${colors.success}15`
+                  : syncBanner.tone === 'warning'
+                    ? `${colors.warning}15`
+                    : syncBanner.tone === 'danger'
+                      ? `${colors.danger}15`
+                      : `${colors.info}15`,
+              border: `1px solid ${
+                syncBanner.tone === 'success'
+                  ? `${colors.success}33`
+                  : syncBanner.tone === 'warning'
+                    ? `${colors.warning}33`
+                    : syncBanner.tone === 'danger'
+                      ? `${colors.danger}33`
+                      : `${colors.info}33`
+              }`,
+              color:
+                syncBanner.tone === 'success'
+                  ? colors.success
+                  : syncBanner.tone === 'warning'
+                    ? colors.warning
+                    : syncBanner.tone === 'danger'
+                      ? colors.danger
+                      : colors.info,
+            }}
+          >
+            <ClipboardCheck size={16} className="mt-0.5 flex-shrink-0" />
+            <div className="small fw-semibold">{syncBanner.label}</div>
           </div>
         </div>
+      )}
 
-        {/* Filters Toolbar - FIX layout button Khách ngoài biên chế */}
-        <div className="px-3 mb-4">
-          <div className="toolbar-glass p-3">
-            <TransactionFilters
-              trips={trips} buses={buses} rounds={rounds}
-              selectedTripId={selectedTripId} selectedBusIds={selectedBusIds} selectedRoundIds={selectedRoundIds}
-              busDropdownOpen={busDropdownOpen} roundDropdownOpen={roundDropdownOpen}
-              setSelectedTripId={setSelectedTripId} setBusDropdownOpen={setBusDropdownOpen} setRoundDropdownOpen={setRoundDropdownOpen}
-              toggleBus={(id) => setSelectedBusIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
-              toggleRound={(id) => setSelectedRoundIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
-              onTripChange={() => setDraftMap({})}
-            />
-            
-            <div className="mt-3 pt-3 border-top d-flex flex-column gap-2" style={{ borderColor: `${colors.border}44` }}>
-              <button className="btn-outline-custom w-100" onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
-                      style={{ minHeight: '44px' }}> {/* Tăng height để không bị tràn chữ */}
-                 <UserPlus size={16} /> <span style={{ fontSize: '13px' }}>Khách ngoài biên chế</span>
-              </button>
-              <div className="row g-2">
-                <div className="col-6">
-                   <select className="form-select-custom w-100" value={departureRoundFilter ?? ''} onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}>
-                      <option value="">Lượt đi: Tất cả</option>
-                      {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                   </select>
-                </div>
-                <div className="col-6">
-                   <select className="form-select-custom w-100" value={returnRoundFilter ?? ''} onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}>
-                      <option value="">Lượt về: Tất cả</option>
-                      {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                   </select>
-                </div>
-              </div>
+      {/* Filters Toolbar - Đã gọn hóa */}
+      <div 
+        className="p-3 mb-4 shadow-sm"
+        style={{ 
+          background: colors.surface, 
+          borderRadius: effects.borderRadius.lg,
+          border: `1px solid ${colors.border}`,
+        }}
+      >
+        <TransactionFilters
+          trips={trips} buses={buses} rounds={rounds}
+          selectedTripId={selectedTripId} selectedBusIds={selectedBusIds} selectedRoundIds={selectedRoundIds}
+          busDropdownOpen={busDropdownOpen} roundDropdownOpen={roundDropdownOpen}
+          setSelectedTripId={setSelectedTripId} setBusDropdownOpen={setBusDropdownOpen} setRoundDropdownOpen={setRoundDropdownOpen}
+          toggleBus={(id) => setSelectedBusIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
+          toggleRound={(id) => setSelectedRoundIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
+          onTripChange={() => setDraftMap({})}
+        />
+        
+        <div className="mt-3 pt-3 border-top d-flex flex-column gap-3" style={{ borderColor: colors.border }}>
+          <div className="d-flex flex-column flex-md-row gap-2">
+            <button className="btn-outline-custom flex-grow-1" onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
+                    style={{ border: `1px solid ${colors.primary}44`, color: colors.primary }}>
+               <UserPlus size={16} /> <span>Khách ngoài biên chế</span>
+            </button>
+            <div className="d-flex gap-2 flex-grow-1">
+                <select className="form-select-custom-toolbar w-100" value={departureRoundFilter ?? ''} 
+                        onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}
+                        style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                  <option value="">Lượt đi: Tất cả</option>
+                  {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <select className="form-select-custom-toolbar w-100" value={returnRoundFilter ?? ''} 
+                        onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}
+                        style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
+                  <option value="">Lượt về: Tất cả</option>
+                  {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
             </div>
           </div>
         </div>
-
-        {/* Main Table */}
-        <div className="position-relative pb-5"> {/* Thêm padding bottom lớn để không bị summary che */}
-          <DataTable<TransactionTableRow>
-            title="Danh sách điểm danh"
-            titleActions={
-              <div className="d-none d-lg-flex align-items-center gap-2 flex-wrap justify-content-end">
-                <span
-                  className="badge rounded-pill px-3 py-2 fw-semibold"
-                  style={{
-                    backgroundColor: colors.primaryGlow,
-                    color: colors.primary,
-                    border: `1px solid ${colors.primary}55`,
-                  }}
-                >
-                  {tableHeaderSummary.totalPassengers} khách
-                </span>
-                <span className="small fw-semibold" style={{ color: colors.textMuted }}>
-                  |
-                </span>
-                <span className="small fw-semibold text-white">
-                  {tableHeaderSummary.totalCheckIn} CÓ MẶT LƯỢT ĐI
-                </span>
-                <span className="small fw-semibold" style={{ color: colors.textMuted }}>
-                  -
-                </span>
-                <span className="small fw-semibold text-white">
-                  {tableHeaderSummary.totalCheckOut} CÓ MẶT LƯỢT VỀ
-                </span>
-              </div>
-            }
-            queryKey={[
-            'transaction-table',
-            selectedTripId,
-            selectedBusIds.join(','),
-            selectedRoundIds.join(','),
-            departureRoundFilter,
-            returnRoundFilter,
-            dirtyEntries.length,
-          ]}
-            data={tableData}
-            columns={tableColumns}
-            isLoading={isLoading}
-            onRefresh={() => { refetchTransactions(); refetchPassengers(); }}
-          />
-        </div>
-
-        <style>{`
-          .toolbar-glass { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border-radius: 16px; border: 1px solid ${colors.border}; }
-          .btn-custom-action { display: flex; align-items: center; gap: 8px; height: 40px; color: white; font-weight: 700; border-radius: 10px; border: none; }
-          .btn-icon-custom { width: 40px; height: 40px; border-radius: 10px; border: 1px solid ${colors.border}; background: ${colors.surfaceLight}; color: ${colors.textSecondary}; display: flex; align-items: center; justify-content: center; }
-          .btn-outline-custom { background: transparent; border: 1px solid ${colors.primary}55; color: ${colors.primary}; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
-          .form-select-custom { background: ${colors.background}; color: ${colors.textPrimary}; border: 1px solid ${colors.border}; height: 40px; border-radius: 10px; padding: 0 8px; font-size: 12px; outline: none; }
-          
-          /* Animation quay */
-          .spin { animation: spin 1s linear infinite; }
-          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        `}</style>
-
       </div>
-  </>
+
+      {/* Main Table Container */}
+      <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
+        <DataTable<TransactionTableRow>
+          title="Danh sách điểm danh"
+          titleActions={
+            <div className="d-none d-lg-flex align-items-center gap-3">
+              <span className="badge rounded-pill px-3 py-2 fw-bold" style={{ backgroundColor: `${colors.primary}15`, color: colors.primary, border: `1px solid ${colors.primary}33` }}>
+                {tableHeaderSummary.totalPassengers} khách
+              </span>
+              <div className="d-flex align-items-center gap-2 small fw-bold" style={{ color: colors.textSecondary }}>
+                <span className="text-success">{tableHeaderSummary.totalCheckIn} KHÁCH LƯỢT ĐI</span>
+                <span style={{ opacity: 0.3 }}>|</span>
+                <span className="text-warning">{tableHeaderSummary.totalCheckOut} KHÁCH LƯỢT VỀ</span>
+              </div>
+            </div>
+          }
+          queryKey={['transaction-table', selectedTripId, selectedBusIds.join(','), selectedRoundIds.join(','), departureRoundFilter, returnRoundFilter]}
+          data={visiblePassengers}
+          columns={buildTransactionColumns({ selectedRounds, roundSummary, getCell, setCell })}
+          isLoading={isLoading}
+          onRefresh={() => { refetchTransactions(); refetchPassengers(); }}
+        />
+      </div>
+
+      <style>{`
+        .transaction-page .td-content input, 
+        .transaction-page .td-content select {
+          min-height: 36px !important;
+          border: 1px solid ${isDarkMode ? colors.borderLight : '#cbd5e1'} !important;
+          background-color: ${isDarkMode ? colors.background : '#fff'} !important;
+          border-radius: 6px !important;
+          font-size: 13px !important;
+          transition: all 0.2s;
+        }
+        
+        .transaction-page .td-content input:focus {
+          border-color: ${colors.primary} !important;
+          box-shadow: 0 0 0 3px ${colors.primary}22 !important;
+          outline: none;
+        }
+
+        .table thead th {
+          background-color: ${isDarkMode ? colors.surfaceLight : '#f8fafc'} !important;
+          color: ${isDarkMode ? colors.textSecondary : '#475569'} !important;
+          font-size: 12px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+          padding: 12px !important;
+          border-bottom: 1px solid ${colors.border} !important;
+          font-weight: 700 !important;
+        }
+
+        /* Nút bấm & Select Gọn */
+        .btn-custom-action-save, .btn-outline-custom {
+          display: flex; align-items: center; gap: 8px; padding: 0 16px;
+          height: 38px; font-size: 13px; font-weight: 600; border-radius: 8px; border: none; transition: all 0.2s;
+        }
+        .btn-outline-custom { background: transparent; }
+        .btn-outline-custom:hover { background: ${colors.primary}11; transform: translateY(-1px); }
+        .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
+        .btn-custom-action-save:active { transform: scale(0.96); }
+
+        .form-select-custom-toolbar {
+          height: 38px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; outline: none;
+        }
+
+        .btn-refresh-custom {
+          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+          border-radius: 8px; transition: all 0.2s; border: none; cursor: pointer;
+        }
+        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
+
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+    </div>
   );
 };
 

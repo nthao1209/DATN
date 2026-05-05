@@ -16,7 +16,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(roleId || 0)) {
-    return <Navigate to="/dashboard" replace />;
+    const fallbackPath = roleId === 1
+      ? '/users'
+      : roleId === 3
+        ? '/transactions'
+        : '/dashboard';
+
+    return <Navigate to={fallbackPath} replace />;
   }
 
   return <>{children}</>;

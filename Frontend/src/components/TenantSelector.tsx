@@ -20,6 +20,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
   onClose, 
   showCreateJoin = true 
 }) => {
+  const SETUP_ORG_COMPLETE_KEY = 'bustrack-setup-org-complete';
   const { colors } = useTheme();
   const { currentTenant, tenants: stateTenants } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
@@ -36,6 +37,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
 
   const handleSelectTenant = (tenant: any) => {
     dispatch(setCurrentTenant(tenant));
+    sessionStorage.setItem(SETUP_ORG_COMPLETE_KEY, 'true');
     onClose();
     navigate('/dashboard');
   };
