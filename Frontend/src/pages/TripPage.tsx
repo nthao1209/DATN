@@ -116,52 +116,47 @@ const TripPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Toolbar - Gọn & Thanh thoát */}
-      <div 
-        className="p-2 mb-4 d-flex justify-content-end align-items-center gap-2 px-3 shadow-sm"
-        style={{ 
-          background: colors.surface, 
-          borderRadius: effects.borderRadius.md,
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-        <button 
-          className="btn-custom-action-small" 
-          onClick={handleAddRow}
-          style={{ color: colors.primary, border: `1px solid ${colors.primary}44` }}
-        >
-          <Plus size={16} /> 
-          <span className="d-none d-sm-inline">Thêm dòng</span>
-        </button>
-
-        <button
-          className="btn-custom-action-save shadow-sm"
-          onClick={handleSave}
-          disabled={isSaving || dirtyCount === 0}
-          style={{ 
-            backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-            color: dirtyCount > 0 ? '#fff' : colors.textMuted,
-            opacity: isSaving ? 0.7 : 1,
-          }}
-        >
-          <Save size={16} />
-          <span className="d-none d-sm-inline">
-            {isSaving ? 'Đang lưu...' : `Lưu thay đổi (${dirtyCount})`}
-          </span>
-          <span className="d-inline d-sm-none">{dirtyCount}</span>
-        </button>
-      </div>
-
+      
       {/* Table Card */}
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Danh sách lộ trình"
+          titleActions={
+            <button
+              className="btn-custom-action-save shadow-sm"
+              onClick={handleSave}
+              disabled={isSaving || dirtyCount === 0}
+              style={{ 
+                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
+                color: dirtyCount > 0 ? '#fff' : colors.textMuted
+              }}
+            >
+              <Save size={16} />
+              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+              <span className="d-inline d-sm-none">{dirtyCount}</span>
+            </button>
+          }
           columns={columns}
           queryKey={['trips-local']}
           data={rows}
           isLoading={isLoading}
           isError={isError}
         />
+        <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
+          <button 
+            className="btn-add-row-bottom w-100 py-2" 
+            onClick={handleAddRow}
+            style={{ 
+              color: colors.primary, 
+              border: `1px dashed ${colors.primary}66`,
+              borderRadius: '8px',
+              backgroundColor: `${colors.primary}08`
+            }}
+          >
+            <Plus size={18} />
+            <span className="fw-bold ms-2">Thêm dòng mới</span>
+          </button>
+        </div>
       </div>
 
       <style>{`
@@ -209,6 +204,43 @@ const TripPage: React.FC = () => {
           padding: 12px !important;
           border-bottom: 1px solid ${colors.border} !important;
           font-weight: 700 !important;
+        }
+          .trip-page .btn-action-delete {
+          /* Ép kích thước và layout */
+          width: 36px !important;
+          height: 36px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;          
+          border-radius: 10px !important;
+          border: 1px solid rgba(220, 53, 69, 0.2) !important;
+          background-color: rgba(220, 53, 69, 0.05) !important;
+          color: #dc3545 !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          cursor: pointer !important;
+          outline: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+
+        .trip-page .btn-action-delete:hover {
+          background-color: #dc3545 !important;
+          color: #ffffff !important;
+          border-color: #dc3545 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+        }
+
+        .trip-page .btn-action-delete:active {
+          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
+          background-color: #a71d2a !important;
+          box-shadow: none !important;
+        }
+
+        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
+        .trip-page .btn-action-delete svg {
+          color: #ffffff !important; 
+          fill: none !important;
         }
 
         .spin { animation: spin 1s linear infinite; }

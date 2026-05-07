@@ -71,8 +71,7 @@ export const buildPassengerColumns = ({
       key: `trip_${tripId}`,
       render: (row: PassengerRow) => {
         if (readOnly) {
-          const assignment = row.tripAssignments?.[tripId];
-          const busText = assignment?.busCode || '-';
+          const busText = row.tripId === tripId ? (row.busCode || '-') : '-';
           return <span className="text-white">{busText}</span>;
         }
 
@@ -132,10 +131,17 @@ export const buildPassengerColumns = ({
     columns.push({
       header: 'Thao tác',
       key: 'actions',
+      width: '100px', 
       render: (row) => (
-        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)} title="Xóa hành khách">
-          <Trash2 size={20} color="#dc3545" />
-        </button>
+        <div className="d-flex justify-content-center align-items-center">
+          <button 
+            className="btn-action-delete" 
+            onClick={() => handleDeleteRow(row)} 
+            title="Xóa hành khách"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       ),
     });
   }

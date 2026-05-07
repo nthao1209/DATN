@@ -126,53 +126,50 @@ const BusPage: React.FC = () => {
         </button>
       </div>
 
-      <div 
-        className="p-2 mb-4 d-flex justify-content-end align-items-center gap-2 px-3 shadow-sm"
-        style={{ 
-          background: colors.surface, 
-          borderRadius: effects.borderRadius.md,
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-        <button 
-          className="btn-custom-action-small" 
-          onClick={handleAddRow}
-          style={{ color: colors.primary, border: `1px solid ${colors.primary}44` }}
-        >
-          <Plus size={16} /> 
-          <span>Thêm dòng</span>
-        </button>
-
-        <button
-          className="btn-custom-action-save shadow-sm"
-          onClick={handleSave}
-          disabled={isSaving || dirtyCount === 0}
-          style={{ 
-            backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-            color: dirtyCount > 0 ? '#fff' : colors.textMuted,
-            opacity: isSaving ? 0.7 : 1,
-            cursor: dirtyCount > 0 ? 'pointer' : 'not-allowed'
-          }}
-        >
-          <Save size={16} />
-          <span>{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-        </button>
-      </div>
 
       {/* Bọc Table trong một Card có shadow nhẹ */}
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Thông tin chi tiết đội xe"
+          titleActions={
+            <button
+              className="btn-custom-action-save shadow-sm"
+              onClick={handleSave}
+              disabled={isSaving || dirtyCount === 0}
+              style={{ 
+                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
+                color: dirtyCount > 0 ? '#fff' : colors.textMuted
+              }}
+            >
+              <Save size={16} />
+              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+              <span className="d-inline d-sm-none">{dirtyCount}</span>
+            </button>
+          }
           columns={columns}
           queryKey={['buses-local', tripId]}
           data={rows}
           isLoading={isLoading}
           isError={isError}
         />
+        <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
+          <button 
+            className="btn-add-row-bottom w-100 py-2" 
+            onClick={handleAddRow}
+            style={{ 
+              color: colors.primary, 
+              border: `1px dashed ${colors.primary}66`,
+              borderRadius: '8px',
+              backgroundColor: `${colors.primary}08`
+            }}
+          >
+            <Plus size={18} />
+            <span className="fw-bold ms-2">Thêm dòng mới</span>
+          </button>
+        </div>
       </div>
 
       <style>{`
-        /* Ô nhập liệu tinh tế hơn */
         .bus-page .td-content input, 
         .bus-page .td-content select {
           min-height: 36px !important;
@@ -226,6 +223,43 @@ const BusPage: React.FC = () => {
           letter-spacing: 0.025em !important;
           padding: 12px !important;
           border-bottom: 1px solid ${colors.border} !important;
+        }
+        .bus-page .btn-action-delete {
+          /* Ép kích thước và layout */
+          width: 36px !important;
+          height: 36px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;          
+          border-radius: 10px !important;
+          border: 1px solid rgba(220, 53, 69, 0.2) !important;
+          background-color: rgba(220, 53, 69, 0.05) !important;
+          color: #dc3545 !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          cursor: pointer !important;
+          outline: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+
+        .bus-page .btn-action-delete:hover {
+          background-color: #dc3545 !important;
+          color: #ffffff !important;
+          border-color: #dc3545 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+        }
+
+        .bus-page .btn-action-delete:active {
+          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
+          background-color: #a71d2a !important;
+          box-shadow: none !important;
+        }
+
+        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
+        .bus-page .btn-action-delete svg {
+          color: #ffffff !important; 
+          fill: none !important;
         }
 
         .spin { animation: spin 1s linear infinite; }

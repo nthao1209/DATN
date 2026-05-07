@@ -153,7 +153,7 @@ const Login: React.FC = () => {
         <div className="d-flex justify-content-between align-items-center mt-4 small">
           <Link
             to="/forgot-password"
-            className="auth-muted"
+            className="text-info fw-semibold"
           >
             Quên mật khẩu?
           </Link>

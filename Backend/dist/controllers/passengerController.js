@@ -18,7 +18,27 @@ const normalizeText = (value) => String(value ?? '')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
+const normalizeBusLookupKeys = (value) => {
+    const normalized = normalizeText(value);
+    if (!normalized) {
+        return [];
+    }
+    const keys = new Set([normalized]);
+    if (/^\d+$/.test(normalized)) {
+        const strippedLeadingZeros = normalized.replace(/^0+(?=\d)/, '');
+        keys.add(strippedLeadingZeros);
+    }
+    return Array.from(keys);
+};
 const toText = (value) => String(value ?? '').trim();
+// Excel hay mat so 0 dau khi cot dien thoai o dang Number, nen bo sung quy tac phuc hoi an toan.
+const normalizeImportedPhone = (value) => {
+    const digitsOnly = value.replace(/\D/g, '').trim();
+    if (digitsOnly.length === 9) {
+        return `0${digitsOnly}`;
+    }
+    return digitsOnly;
+};
 const isAliasMatched = (normalizedHeader, normalizedAlias) => normalizedHeader === normalizedAlias ||
     normalizedHeader.includes(normalizedAlias) ||
     normalizedAlias.includes(normalizedHeader);
@@ -30,6 +50,7 @@ const findMatchedHeader = (headers, aliases) => {
     });
 };
 const scoreHeaderRow = (cells) => {
+    // Cham diem de tim dong co kha nang la header cao nhat trong cac dong dau.
     let score = 0;
     const seen = new Set();
     cells.forEach((cell) => {
@@ -53,6 +74,7 @@ const scoreHeaderRow = (cells) => {
     return score;
 };
 const parseRowsFromWorksheet = (worksheet) => {
+    // Doc sheet theo ma tran de xu ly duoc file co dong tieu de khong nam o dong dau tien.
     const matrix = xlsx_1.default.utils.sheet_to_json(worksheet, {
         header: 1,
         raw: false,
@@ -89,6 +111,7 @@ const parseRowsFromWorksheet = (worksheet) => {
         .filter((row) => Object.values(row).some((value) => String(value ?? '').trim() !== ''));
 };
 const buildHeaderMap = (headers) => ({
+    // Map ten cot trong file nguoi dung vao cot noi bo cua he thong.
     name: findMatchedHeader(headers, HEADER_ALIASES.name),
     tel: findMatchedHeader(headers, HEADER_ALIASES.tel),
     note: findMatchedHeader(headers, HEADER_ALIASES.note),
@@ -260,31 +283,33 @@ exports.passengerController = {
             });
             const busLookup = new Map();
             buses.forEach((bus) => {
-                busLookup.set(normalizeText(bus.id), bus.id);
-                busLookup.set(normalizeText(bus.busCode), bus.id);
+                normalizeBusLookupKeys(bus.id).forEach((key) => busLookup.set(key, bus.id));
+                normalizeBusLookupKeys(bus.busCode).forEach((key) => busLookup.set(key, bus.id));
                 if (bus.registrationNumber) {
-                    busLookup.set(normalizeText(bus.registrationNumber), bus.id);
+                    normalizeBusLookupKeys(bus.registrationNumber).forEach((key) => busLookup.set(key, bus.id));
                 }
             });
             const unmatchedBusValues = new Set();
             const previewRows = rawRows
                 .map((rawRow, index) => {
                 const name = readMappedValue(rawRow, headerMap, 'name');
-                const telRaw = readMappedValue(rawRow, headerMap, 'tel');
+                const telRaw = normalizeImportedPhone(readMappedValue(rawRow, headerMap, 'tel'));
                 const note = readMappedValue(rawRow, headerMap, 'note');
                 const busRaw = readMappedValue(rawRow, headerMap, 'bus');
                 if (!name && !telRaw && !note && !busRaw) {
                     return null;
                 }
-                const normalizedBus = normalizeText(busRaw);
-                const matchedBusId = normalizedBus ? busLookup.get(normalizedBus) ?? null : null;
+                const normalizedBusKeys = normalizeBusLookupKeys(busRaw);
+                const matchedBusId = normalizedBusKeys
+                    .map((key) => busLookup.get(key))
+                    .find((value) => value !== undefined) ?? null;
                 if (busRaw && !matchedBusId) {
                     unmatchedBusValues.add(busRaw);
                 }
                 return {
                     localId: `excel_${Date.now()}_${index}`,
                     name,
-                    tel: telRaw.replace(/\D/g, ''),
+                    tel: telRaw,
                     note,
                     tripId,
                     busId: matchedBusId,

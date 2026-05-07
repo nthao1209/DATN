@@ -25,24 +25,30 @@ export type RoundOption = {
 
 export type DraftCell = {
   transactionId?: number;
-  updatedAt?: string;
   passengerId: number;
   roundId: number;
   busId: number;
   checkIn: boolean;
   checkOut: boolean;
+  checkInAt?: string | null;
+  checkInBy?: number | null;
+  checkOutAt?: string | null;
+  checkOutBy?: number | null;
   note: string;
   dirty?: boolean;
 };
 
 export type TransactionRecord = {
   id: number;
-  updatedAt?: string;
   passengerId?: number;
   roundId?: number;
   busId?: number;
   checkIn?: boolean;
   checkOut?: boolean;
+  checkInAt?: string | null;
+  checkInBy?: number | null;
+  checkOutAt?: string | null;
+  checkOutBy?: number | null;
   note?: string | null;
   passenger?: {
     id?: number;

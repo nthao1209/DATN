@@ -14,7 +14,7 @@ const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slic
 const MIN_ROWS = 1;
 
 const UserManagementPage: React.FC = () => {
-  const { colors, effects, isDarkMode } = useTheme(); // Sử dụng theme
+  const { colors, effects, isDarkMode } = useTheme(); 
   const { enqueueSnackbar } = useSnackbar();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
@@ -27,7 +27,14 @@ const UserManagementPage: React.FC = () => {
     queryFn: () => api.get('/users'),
   });
 
+  const { data: roles = [] } = useQuery<any[]>({
+    queryKey: ['roles'],
+    queryFn: () => api.getRoles(),
+  });
+
   useEffect(() => {
+    // Wait until initial fetch finishes. Avoid mapping on initial empty-array placeholder.
+    if (isLoading) return;
     if (initializedRef.current) return;
 
     const mapped: UserRow[] = users.map((user: any) => ({
@@ -39,6 +46,8 @@ const UserManagementPage: React.FC = () => {
       latestAccessDate: user.lastAccessAt ? format(new Date(user.lastAccessAt), 'dd/MM/yyyy HH:mm') : 'Chưa có',
       latestRole: user.latestRole || user.userTenants?.[0]?.role?.name || 'N/A',
       description: user.description || '',
+      roleId: user.userTenants?.[0]?.role?.id ?? null,
+      tenantId: user.userTenants?.[0]?.tenant?.id ?? null,
       isEdited: false,
     }));
 
@@ -52,12 +61,14 @@ const UserManagementPage: React.FC = () => {
         latestAccessDate: '',
         latestRole: '',
         description: '',
+        roleId: null,
+        tenantId: null,
       });
     }
 
     setRows(padded);
     initializedRef.current = true;
-  }, [users]);
+  }, [users, isLoading]);
 
   const dirtyCount = useMemo(
     () => rows.filter((r) => r.isEdited).length + deletedIds.length,
@@ -91,15 +102,41 @@ const UserManagementPage: React.FC = () => {
 
     try {
       setIsSaving(true);
+      const warnings: string[] = [];
+
       await Promise.all([
-        ...rowsToUpdate.map((r) =>
-          api.put(`/users/${r.id}`, {
+        ...rowsToUpdate.map((r) => {
+          const isSystemAdmin = (r.latestRole || '').toLowerCase() === 'system_admin';
+          const payload: any = {
             name: r.name.trim(),
             description: r.description?.trim() || null,
-          })
-        ),
+          };
+
+          // Only allow role changes between 'admin' and 'busmanagement'. Never allow any change to/from system_admin.
+          if (!isSystemAdmin && r.roleId !== undefined && r.roleId !== null) {
+            const roleObj = (roles || []).find((rr: any) => Number(rr.id) === Number(r.roleId));
+            const newRoleName = (roleObj?.name || '').toLowerCase();
+            const oldRoleName = (r.latestRole || '').toLowerCase();
+            const allowed = ['admin', 'busmanagement'];
+
+            if (newRoleName === 'system_admin' || oldRoleName === 'system_admin') {
+              warnings.push(`Không thể gán hoặc gỡ vai trò 'system_admin' cho ${r.email}`);
+            } else if (allowed.includes(oldRoleName) && allowed.includes(newRoleName)) {
+              payload.roleId = r.roleId;
+              payload.tenantId = r.tenantId;
+            } else {
+              warnings.push(`Chỉ được đổi giữa 'admin' và 'busmanagement' cho ${r.email}`);
+            }
+          }
+
+          return api.put(`/users/${r.id}`, payload);
+        }),
         ...deletedIds.map((id) => api.delete(`/users/${id}`)),
       ]);
+
+      if (warnings.length) {
+        enqueueSnackbar(warnings.join('; '), { variant: 'warning' });
+      }
       initializedRef.current = false;
       setDeletedIds([]);
       await refetch();
@@ -114,6 +151,7 @@ const UserManagementPage: React.FC = () => {
   const columns = buildUserColumns({
     handleCellChange,
     handleDeleteRow,
+    roles: roles || [],
   });
 
   return (
@@ -153,27 +191,7 @@ const UserManagementPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Toolbar Section - Tinh gọn, dồn phải */}
-      <div className="d-flex justify-content-end align-items-center gap-2 mb-4 px-2">
-        <button
-          className="btn-custom-action-save shadow-sm"
-          onClick={handleSave}
-          disabled={isSaving || dirtyCount === 0}
-          style={{
-            backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight,
-            color: dirtyCount > 0 ? '#fff' : colors.textMuted,
-            opacity: isSaving ? 0.7 : 1,
-            cursor: dirtyCount > 0 ? 'pointer' : 'not-allowed'
-          }}
-        >
-          <Save size={16} /> 
-          <span className="d-none d-sm-inline">
-            {isSaving ? 'Đang lưu...' : `Lưu thay đổi (${dirtyCount})`}
-          </span>
-          <span className="d-inline d-sm-none">{dirtyCount}</span>
-        </button>
-      </div>
-
+      
       {/* Main Table Card */}
       <div 
         className="table-container-card shadow-sm" 
@@ -186,6 +204,21 @@ const UserManagementPage: React.FC = () => {
       >
         <DataTable
           title="Danh sách tài khoản"
+          titleActions={
+            <button
+              className="btn-custom-action-save shadow-sm"
+              onClick={handleSave}
+              disabled={isSaving || dirtyCount === 0}
+              style={{ 
+                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
+                color: dirtyCount > 0 ? '#fff' : colors.textMuted
+              }}
+            >
+              <Save size={16} />
+              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+              <span className="d-inline d-sm-none">{dirtyCount}</span>
+            </button>
+          }         
           columns={columns}
           queryKey={['users-management-local']}
           data={rows}
@@ -196,7 +229,7 @@ const UserManagementPage: React.FC = () => {
             setDeletedIds([]);
             refetch();
           }}
-        />
+        />      
       </div>
 
       <style>{`
@@ -242,6 +275,43 @@ const UserManagementPage: React.FC = () => {
           padding: 12px !important;
           border-bottom: 1px solid ${colors.border} !important;
           font-weight: 700 !important;
+        }
+          .user-management-page .btn-action-delete {
+          /* Ép kích thước và layout */
+          width: 36px !important;
+          height: 36px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;          
+          border-radius: 10px !important;
+          border: 1px solid rgba(220, 53, 69, 0.2) !important;
+          background-color: rgba(220, 53, 69, 0.05) !important;
+          color: #dc3545 !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          cursor: pointer !important;
+          outline: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+
+        .user-management-page .btn-action-delete:hover {
+          background-color: #dc3545 !important;
+          color: #ffffff !important;
+          border-color: #dc3545 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+        }
+
+        .user-management-page .btn-action-delete:active {
+          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
+          background-color: #a71d2a !important;
+          box-shadow: none !important;
+        }
+
+        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
+        .user-management-page .btn-action-delete svg {
+          color: #ffffff !important; 
+          fill: none !important;
         }
 
         .spin { animation: spin 1s linear infinite; }

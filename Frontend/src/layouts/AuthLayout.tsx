@@ -31,7 +31,9 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
               <div 
                 key={index}
                 className={`slideshow-img ${index === activeIndex ? 'active' : ''}`}
-                style={{ backgroundImage: `url(${img})` }}
+                style={{ 
+                  backgroundImage: `url(${img})`,
+                  transform: index === activeIndex ? 'scale(1.1)' : 'scale(1)'}}
               />
             ))}
 

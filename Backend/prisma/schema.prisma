@@ -26,6 +26,9 @@ model User {
   firebaseUid String       @unique
   buses       Bus[]        @relation("BusManager")
   userTenants UserTenant[]
+  checkInActions  Transaction[] @relation("CheckInUser")
+  checkOutActions Transaction[] @relation("CheckOutUser")
+
 }
 
 model Role {
@@ -76,6 +79,7 @@ model Bus {
   trip               Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
   passengers         Passenger[]
   transactions       Transaction[]
+  busRoundStatuses   BusRoundStatus[]
 
   @@unique([tripId, busCode])
   @@index([managerId])
@@ -90,6 +94,8 @@ model Round {
   tripId       Int
   trip         Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  busRoundStatuses   BusRoundStatus[]
+
 
   @@index([tripId])
 }
@@ -112,17 +118,37 @@ model Transaction {
   roundId     Int
   passengerId Int
   checkIn     Boolean   @default(false)
+  checkInAt   DateTime?
+  checkInBy   Int?
   checkOut    Boolean   @default(false)
+  checkOutAt  DateTime?
+  checkOutBy  Int?
   note        String?
-  updatedAt   DateTime  @updatedAt
   bus         Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
   passenger   Passenger @relation(fields: [passengerId], references: [id], onDelete: Cascade)
   round       Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  checkInUser  User? @relation("CheckInUser", fields: [checkInBy], references: [id])
+  checkOutUser User? @relation("CheckOutUser", fields: [checkOutBy], references: [id])
 
   @@unique([passengerId, roundId])
   @@index([busId])
   @@index([roundId])
   @@index([passengerId])
+}
+
+model BusRoundStatus {
+  id              Int @id @default(autoincrement())
+  busId           Int
+  roundId         Int
+  checkInLocked   Boolean @default(false)
+  checkInAt       DateTime?
+  checkOutLocked  Boolean @default(false)
+  checkOutAt      DateTime?
+  bus             Bus       @relation(fields: [busId], references: [id])
+  round           Round     @relation(fields: [roundId], references: [id])
+
+  @@unique([busId, roundId])
 }
 
 enum Status {

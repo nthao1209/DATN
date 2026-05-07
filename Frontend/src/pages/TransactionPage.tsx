@@ -189,12 +189,15 @@ const TransactionPage: React.FC = () => {
       if (!passengerId || !roundId || !busId) return;
       map[keyOf(passengerId, roundId)] = {
         transactionId: Number(tx.id),
-        updatedAt: tx.updatedAt,
         passengerId,
         roundId,
         busId,
         checkIn: Boolean(tx.checkIn),
         checkOut: Boolean(tx.checkOut),
+        checkInAt: tx.checkInAt || null,
+        checkInBy: tx.checkInBy ?? null,
+        checkOutAt: tx.checkOutAt || null,
+        checkOutBy: tx.checkOutBy ?? null,
         note: tx.note || '',
       };
     });

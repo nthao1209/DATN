@@ -55,17 +55,29 @@ export const buildRoundColumns = ({
     ),
   },
   {
-    header: 'Số check-in',
+    header: 'Số khách check-in',
     key: 'transactionCount',
     render: (row) => (row.id ? `${row.transactionCount}/${row.passengerCount}` : '-'),
   },
   {
-    header: 'Thao tác',
-    key: 'actions',
-    render: (row) => (
-      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)} title="Xóa chặng">
-        <Trash2 size={20} color="#dc3545" />
-      </button>
-    ),
+    header: 'Số khách check-out',
+    key: 'checkOutCount',
+    render: (row) => (row.id ? `${row.checkOutCount ?? 0}/${row.passengerCount}` : '-'),
   },
+  {
+  header: 'Thao tác',
+  key: 'actions',
+  width: '100px', 
+  render: (row) => (
+    <div className="d-flex justify-content-center align-items-center">
+      <button 
+        className="btn-action-delete" 
+        onClick={() => handleDeleteRow(row)} 
+        title="Xóa chặng"
+      >
+        <Trash2 size={18} />
+      </button>
+    </div>
+  ),
+},
 ];

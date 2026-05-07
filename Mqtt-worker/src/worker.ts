@@ -49,69 +49,82 @@ async function init() {
             if (!data.passengerId || !data.roundId || !data.busId) {
                 throw new Error("Dữ liệu thiếu passengerId, roundId hoặc busId");
             }
-            const incomingTimestamp = Number(data.timestamp || Date.now());
-            const safeTimestamp = Number.isFinite(incomingTimestamp) ? incomingTimestamp : Date.now();
+            const now = Date.now();
+            const checkInAt = data.checkIn ? new Date(now) : null;
+            const checkOutAt = data.checkOut ? new Date(now) : null;
             const query = `
-                INSERT INTO "Transaction" ("passengerId", "roundId", "busId", "checkIn", "checkOut", "note", "updatedAt")
-                VALUES ($1, $2, $3, $4, $5, $6, TO_TIMESTAMP($7 / 1000.0))
-                ON CONFLICT ("passengerId", "roundId") 
-                DO UPDATE SET 
-                    "busId" = EXCLUDED."busId",
-                    "checkIn" = EXCLUDED."checkIn",
-                    "checkOut" = EXCLUDED."checkOut",
-                    "note" = EXCLUDED."note",
-                    "updatedAt" = EXCLUDED."updatedAt"
-                WHERE "Transaction"."updatedAt" < EXCLUDED."updatedAt"
-                RETURNING id;
+             WITH upsert_res AS (
+                    INSERT INTO "Transaction" (
+                        "passengerId", "roundId", "busId", 
+                        "checkIn", "checkInAt", "checkInBy", 
+                        "checkOut", "checkOutAt", "checkOutBy", 
+                        "note"
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ON CONFLICT ("passengerId", "roundId") 
+                    DO UPDATE SET 
+                        "busId" = EXCLUDED."busId",
+                        "checkIn" = EXCLUDED."checkIn",
+                        "checkOut" = EXCLUDED."checkOut",
+                        "note" = EXCLUDED."note",
+                        "checkInAt" = CASE WHEN EXCLUDED."checkIn" THEN COALESCE("Transaction"."checkInAt", EXCLUDED."checkInAt") ELSE NULL END,
+                        "checkOutAt" = CASE WHEN EXCLUDED."checkOut" THEN COALESCE("Transaction"."checkOutAt", EXCLUDED."checkOutAt") ELSE NULL END,
+                        "checkInBy" = CASE WHEN EXCLUDED."checkIn" THEN COALESCE(EXCLUDED."checkInBy", "Transaction"."checkInBy") ELSE NULL END,
+                        "checkOutBy" = CASE WHEN EXCLUDED."checkOut" THEN COALESCE(EXCLUDED."checkOutBy", "Transaction"."checkOutBy") ELSE NULL END
+                    RETURNING *
+                )
+                SELECT ur.*, b."tripId" 
+                FROM upsert_res ur
+                JOIN "Bus" b ON b.id = ur."busId";
             `;
-            const values = [
+
+             const values = [
                 data.passengerId,
                 data.roundId,
                 data.busId,
-                data.checkIn || false,
-                data.checkOut || false,
-                data.note || "",
-                safeTimestamp
+                Boolean(data.checkIn), // Ép kiểu Boolean
+                checkInAt,
+                data.checkInBy || null,
+                Boolean(data.checkOut), // Ép kiểu Boolean
+                checkOutAt,
+                data.checkOutBy || null,
+                data.note || ""
             ];
             
             const res = await pool.query(query, values);
-            const updatedInfo = res.rows[0];
+            const result = res.rows[0];
 
-            if (!updatedInfo) {
+            if (!result) {
                 if (process.env.NODE_ENV === 'development') {
                     console.log(`⏭️ [${prj}] Ignored stale attendance payload for Passenger ${data.passengerId} in Round ${data.roundId}`);
                 }
                 return;
             }
 
-            const tripLookup = await pool.query(
-                'SELECT "tripId" FROM "Bus" WHERE id = $1 LIMIT 1',
-                [data.busId]
-            );
-            const tripId = Number(tripLookup.rows[0]?.tripId || 0);
-
-            if (tripId) {
+             if (result && result.tripId) {
                 client.publish(
-                    `${uiTopicPrefix}/${tripId}`,
+                    `${uiTopicPrefix}/${result.tripId}`,
                     JSON.stringify({
                         type: 'attendance.updated',
                         project: prj,
-                        tripId,
-                        passengerId: data.passengerId,
-                        roundId: data.roundId,
-                        busId: data.busId,
-                        checkIn: Boolean(data.checkIn),
-                        checkOut: Boolean(data.checkOut),
-                        note: data.note || '',
-                        updatedAt: new Date(safeTimestamp).toISOString(),
+                        tripId: result.tripId,
+                        passengerId: result.passengerId,
+                        roundId: result.roundId,
+                        busId: result.busId,
+                        checkIn: result.checkIn,
+                        checkInAt: result.checkInAt,
+                        checkOut: result.checkOut,
+                        checkOutAt: result.checkOutAt,
+                        note: result.note,
                     }),
-                    { qos: 1, retain: false }
+                    { qos: 1 }
                 );
             }
 
+
             if (process.env.NODE_ENV === 'development') {
                 console.log(`✅ [${prj}] Updated Attendance: Passenger ${data.passengerId} in Round ${data.roundId}`);
-                 console.log(`📌 [${prj}] DB Update Success: TransID ${updatedInfo.id}`);
+                 console.log(`📌 [${prj}] DB Update Success: TransID ${result.id}`);
             }
 
         } catch (e: any) {

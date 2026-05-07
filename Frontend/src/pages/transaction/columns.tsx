@@ -44,12 +44,15 @@ export const buildTransactionColumns = ({
                 if (!row.busId) return;
                 setCell({
                   transactionId: current?.transactionId,
-                  updatedAt: current?.updatedAt,
                   passengerId: row.id,
                   roundId,
                   busId: row.busId,
                   checkIn: e.target.checked,
                   checkOut,
+                  checkInAt: current?.checkInAt,
+                  checkInBy: current?.checkInBy,
+                  checkOutAt: current?.checkOutAt,
+                  checkOutBy: current?.checkOutBy,
                   note: current?.note || '',
                 });
               }}
@@ -82,12 +85,15 @@ export const buildTransactionColumns = ({
                 if (!row.busId) return;
                 setCell({
                   transactionId: current?.transactionId,
-                  updatedAt: current?.updatedAt,
                   passengerId: row.id,
                   roundId,
                   busId: row.busId,
                   checkIn,
                   checkOut: e.target.checked,
+                  checkInAt: current?.checkInAt,
+                  checkInBy: current?.checkInBy,
+                  checkOutAt: current?.checkOutAt,
+                  checkOutBy: current?.checkOutBy,
                   note: current?.note || '',
                 });
               }}
@@ -179,12 +185,15 @@ export const buildTransactionColumns = ({
                 if (!row.busId) return;
                 setCell({
                   transactionId: current?.transactionId,
-                  updatedAt: current?.updatedAt,
                   passengerId: row.id,
                   roundId,
                   busId: row.busId,
                   checkIn: Boolean(current?.checkIn),
                   checkOut: Boolean(current?.checkOut),
+                  checkInAt: current?.checkInAt,
+                  checkInBy: current?.checkInBy,
+                  checkOutAt: current?.checkOutAt,
+                  checkOutBy: current?.checkOutBy,
                   note: nextNote,
                 });
               });

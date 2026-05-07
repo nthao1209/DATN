@@ -7,5 +7,7 @@ export type UserRow = {
   latestAccessDate: string;
   latestRole: string;
   description?: string;
+  roleId?: number | null;
+  tenantId?: number | null;
   isEdited?: boolean;
 };

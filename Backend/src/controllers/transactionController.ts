@@ -69,6 +69,12 @@ export const transactionController = {
             }
           },
           round: true,
+          checkInUser: {
+            select: { id: true, name: true, email: true }
+          },
+          checkOutUser: {
+            select: { id: true, name: true, email: true }
+          },
           bus: {
             select: {
               id: true,
@@ -135,6 +141,7 @@ export const transactionController = {
       const incomingCheckIn = req.body?.checkIn !== undefined ? Boolean(req.body?.checkIn) : undefined;
       const incomingCheckOut = req.body?.checkOut !== undefined ? Boolean(req.body?.checkOut) : undefined;
       const incomingNote = req.body?.note ? String(req.body.note).trim() : null;
+      const actorId = req.user?.id ?? null;
 
       const nextCheckIn = existing
         ? Boolean(existing.checkIn) || Boolean(incomingCheckIn)
@@ -142,6 +149,13 @@ export const transactionController = {
       const nextCheckOut = existing
         ? Boolean(existing.checkOut) || Boolean(incomingCheckOut)
         : Boolean(incomingCheckOut);
+
+      const checkInAt = nextCheckIn
+        ? existing?.checkInAt ?? new Date()
+        : null;
+      const checkOutAt = nextCheckOut
+        ? existing?.checkOutAt ?? new Date()
+        : null;
 
       const created = await prisma.transaction.upsert({
         where: {
@@ -154,14 +168,22 @@ export const transactionController = {
           busId,
           checkIn: nextCheckIn,
           checkOut: nextCheckOut,
+          checkInAt: nextCheckIn ? (existing?.checkInAt ?? new Date()) : null,
+          checkInBy: nextCheckIn ? (existing?.checkInBy ?? actorId) : null,
+          checkOutAt: nextCheckOut ? (existing?.checkOutAt ?? new Date()) : null,
+          checkOutBy: nextCheckOut ? (existing?.checkOutBy ?? actorId) : null,
           note: incomingNote
         },
         create: {
-          busId,
-          roundId,
-          passengerId,
+          busId: Number(busId),
+          roundId: Number(roundId),
+          passengerId: Number(passengerId),
           checkIn: nextCheckIn,
           checkOut: nextCheckOut,
+          checkInAt: nextCheckIn ? new Date() : null,
+          checkInBy: nextCheckIn ? actorId : null,
+          checkOutAt: nextCheckOut ? new Date() : null,
+          checkOutBy: nextCheckOut ? actorId : null,
           note: incomingNote
         }
       });
@@ -201,23 +223,9 @@ export const transactionController = {
         return res.status(404).json({ message: 'Transaction not found' });
       }
 
-      const expectedUpdatedAtRaw = req.body?.expectedUpdatedAt;
-      if (expectedUpdatedAtRaw) {
-        const expectedUpdatedAt = new Date(String(expectedUpdatedAtRaw));
-        if (Number.isNaN(expectedUpdatedAt.getTime())) {
-          return res.status(400).json({ message: 'Invalid expectedUpdatedAt' });
-        }
-
-        if (existing.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
-          return res.status(409).json({
-            message: 'Dữ liệu đã được cập nhật bởi người khác. Vui lòng tải lại để đồng bộ.',
-            latest: existing
-          });
-        }
-      }
-
       const checkInInput = req.body?.checkIn;
       const checkOutInput = req.body?.checkOut;
+      const actorId = req.user?.id ?? null;
 
       const nextCheckIn = checkInInput !== undefined
         ? Boolean(checkInInput)
@@ -227,11 +235,25 @@ export const transactionController = {
         ? Boolean(checkOutInput)
         : existing.checkOut;
 
+      const nextCheckInAt = checkInInput === undefined
+        ? existing.checkInAt
+        : nextCheckIn
+          ? (existing.checkInAt ?? new Date())
+          : null;
+
+      const nextCheckOutAt = checkOutInput === undefined
+        ? existing.checkOutAt
+        : nextCheckOut
+          ? (existing.checkOutAt ?? new Date())
+          : null;
+
       const updated = await prisma.transaction.update({
         where: { id },
         data: {
           ...(checkInInput !== undefined ? { checkIn: nextCheckIn } : {}),
           ...(checkOutInput !== undefined ? { checkOut: nextCheckOut } : {}),
+          ...(checkInInput !== undefined ? { checkInAt: nextCheckInAt, checkInBy: nextCheckIn ? existing.checkInBy ?? actorId : null } : {}),
+          ...(checkOutInput !== undefined ? { checkOutAt: nextCheckOutAt, checkOutBy: nextCheckOut ? existing.checkOutBy ?? actorId : null } : {}),
           ...(req.body?.note !== undefined ? { note: req.body.note ? String(req.body.note).trim() : null } : {})
         }
       });

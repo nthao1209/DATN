@@ -9,11 +9,13 @@ type BuildUserColumnsParams = {
     value: UserRow[K]
   ) => void;
   handleDeleteRow: (row: UserRow) => void;
+  roles: { id: number; name: string }[];
 };
 
 export const buildUserColumns = ({
   handleCellChange,
   handleDeleteRow,
+  roles,
 }: BuildUserColumnsParams): Column<UserRow>[] => [
   { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
   {
@@ -42,7 +44,33 @@ export const buildUserColumns = ({
   {
     header: 'Role',
     key: 'latestRole',
-    render: (row) => <span className="badge bg-info">{row.latestRole}</span>,
+    render: (row) => {
+      const isSystemAdmin = (row.latestRole || '').toLowerCase() === 'system_admin';
+      const allowedNames = ['admin', 'busmanagement'];
+      const allowedRoles = roles.filter((r) => allowedNames.includes((r.name || '').toLowerCase()));
+
+      if (isSystemAdmin) {
+        return <span className="badge bg-secondary">system_admin</span>;
+      }
+
+      return (
+        <select
+          className="form-control form-control-sm"
+          value={row.roleId ?? ''}
+          onChange={(e) => {
+            const val = e.target.value ? Number(e.target.value) : null;
+            handleCellChange(row.localId, 'roleId', val);
+          }}
+        >
+          <option value="">{row.latestRole || 'N/A'}</option>
+          {allowedRoles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      );
+    },
   },
   {
     header: 'Ghi chú',
@@ -57,12 +85,19 @@ export const buildUserColumns = ({
     ),
   },
   {
-    header: 'Thao tác',
-    key: 'actions',
-    render: (row) => (
-      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)}>
-        <Trash2 size={14} />
+  header: 'Thao tác',
+  key: 'actions',
+  width: '100px', 
+  render: (row) => (
+    <div className="d-flex justify-content-center align-items-center">
+      <button 
+        className="btn-action-delete" 
+        onClick={() => handleDeleteRow(row)} 
+        title="Xóa người dùng"
+      >
+        <Trash2 size={18} />
       </button>
-    ),
-  },
+    </div>
+  ),
+},
 ];

@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d Bus_db"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,7 +21,9 @@ services:
     build: ./Backend
     container_name: backend_service
     restart: always
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run dev"
+    tty: true
+    stdin_open: true
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run build && npm run start"
     env_file:
       - ./Backend/.env
     environment:
@@ -61,6 +63,7 @@ services:
       - ./Frontend/src:/app/src
       - ./Frontend/public:/app/public
       - ./Frontend/index.html:/app/index.html
+      - ./Frontend/.env:/app/.env
       - ./Frontend/vite.config.ts:/app/vite.config.ts
       - ./Frontend/tsconfig.json:/app/tsconfig.json
       - ./Frontend/tsconfig.app.json:/app/tsconfig.app.json
@@ -75,8 +78,14 @@ services:
     restart: always
     env_file:
       - ./Mqtt-worker/.env
+    environment:
+      NODE_ENV: "production"
+    command: sh -c "npm run build && npm run start"
     depends_on:
-      - backend
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
 volumes:
   postgres_data:
     name: datn_postgres_data

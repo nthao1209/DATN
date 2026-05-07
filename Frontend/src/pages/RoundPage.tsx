@@ -28,6 +28,12 @@ const RoundPage: React.FC = () => {
     enabled: !!tripId,
   });
 
+  const { data: transactions = [] } = useQuery<any[]>({
+    queryKey: ['round-transactions', tripId],
+    queryFn: () => api.getTransactions(),
+    enabled: !!tripId,
+  });
+
   useEffect(() => {
     const mapped: RoundRow[] = rounds.map((r: any) => ({
       id: Number(r.id),
@@ -35,7 +41,16 @@ const RoundPage: React.FC = () => {
       name: r.name || '',
       time: r.time || '',
       status: r.status === 'DONE' ? 'DONE' : 'DOING',
-      transactionCount: Number(r?._count?.transactions || 0),
+      // transactionCount here represents number of check-ins for compatibility with existing UI
+      transactionCount: Number(
+        (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === Number(r.id) && Boolean(tx.checkIn)).length
+      ),
+      checkInCount: Number(
+        (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === Number(r.id) && Boolean(tx.checkIn)).length
+      ),
+      checkOutCount: Number(
+        (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === Number(r.id) && Boolean(tx.checkOut)).length
+      ),
       passengerCount: Number(r?.passengerCount || 0),
     }));
 
@@ -149,126 +164,133 @@ const RoundPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Toolbar Section */}
-      <div 
-        className="p-2 mb-4 d-flex justify-content-end align-items-center gap-2 px-3 shadow-sm"
-        style={{ 
-          background: colors.surface, 
-          borderRadius: effects.borderRadius.md,
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-        <button 
-          className="btn-custom-action-small" 
-          onClick={handleAddRow}
-          style={{ color: colors.primary, border: `1px solid ${colors.primary}44` }}
-        >
-          <Plus size={16} /> 
-          <span className="d-none d-sm-inline">Thêm dòng</span>
-        </button>
-
-        <button
-          className="btn-custom-action-save shadow-sm"
-          onClick={handleSave}
-          disabled={isSaving || dirtyCount === 0}
-          style={{ 
-            backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-            color: dirtyCount > 0 ? '#fff' : colors.textMuted,
-            opacity: isSaving ? 0.7 : 1,
-            cursor: dirtyCount > 0 ? 'pointer' : 'not-allowed'
-          }}
-        >
-          <Save size={16} />
-          <span className="d-none d-sm-inline">
-            {isSaving ? 'Đang lưu...' : `Lưu thay đổi (${dirtyCount})`}
-          </span>
-          <span className="d-inline d-sm-none">{dirtyCount}</span>
-        </button>
-      </div>
 
       {/* Table Section */}
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Danh sách các chặng"
+          titleActions={
+            <button
+              className="btn-custom-action-save shadow-sm"
+              onClick={handleSave}
+              disabled={isSaving || dirtyCount === 0}
+              style={{ 
+                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
+                color: dirtyCount > 0 ? '#fff' : colors.textMuted
+              }}
+            >
+              <Save size={16} />
+              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+              <span className="d-inline d-sm-none">{dirtyCount}</span>
+            </button>
+          }
           columns={columns}
           queryKey={['rounds-local', tripId]}
           data={rows}
           isLoading={isLoading}
           isError={isError}
         />
+        <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
+          <button 
+            className="btn-add-row-bottom w-100 py-2" 
+            onClick={handleAddRow}
+            style={{ 
+              color: colors.primary, 
+              border: `1px dashed ${colors.primary}66`,
+              borderRadius: '8px',
+              backgroundColor: `${colors.primary}08`
+            }}
+          >
+            <Plus size={18} />
+            <span className="fw-bold ms-2">Thêm dòng mới</span>
+          </button>
+        </div>
       </div>
-
       <style>{`
-        /* Ô nhập liệu trong bảng */
-        .round-page .td-content input, 
-        .round-page .td-content select {
+        .icon-header-box {
+          width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+          border-radius: 50%; border: 1px solid ${colors.primary}33; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .btn-custom-action-save {
+          display: flex; align-items: center; gap: 8px; padding: 6px 16px;
+          font-size: 13px; font-weight: 700; border-radius: 8px; border: none;
+          transition: all 0.2s ease;
+        }
+        .btn-custom-action-save:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); }
+
+        .btn-add-row-bottom {
+          display: flex; align-items: center; justify-content: center;
+          background: transparent; transition: all 0.2s;
+        }
+        .btn-add-row-bottom:hover {
+          background-color: ${colors.primary}15 !important;
+          border-style: solid !important;
+          transform: scale(1.005);
+        }
+        
+        .round-page .td-content input, .round-page .td-content select {
           min-height: 36px !important;
           border: 1px solid ${isDarkMode ? colors.borderLight : '#cbd5e1'} !important;
           background-color: ${isDarkMode ? colors.background : '#fff'} !important;
-          border-radius: 6px !important;
-          font-size: 13px !important;
-          transition: all 0.2s;
+          border-radius: 6px !important; font-size: 13px !important;
         }
-        
-        .round-page .td-content input:focus {
-          border-color: ${colors.primary} !important;
-          box-shadow: 0 0 0 3px ${colors.primary}22 !important;
-          outline: none;
-        }
-
-        /* Nút Action Gọn hơn */
-        .btn-custom-action-small, .btn-custom-action-save {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          padding: 6px 14px;
-          font-size: 13px;
-          font-weight: 600;
-          border-radius: 8px;
-          border: none;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          background: transparent;
-        }
-
-        .btn-custom-action-small:hover { background: ${colors.primary}11; transform: translateY(-1px); }
-        .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
-        .btn-custom-action-save:active { transform: scale(0.96); }
 
         .btn-refresh-custom {
-          width: 38px;
-          height: 38px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          transition: all 0.2s;
-          cursor: pointer;
+          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+          border-radius: 8px; transition: 0.2s; cursor: pointer; border: none;
         }
         .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
 
-        /* Sửa Header Bảng */
         .table thead th {
           background-color: ${isDarkMode ? colors.surfaceLight : '#f8fafc'} !important;
           color: ${isDarkMode ? colors.textSecondary : '#475569'} !important;
-          font-size: 12px !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          padding: 12px !important;
+          font-size: 12px !important; text-transform: uppercase !important;
+          padding: 12px !important; font-weight: 700 !important;
           border-bottom: 1px solid ${colors.border} !important;
-          font-weight: 700 !important;
+        }
+          
+        .round-page .btn-action-delete {
+          /* Ép kích thước và layout */
+          width: 36px !important;
+          height: 36px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;          
+          border-radius: 10px !important;
+          border: 1px solid rgba(220, 53, 69, 0.2) !important;
+          background-color: rgba(220, 53, 69, 0.05) !important;
+          color: #dc3545 !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          cursor: pointer !important;
+          outline: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
         }
 
+        .round-page .btn-action-delete:hover {
+          background-color: #dc3545 !important;
+          color: #ffffff !important;
+          border-color: #dc3545 !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+        }
+
+        .round-page .btn-action-delete:active {
+          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
+          background-color: #a71d2a !important;
+          box-shadow: none !important;
+        }
+
+        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
+        .round-page .btn-action-delete svg {
+          color: #ffffff !important; 
+          fill: none !important;
+        }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-        @media (max-width: 768px) {
-          .round-page h1 { font-size: 1.15rem; }
-          .btn-custom-action-small, .btn-custom-action-save { padding: 6px 12px; }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

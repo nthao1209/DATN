@@ -41,12 +41,19 @@ export const buildRoleColumns = ({
     ),
   },
   {
-    header: 'Thao tác',
-    key: 'actions',
-    render: (row) => (
-      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteRow(row)} title="Xóa role">
-        <Trash2 size={20} color="#dc3545" />
+  header: 'Thao tác',
+  key: 'actions',
+  width: '100px', 
+  render: (row) => (
+    <div className="d-flex justify-content-center align-items-center">
+      <button 
+        className="btn-action-delete" 
+        onClick={() => handleDeleteRow(row)} 
+        title="Xóa quyền"
+      >
+        <Trash2 size={18} />
       </button>
-    ),
-  },
+    </div>
+  ),
+},
 ];

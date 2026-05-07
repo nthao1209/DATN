@@ -89,15 +89,19 @@ export const buildTripColumns = ({
       ),
   },
   {
-    header: 'Thao tác',
-    key: 'actions',
-    width: '80px',
-    render: (row) => (
-      <div className="td-content justify-content-center">
-        <button className="btn btn-sm btn-outline-danger border-0 hover-scale" onClick={() => handleDeleteRow(row)} title="Xóa chuyến đi">
-          <Trash2 size={20} color="#dc3545" />
-        </button>
-      </div>
-    ),
-  },
+  header: 'Thao tác',
+  key: 'actions',
+  width: '100px', 
+  render: (row) => (
+    <div className="d-flex justify-content-center align-items-center">
+      <button 
+        className="btn-action-delete" 
+        onClick={() => handleDeleteRow(row)} 
+        title="Xóa chuyến đi"
+      >
+        <Trash2 size={18} />
+      </button>
+    </div>
+  ),
+},
 ];

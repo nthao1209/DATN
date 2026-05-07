@@ -1,6 +1,8 @@
-/* =========================
-   RESET & WRAPPER
-========================= */
+:root {
+  --primary-blue: #3b82f6;
+  --bg-dark: #0f172a;
+  --surface-dark: #1e293b;
+}
 * {
   box-sizing: border-box;
 }
@@ -15,8 +17,7 @@ body,
 
 body {
   font-family: "Inter", "Segoe UI", sans-serif;
-  background: radial-gradient(circle at 20% 20%, #1f2937 0%, #0b1220 45%, #060b16 100%);
-  color: #e5e7eb;
+  background:var(--bg-dark);
 }
 
 .auth-container {
@@ -25,7 +26,7 @@ body {
   justify-content: center;
   align-items: center;
   padding: 10px;
-  background: #2b2738;
+  background: radial-gradient(circle at 50% 50%, var(--surface-dark) 0%, var(--bg-dark) 100%);
 }
 
 .auth-card {
@@ -34,8 +35,8 @@ body {
   min-height: 640px;
   border-radius: 24px;
   overflow: hidden;
-  background: #1f1b2e;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+  background: var(--surface-dark);
+  box-shadow: 0 25px 60px rgba(255, 255, 255, 0.05);
 }
 
 /* =========================
@@ -86,10 +87,6 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(-45deg,
-      rgba(124, 93, 250, 0.65),
-      rgba(0, 207, 239, 0.4),
-      rgba(31, 27, 46, 0.7));
   background-size: 400% 400%;
   animation: gradientMove 14s ease infinite;
   z-index: 1;
@@ -100,7 +97,7 @@ body {
    RIGHT SIDE
 ========================= */
 .auth-right {
-  background: #1f1b2e;
+  background: var(--surface-dark);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -141,7 +138,7 @@ body {
 }
 
 .auth-input {
-  background: #2b2738 !important;
+  background: var(--surface-dark) !important;
   border: 1px solid #3e3a4e !important;
   color: #fff !important;
   border-radius: 12px;
