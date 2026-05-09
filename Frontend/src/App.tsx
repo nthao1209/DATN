@@ -65,7 +65,7 @@ const App: React.FC = () => {
         }
 
         const token = await firebaseUser.getIdToken();
-        const response = await api.getMyStatus();
+        const response = await api.getMyStatus(token);
         const status = (response as any)?.data ?? response;
 
         dispatch(

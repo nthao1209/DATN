@@ -19,6 +19,7 @@ const UserManagementPage: React.FC = () => {
   const [rows, setRows] = useState<UserRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const initialRowsByIdRef = useRef<Record<number, UserRow>>({});
 
   const initializedRef = useRef(false);
 
@@ -51,6 +52,12 @@ const UserManagementPage: React.FC = () => {
       isEdited: false,
     }));
 
+    const initialById: Record<number, UserRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+    initialRowsByIdRef.current = initialById;
+
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
       padded.push({
@@ -70,8 +77,24 @@ const UserManagementPage: React.FC = () => {
     initializedRef.current = true;
   }, [users, isLoading]);
 
+  const isSameRow = (current: UserRow, initial: UserRow) => {
+    return (
+      current.name.trim() === initial.name.trim() &&
+      current.description.trim() === initial.description.trim() &&
+      (current.roleId ?? null) === (initial.roleId ?? null) &&
+      (current.tenantId ?? null) === (initial.tenantId ?? null)
+    );
+  };
+
+  const isRowDirty = (row: UserRow) => {
+    if (!row.id) return false;
+    const initial = initialRowsByIdRef.current[row.id];
+    if (!initial) return true;
+    return !isSameRow(row, initial);
+  };
+
   const dirtyCount = useMemo(
-    () => rows.filter((r) => r.isEdited).length + deletedIds.length,
+    () => rows.filter((r) => r.id && isRowDirty(r)).length + deletedIds.length,
     [rows, deletedIds]
   );
 
@@ -79,11 +102,14 @@ const UserManagementPage: React.FC = () => {
 
   const handleCellChange = <K extends keyof UserRow>(localId: string, key: K, value: UserRow[K]) => {
     setRows((prev) =>
-      prev.map((row) =>
-        row.localId === localId
-          ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) }
-          : row
-      )
+      prev.map((row) => {
+        if (row.localId !== localId) return row;
+        const nextRow = { ...row, [key]: value };
+        if (!row.id) return nextRow;
+        const initial = initialRowsByIdRef.current[row.id];
+        const isEdited = initial ? !isSameRow(nextRow, initial) : true;
+        return { ...nextRow, isEdited };
+      })
     );
   };
 
@@ -93,7 +119,7 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    const rowsToUpdate = rows.filter((r) => r.id && r.isEdited);
+    const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
 
     if (!rowsToUpdate.length && !deletedIds.length) {
       enqueueSnackbar('Không có thay đổi nào', { variant: 'info' });

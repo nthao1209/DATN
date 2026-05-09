@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Shield, RefreshCw } from 'lucide-react';
 import DataTable from '../components/DataTable';
@@ -18,6 +18,7 @@ const RoleManagementPage: React.FC = () => {
   const [rows, setRows] = useState<RoleRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const initialRowsByIdRef = useRef<Record<number, RoleRow>>({});
 
   const { data: roles = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
     queryKey: ['roles-management'],
@@ -33,6 +34,12 @@ const RoleManagementPage: React.FC = () => {
       isEdited: false,
     }));
 
+    const initialById: Record<number, RoleRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+    initialRowsByIdRef.current = initialById;
+
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
       padded.push({
@@ -44,8 +51,26 @@ const RoleManagementPage: React.FC = () => {
     setRows(padded);
   }, [roles]);
 
+  const isSameRow = (current: RoleRow, initial: RoleRow) => {
+    return (
+      current.name.trim() === initial.name.trim() &&
+      current.description.trim() === initial.description.trim()
+    );
+  };
+
+  const isNewRowDirty = (row: RoleRow) => {
+    return Boolean(row.name.trim() || row.description.trim());
+  };
+
+  const isRowDirty = (row: RoleRow) => {
+    if (!row.id) return isNewRowDirty(row);
+    const initial = initialRowsByIdRef.current[row.id];
+    if (!initial) return true;
+    return !isSameRow(row, initial);
+  };
+
   const dirtyCount = useMemo(
-    () => rows.filter((r) => r.isEdited || (!r.id && r.name.trim())).length + deletedIds.length,
+    () => rows.filter((r) => (r.id ? isRowDirty(r) : isNewRowDirty(r))).length + deletedIds.length,
     [rows, deletedIds]
   );
 
@@ -53,11 +78,14 @@ const RoleManagementPage: React.FC = () => {
 
   const handleCellChange = <K extends keyof RoleRow>(localId: string, key: K, value: RoleRow[K]) => {
     setRows((prev) =>
-      prev.map((row) =>
-        row.localId === localId
-          ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) }
-          : row
-      )
+      prev.map((row) => {
+        if (row.localId !== localId) return row;
+        const nextRow = { ...row, [key]: value };
+        if (!row.id) return nextRow;
+        const initial = initialRowsByIdRef.current[row.id];
+        const isEdited = initial ? !isSameRow(nextRow, initial) : true;
+        return { ...nextRow, isEdited };
+      })
     );
   };
 
@@ -79,7 +107,7 @@ const RoleManagementPage: React.FC = () => {
 
   const handleSave = async () => {
     const newRows = rows.filter((r) => !r.id && r.name.trim());
-    const updateRows = rows.filter((r) => r.id && r.isEdited);
+    const updateRows = rows.filter((r) => r.id && isRowDirty(r));
 
     if (!newRows.length && !updateRows.length && !deletedIds.length) {
       enqueueSnackbar('Không có thay đổi nào', { variant: 'info' });

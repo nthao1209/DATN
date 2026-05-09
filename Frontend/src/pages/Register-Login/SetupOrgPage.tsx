@@ -233,7 +233,7 @@ const refreshAuthState = async (dispatch: any) => {
   if (!currentUser) return;
   await currentUser.reload();
   const token = await currentUser.getIdToken(true);
-  const status: any = await api.getMyStatus();
+  const status: any = await api.getMyStatus(token);
   dispatch(authSuccess({ user: status.user, token, tenants: status.tenants || [], roleId: status.roleId }));
 };
 

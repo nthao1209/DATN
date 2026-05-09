@@ -2,9 +2,11 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
 import { type RootState } from '../redux/store';
 import { setCurrentTenant } from '../redux/slice/authSlice';
 import { Check, Building2, Plus, X, Globe } from 'lucide-react';
+import { auth as fbAuth } from '../config/firebase';
 import api from '../services/api';
 import type { Tenant } from '../types/auth';
 import { useTheme } from '../theme/ThemeContext';
@@ -28,7 +30,17 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
 
   const { data: status, isLoading } = useQuery<{ tenants: Tenant[] }>({
     queryKey: ['userStatus'],
-    queryFn: async () => (await api.getMyStatus()) as unknown as { tenants: Tenant[] },
+    queryFn: async () => {
+      const currentUser = fbAuth.currentUser ?? (await new Promise((resolve) => {
+        const unsubscribe = onAuthStateChanged(fbAuth, (user) => {
+          unsubscribe();
+          resolve(user);
+        });
+      }));
+
+      const token = currentUser ? await currentUser.getIdToken() : undefined;
+      return (await api.getMyStatus(token)) as unknown as { tenants: Tenant[] };
+    },
     enabled: isOpen,
     staleTime: 30000,
   });

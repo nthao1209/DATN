@@ -26,8 +26,7 @@ function* handleLogin(action: any): any {
     const token = yield call([user, user.getIdToken]);
 
     // 2. Gọi API Status để lấy thông tin từ Postgres (Prisma) và kiểm tra Tenant
-    // Lúc này axios interceptor sẽ tự động lấy token và đính kèm vào header
-    const response = yield call(api.getMyStatus);
+    const response = yield call(api.getMyStatus, token);
 
     yield put(authActions.authSuccess({
       user: response.user,
@@ -76,7 +75,9 @@ function* handleJoinTenant(action: any): any {
     
     // Gọi API join tenant
     const joinResponse = yield call(api.joinTenant, joinCode);
-    const statusResponse = yield call(api.getMyStatus);
+    const currentUser = fbAuth.currentUser;
+    const token = currentUser ? yield call([currentUser, currentUser.getIdToken]) : undefined;
+    const statusResponse = yield call(api.getMyStatus, token);
     const matchedTenant = statusResponse?.tenants?.find(
       (tenant: any) => tenant.id === joinResponse?.tenant?.id
     );

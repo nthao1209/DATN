@@ -108,8 +108,11 @@ export const api = {
   syncUser: (data: { email: string; name: string; firebaseUid: string }, token?: string) => 
     axiosClient.post('/auth/sync', data, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined),
 
-  getMyStatus: () => 
-    axiosClient.get('/auth/status'), // Trả về { user, tenants: [] }
+  getMyStatus: (token?: string) => 
+    axiosClient.get(
+      '/auth/status',
+      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+    ), // Trả về { user, tenants: [] }
 
   joinTenant: (joinCode: string) => 
     axiosClient.post('/tenants/join', { joinCode }),

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Route, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +20,7 @@ const TripPage: React.FC = () => {
   const [rows, setRows] = useState<TripRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const initialRowsByIdRef = useRef<Record<number, TripRow>>({});
 
   // --- DATA FETCHING ---
   const { data: trips = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
@@ -37,6 +38,12 @@ const TripPage: React.FC = () => {
       roundCount: Number(t?._count?.rounds || 0),
     }));
 
+    const initialById: Record<number, TripRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+    initialRowsByIdRef.current = initialById;
+
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
       padded.push({ localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0 });
@@ -44,9 +51,24 @@ const TripPage: React.FC = () => {
     setRows(padded);
   }, [trips]);
 
+  const isSameRow = (current: TripRow, initial: TripRow) => {
+    return current.name.trim() === initial.name.trim() && current.status === initial.status;
+  };
+
+  const isNewRowDirty = (row: TripRow) => {
+    return Boolean(row.name.trim() || row.status !== 'DOING');
+  };
+
+  const isRowDirty = (row: TripRow) => {
+    if (!row.id) return isNewRowDirty(row);
+    const initial = initialRowsByIdRef.current[row.id];
+    if (!initial) return true;
+    return !isSameRow(row, initial);
+  };
+
   const dirtyCount = useMemo(() => {
-    const created = rows.filter((r) => !r.id && r.name.trim()).length;
-    const edited = rows.filter((r) => r.id && r.isEdited).length;
+    const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
+    const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
 
@@ -54,7 +76,14 @@ const TripPage: React.FC = () => {
 
   // --- ACTIONS ---
   const handleCellChange = <K extends keyof TripRow>(localId: string, key: K, value: TripRow[K]) => {
-    setRows((prev) => prev.map((row) => row.localId === localId ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) } : row));
+    setRows((prev) => prev.map((row) => {
+      if (row.localId !== localId) return row;
+      const nextRow = { ...row, [key]: value };
+      if (!row.id) return nextRow;
+      const initial = initialRowsByIdRef.current[row.id];
+      const isEdited = initial ? !isSameRow(nextRow, initial) : true;
+      return { ...nextRow, isEdited };
+    }));
   };
 
   const handleAddRow = () => {
@@ -68,7 +97,7 @@ const TripPage: React.FC = () => {
 
   const handleSave = async () => {
     const rowsToCreate = rows.filter((r) => !r.id && r.name.trim());
-    const rowsToUpdate = rows.filter((r) => r.id && r.isEdited);
+    const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
     if (!rowsToCreate.length && !rowsToUpdate.length && !deletedIds.length) return;
 
     try {

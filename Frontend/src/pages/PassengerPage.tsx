@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Users, Filter, Bus, RefreshCw } from 'lucide-react';
 import DataTable from '../components/DataTable';
@@ -28,6 +28,7 @@ const PassengerPage: React.FC = () => {
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [importResetToken, setImportResetToken] = useState(0);
+  const initialRowsByIdRef = useRef<Record<number, PassengerRow>>({});
 
   // --- DATA FETCHING (Giữ nguyên logic của bạn) ---
   const { data: trips = [] } = useQuery<PassengerTrip[]>({
@@ -82,6 +83,11 @@ const PassengerPage: React.FC = () => {
       busId: p.bus?.id ? Number(p.bus.id) : null,
       busCode: p.bus?.busCode || p.bus?.registrationNumber || '',
     }));
+    const initialById: Record<number, PassengerRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+    initialRowsByIdRef.current = initialById;
     const padded = [...mapped];
     while (padded.length < EMPTY_ROWS_COUNT) {
       padded.push({ localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' });
@@ -102,9 +108,32 @@ const PassengerPage: React.FC = () => {
   const busOptions = useMemo(() => (!selectedTripId ? [] : busesByTrip[selectedTripId] || []), [busesByTrip, selectedTripId]);
   const isAllTripsView = selectedTripId === null && selectedBusId === null;
 
+  const isSameRow = (current: PassengerRow, initial: PassengerRow) => {
+    const currentNote = (current.note || '').trim();
+    const initialNote = (initial.note || '').trim();
+    return (
+      current.name.trim() === initial.name.trim() &&
+      current.tel.trim() === initial.tel.trim() &&
+      currentNote === initialNote &&
+      (current.busId ?? null) === (initial.busId ?? null)
+    );
+  };
+
+  const isNewRowDirty = (row: PassengerRow) => {
+    const note = (row.note || '').trim();
+    return Boolean(row.name.trim() || row.tel.trim() || note || row.busId);
+  };
+
+  const isRowDirty = (row: PassengerRow) => {
+    if (!row.id) return isNewRowDirty(row);
+    const initial = initialRowsByIdRef.current[row.id];
+    if (!initial) return true;
+    return !isSameRow(row, initial);
+  };
+
   const dirtyCount = useMemo(() => {
-    const created = rows.filter((row) => !row.id && row.name.trim() && row.busId).length;
-    const edited = rows.filter((row) => row.id && row.isEdited).length;
+    const created = rows.filter((row) => !row.id && isNewRowDirty(row)).length;
+    const edited = rows.filter((row) => row.id && isRowDirty(row)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
 
@@ -112,7 +141,14 @@ const PassengerPage: React.FC = () => {
 
   // --- ACTIONS ---
   const handleCellChange = <K extends keyof PassengerRow>(localId: string, key: K, value: PassengerRow[K]) => {
-    setRows((prev) => prev.map((row) => row.localId === localId ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) } : row));
+    setRows((prev) => prev.map((row) => {
+      if (row.localId !== localId) return row;
+      const nextRow = { ...row, [key]: value };
+      if (!row.id) return nextRow;
+      const initial = initialRowsByIdRef.current[row.id];
+      const isEdited = initial ? !isSameRow(nextRow, initial) : true;
+      return { ...nextRow, isEdited };
+    }));
   };
 
   const handleAddRow = () => {
@@ -132,7 +168,7 @@ const PassengerPage: React.FC = () => {
       setIsSaving(true);
       await Promise.all([
         ...rows.filter(r => !r.id && r.name.trim() && r.busId).map(r => api.createPassenger(String(r.tripId), { name: r.name.trim(), note: r.note || null, busId: r.busId, tel: normalizePhoneNumber(r.tel) || null })),
-        ...rows.filter(r => r.id && r.isEdited).map(r => api.updatePassenger(String(r.id), { name: r.name.trim(), note: r.note || null, busId: r.busId, tel: normalizePhoneNumber(r.tel) || null })),
+        ...rows.filter(r => r.id && isRowDirty(r)).map(r => api.updatePassenger(String(r.id), { name: r.name.trim(), note: r.note || null, busId: r.busId, tel: normalizePhoneNumber(r.tel) || null })),
         ...deletedIds.map(id => api.deletePassenger(String(id)))
       ]);
       setDeletedIds([]); await refetch(); setImportResetToken(p => p + 1);
@@ -264,21 +300,23 @@ const PassengerPage: React.FC = () => {
           isError={isError}
           onRefresh={refetch}
         />
-        <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
-          <button 
-            className="btn-add-row-bottom w-100 py-2" 
-            onClick={handleAddRow}
-            style={{ 
-              color: colors.primary, 
-              border: `1px dashed ${colors.primary}66`,
-              borderRadius: '8px',
-              backgroundColor: `${colors.primary}08`
-            }}
-          >
-            <Plus size={18} />
-            <span className="fw-bold ms-2">Thêm dòng mới</span>
-          </button>
-        </div>
+        {!isAllTripsView && (
+          <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
+            <button 
+              className="btn-add-row-bottom w-100 py-2" 
+              onClick={handleAddRow}
+              style={{ 
+                color: colors.primary, 
+                border: `1px dashed ${colors.primary}66`,
+                borderRadius: '8px',
+                backgroundColor: `${colors.primary}08`
+              }}
+            >
+              <Plus size={18} />
+              <span className="fw-bold ms-2">Thêm dòng mới</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <style>{`

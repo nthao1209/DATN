@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Bus, RefreshCw } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -21,6 +21,7 @@ const BusPage: React.FC = () => {
   const [rows, setRows] = useState<BusRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const initialRowsByIdRef = useRef<Record<number, BusRow>>({});
 
   // --- DATA FETCHING (Giữ nguyên) ---
   const { data: buses = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
@@ -48,6 +49,11 @@ const BusPage: React.FC = () => {
       managerId: b.managerId ? Number(b.managerId) : null,
       managerName: b.manager?.name || '',
     }));
+    const initialById: Record<number, BusRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+    initialRowsByIdRef.current = initialById;
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
       padded.push({ localId: makeLocalId(), busCode: '', registrationNumber: '', driverName: '', driverTel: '', tourGuideName: '', tourGuideTel: '', description: '', managerId: null, managerName: '' });
@@ -55,16 +61,56 @@ const BusPage: React.FC = () => {
     setRows(padded);
   }, [buses]);
 
+  const isSameRow = (current: BusRow, initial: BusRow) => {
+    return (
+      current.busCode.trim() === initial.busCode.trim() &&
+      current.registrationNumber.trim() === initial.registrationNumber.trim() &&
+      current.driverName.trim() === initial.driverName.trim() &&
+      current.driverTel.trim() === initial.driverTel.trim() &&
+      current.tourGuideName.trim() === initial.tourGuideName.trim() &&
+      current.tourGuideTel.trim() === initial.tourGuideTel.trim() &&
+      current.description.trim() === initial.description.trim() &&
+      (current.managerId ?? null) === (initial.managerId ?? null)
+    );
+  };
+
+  const isNewRowDirty = (row: BusRow) => {
+    return Boolean(
+      row.busCode.trim() ||
+      row.registrationNumber.trim() ||
+      row.driverName.trim() ||
+      row.driverTel.trim() ||
+      row.tourGuideName.trim() ||
+      row.tourGuideTel.trim() ||
+      row.description.trim() ||
+      row.managerId
+    );
+  };
+
+  const isRowDirty = (row: BusRow) => {
+    if (!row.id) return isNewRowDirty(row);
+    const initial = initialRowsByIdRef.current[row.id];
+    if (!initial) return true;
+    return !isSameRow(row, initial);
+  };
+
   const dirtyCount = useMemo(() => {
-    const created = rows.filter((r) => !r.id && r.busCode.trim() && r.registrationNumber.trim()).length;
-    const edited = rows.filter((r) => r.id && r.isEdited).length;
+    const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
+    const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
 
   useRegisterUnsavedChanges(dirtyCount > 0);
 
   const handleCellChange = <K extends keyof BusRow>(localId: string, key: K, value: BusRow[K]) => {
-    setRows((prev) => prev.map((row) => row.localId === localId ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) } : row));
+    setRows((prev) => prev.map((row) => {
+      if (row.localId !== localId) return row;
+      const nextRow = { ...row, [key]: value };
+      if (!row.id) return nextRow;
+      const initial = initialRowsByIdRef.current[row.id];
+      const isEdited = initial ? !isSameRow(nextRow, initial) : true;
+      return { ...nextRow, isEdited };
+    }));
   };
 
   const handleAddRow = () => {
@@ -87,7 +133,7 @@ const BusPage: React.FC = () => {
       setIsSaving(true);
       await Promise.all([
         ...rows.filter(r => !r.id && r.busCode.trim()).map(r => api.createBus(tripId, { ...r, managerId: Number(r.managerId), driverTel: normalizePhoneNumber(r.driverTel), tourGuideTel: normalizePhoneNumber(r.tourGuideTel) })),
-        ...rows.filter(r => r.id && r.isEdited).map(r => api.updateBus(String(r.id), { ...r, driverTel: normalizePhoneNumber(r.driverTel), tourGuideTel: normalizePhoneNumber(r.tourGuideTel) })),
+        ...rows.filter(r => r.id && isRowDirty(r)).map(r => api.updateBus(String(r.id), { ...r, driverTel: normalizePhoneNumber(r.driverTel), tourGuideTel: normalizePhoneNumber(r.tourGuideTel) })),
         ...deletedIds.map(id => api.deleteBus(String(id)))
       ]);
       setDeletedIds([]);

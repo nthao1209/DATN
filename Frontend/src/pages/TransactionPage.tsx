@@ -20,6 +20,7 @@ import { useTransactionSync } from './transaction/useTransactionSync';
 import useDebounce from '../hooks/useDebounce';
 import { useTheme } from '../theme/ThemeContext';
 import { OFFLINE_QUEUE_SYNCED_EVENT } from '../services/offlineSync';
+import { useRegisterUnsavedChanges } from '../components/common/UnsavedChangesContext';
 
 const TransactionPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
@@ -33,6 +34,8 @@ const TransactionPage: React.FC = () => {
   const [returnRoundFilter, setReturnRoundFilter] = useState<number | null>(null);
   const [showAddPassengerPanel, setShowAddPassengerPanel] = useState(false);
   const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
+  const [extraSearchTerm, setExtraSearchTerm] = useState('');
+  const [extraBusId, setExtraBusId] = useState<number | null>(null);
   
   const {
     data: trips = [],
@@ -116,6 +119,15 @@ const TransactionPage: React.FC = () => {
       return valid.length ? valid : buses.map((b) => Number(b.id));
     });
   }, [buses]);
+
+  useEffect(() => {
+    if (!selectedBusIds.length) {
+      setExtraBusId(null);
+      return;
+    }
+
+    setExtraBusId((prev) => (prev && selectedBusIds.includes(prev) ? prev : selectedBusIds[0]));
+  }, [selectedBusIds]);
 
   useEffect(() => {
     if (!rounds.length) {
@@ -204,6 +216,21 @@ const TransactionPage: React.FC = () => {
     return map;
   }, [transactions]);
 
+  const normalizeNote = (note?: string) => (note ?? '').trim();
+
+  const isSameCell = (current: DraftCell, base?: DraftCell) => {
+    if (!base) {
+      return current.checkIn === false && current.checkOut === false && normalizeNote(current.note) === '';
+    }
+
+    return (
+      current.checkIn === Boolean(base.checkIn) &&
+      current.checkOut === Boolean(base.checkOut) &&
+      normalizeNote(current.note) === normalizeNote(base.note) &&
+      current.busId === base.busId
+    );
+  };
+
 
   const busFilteredPassengers = useMemo<PassengerRow[]>(() => {
     return passengers
@@ -218,7 +245,7 @@ const TransactionPage: React.FC = () => {
       .filter((p: PassengerRow) => p.busId && selectedBusIds.includes(Number(p.busId)));
   }, [passengers, selectedBusIds]);
 
-  const transactionBackedPassengers = useMemo<PassengerRow[]>(() => {
+   const transactionBackedPassengers = useMemo<PassengerRow[]>(() => {
     const passengersById = new Map<number, PassengerRow>();
 
     transactions.forEach((tx) => {
@@ -254,6 +281,66 @@ const TransactionPage: React.FC = () => {
     return Array.from(passengersById.values());
   }, [transactions, selectedBusIds, passengers]);
 
+  const extraPassengerCandidates = useMemo(() => {
+    if (!passengers.length || !selectedBusIds.length) return [];
+    const normalizedSearch = extraSearchTerm.trim().toLowerCase();
+    const existingIds = new Set<number>([...busFilteredPassengers, ...transactionBackedPassengers, ...extraPassengers].map((p) => p.id));
+
+    return passengers
+      .map((p: any) => ({
+        id: Number(p.id),
+        name: p.name || '',
+        tel: p.tel || '',
+        assignedBusId: p.bus?.id ? Number(p.bus.id) : null,
+        assignedBusName: p.bus?.busCode || p.bus?.registrationNumber || '',
+        assignedBusCode: p.bus?.busCode || '',
+        assignedBusPlate: p.bus?.registrationNumber || '',
+      }))
+      .filter((p) => !existingIds.has(p.id))
+      .filter((p) => !p.assignedBusId || !selectedBusIds.includes(p.assignedBusId))
+      .filter((p) => {
+        if (!normalizedSearch) return true;
+        return p.name.toLowerCase().includes(normalizedSearch) || p.tel.includes(normalizedSearch);
+      });
+  }, [busFilteredPassengers, extraPassengers, extraSearchTerm, passengers, selectedBusIds, transactionBackedPassengers]);
+
+  const extraCandidateNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    extraPassengerCandidates.forEach((candidate) => {
+      const key = candidate.name.trim().toLowerCase();
+      if (!key) return;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return counts;
+  }, [extraPassengerCandidates]);
+
+  const addExtraPassenger = (candidate: { id: number; name: string; tel: string; assignedBusId: number | null; assignedBusName: string }) => {
+    if (!extraBusId) return;
+    const actualBus = buses.find((bus) => Number(bus.id) === extraBusId);
+    const actualBusName = actualBus?.busCode || actualBus?.registrationNumber || '';
+
+    setExtraPassengers((prev) => {
+      if (prev.some((p) => p.id === candidate.id)) return prev;
+      return [
+        ...prev,
+        {
+          id: candidate.id,
+          name: candidate.name,
+          tel: candidate.tel,
+          busId: extraBusId,
+          busName: actualBusName,
+          assignedBusName: candidate.assignedBusName,
+        },
+      ];
+    });
+  };
+
+  const removeExtraPassenger = (passengerId: number) => {
+    setExtraPassengers((prev) => prev.filter((p) => p.id !== passengerId));
+  };
+
+ 
+
   const displayedPassengers = useMemo<PassengerRow[]>(() => {
     const map = new Map<number, PassengerRow>();
     busFilteredPassengers.forEach((p) => map.set(p.id, p));
@@ -274,9 +361,11 @@ const TransactionPage: React.FC = () => {
   };
 
   const setCell = (payload: DraftCell) => {
+    const baseCell = txMap[keyOf(payload.passengerId, payload.roundId)];
+    const isDirty = !isSameCell(payload, baseCell);
     setDraftMap((prev) => ({
       ...prev,
-      [keyOf(payload.passengerId, payload.roundId)]: { ...payload, dirty: true },
+      [keyOf(payload.passengerId, payload.roundId)]: { ...payload, dirty: isDirty },
     }));
   };
 
@@ -326,8 +415,8 @@ const TransactionPage: React.FC = () => {
   }, [displayedPassengers, selectedRounds, roundSummary]);
 
   const dirtyEntries = useMemo(
-    () => Object.values(draftMap).filter((entry) => entry.dirty),
-    [draftMap]
+    () => Object.values(draftMap).filter((entry) => !isSameCell(entry, txMap[keyOf(entry.passengerId, entry.roundId)])),
+    [draftMap, txMap]
   );
 
   const { isSaving, isOnline, syncBanner, hasPendingSync, handleSave } = useTransactionSync({
@@ -335,6 +424,8 @@ const TransactionPage: React.FC = () => {
     selectedTripId,
     storageKey,
   });
+
+  useRegisterUnsavedChanges(dirtyEntries.length > 0);
 
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
@@ -387,14 +478,14 @@ const TransactionPage: React.FC = () => {
             <button 
                 className="btn-custom-action-save shadow-sm" 
                 onClick={handleSave} 
-                disabled={isSaving || !Object.values(draftMap).filter(e => e.dirty).length}
+              disabled={isSaving || !dirtyEntries.length}
                 style={{ 
-                    backgroundColor: Object.values(draftMap).filter(e => e.dirty).length > 0 ? colors.success : colors.surfaceLight,
-                    color: Object.values(draftMap).filter(e => e.dirty).length > 0 ? '#fff' : colors.textMuted
+                backgroundColor: dirtyEntries.length > 0 ? colors.success : colors.surfaceLight,
+                color: dirtyEntries.length > 0 ? '#fff' : colors.textMuted
                 }}
             >
                 <Save size={18} />
-                <span className="d-none d-sm-inline">Lưu ({Object.values(draftMap).filter(e => e.dirty).length})</span>
+              <span className="d-none d-sm-inline">Lưu ({dirtyEntries.length})</span>
             </button>
         </div>
       </div>
@@ -477,6 +568,91 @@ const TransactionPage: React.FC = () => {
                 </select>
             </div>
           </div>
+          {showAddPassengerPanel && (
+            <div className="p-3 rounded-3" style={{ border: `1px dashed ${colors.primary}44`, backgroundColor: `${colors.primary}08` }}>
+              <div className="d-flex flex-column flex-md-row gap-2 align-items-stretch">
+                <input
+                  className="form-control form-control-sm"
+                  placeholder="Tìm theo tên hoặc SĐT"
+                  value={extraSearchTerm}
+                  onChange={(e) => setExtraSearchTerm(e.target.value)}
+                />
+                <select
+                  className="form-select form-select-sm"
+                  value={extraBusId ?? ''}
+                  onChange={(e) => setExtraBusId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Chọn xe để điểm danh</option>
+                  {selectedBusIds.map((id) => {
+                    const bus = buses.find((b) => Number(b.id) === Number(id));
+                    return (
+                      <option key={id} value={id}>
+                        {bus?.busCode || bus?.registrationNumber || `Xe ${id}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="mt-3" style={{ maxHeight: '220px', overflow: 'auto' }}>
+                {extraPassengerCandidates.length === 0 ? (
+                  <div className="text-muted small">Không có khách phù hợp.</div>
+                ) : (
+                  <div className="d-flex flex-column gap-2">
+                    {extraPassengerCandidates.map((p) => (
+                      <div key={p.id} className="d-flex align-items-center justify-content-between gap-2">
+                        <div className="d-flex flex-column">
+                          <div className="d-flex align-items-center gap-2 flex-wrap">
+                            <span className="fw-semibold" style={{ fontSize: '13px' }}>{p.name}</span>
+                            {(extraCandidateNameCounts.get(p.name.trim().toLowerCase()) ?? 0) > 1 && (
+                              <span className="badge rounded-pill" style={{ backgroundColor: `${colors.warning}22`, color: colors.warning, border: `1px solid ${colors.warning}55`, fontSize: '10px' }}>
+                                Trùng tên
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-muted" style={{ fontSize: '12px' }}>{p.tel || '-'}</span>
+                          <span className="text-muted" style={{ fontSize: '12px' }}>
+                            Biên chế: {p.assignedBusCode || 'N/A'}{p.assignedBusPlate ? ` · ${p.assignedBusPlate}` : ''}
+                          </span>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          type="button"
+                          disabled={!extraBusId}
+                          onClick={() => addExtraPassenger(p)}
+                        >
+                          Thêm
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {extraPassengers.length > 0 && (
+                <div className="mt-3">
+                  <div className="small text-muted mb-2">Đã thêm</div>
+                  <div className="d-flex flex-column gap-2">
+                    {extraPassengers.map((p) => (
+                      <div key={p.id} className="d-flex align-items-center justify-content-between">
+                        <div className="d-flex flex-column">
+                          <span className="fw-semibold" style={{ fontSize: '13px' }}>{p.name}</span>
+                          <span className="text-muted" style={{ fontSize: '12px' }}>{p.tel || '-'} · Xe điểm danh: {p.busName || 'N/A'}</span>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-outline-secondary"
+                          type="button"
+                          onClick={() => removeExtraPassenger(p.id)}
+                        >
+                          Bỏ
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

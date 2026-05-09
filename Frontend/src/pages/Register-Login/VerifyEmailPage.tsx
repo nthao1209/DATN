@@ -49,7 +49,7 @@ const VerifyEmailPage: React.FC = () => {
     try {
       await fbAuth.currentUser.reload();
       const token = await fbAuth.currentUser.getIdToken(true);
-      const response = await api.getMyStatus();
+      const response = await api.getMyStatus(token);
       const status = (response as any)?.data ?? response;
 
       dispatch(

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Map, RefreshCw } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -20,6 +20,7 @@ const RoundPage: React.FC = () => {
   const [rows, setRows] = useState<RoundRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const initialRowsByIdRef = useRef<Record<number, RoundRow>>({});
 
   // --- DATA FETCHING ---
   const { data: rounds = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
@@ -54,6 +55,12 @@ const RoundPage: React.FC = () => {
       passengerCount: Number(r?.passengerCount || 0),
     }));
 
+    const initialById: Record<number, RoundRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+    initialRowsByIdRef.current = initialById;
+
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
       padded.push({
@@ -68,9 +75,28 @@ const RoundPage: React.FC = () => {
     setRows(padded);
   }, [rounds]);
 
+  const isSameRow = (current: RoundRow, initial: RoundRow) => {
+    return (
+      current.name.trim() === initial.name.trim() &&
+      current.time.trim() === initial.time.trim() &&
+      current.status === initial.status
+    );
+  };
+
+  const isNewRowDirty = (row: RoundRow) => {
+    return Boolean(row.name.trim() || row.time.trim() || row.status !== 'DOING');
+  };
+
+  const isRowDirty = (row: RoundRow) => {
+    if (!row.id) return isNewRowDirty(row);
+    const initial = initialRowsByIdRef.current[row.id];
+    if (!initial) return true;
+    return !isSameRow(row, initial);
+  };
+
   const dirtyCount = useMemo(() => {
-    const created = rows.filter((r) => !r.id && r.name.trim() && r.time.trim()).length;
-    const edited = rows.filter((r) => r.id && r.isEdited).length;
+    const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
+    const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
 
@@ -79,11 +105,14 @@ const RoundPage: React.FC = () => {
   // --- ACTIONS ---
   const handleCellChange = <K extends keyof RoundRow>(localId: string, key: K, value: RoundRow[K]) => {
     setRows((prev) =>
-      prev.map((row) =>
-        row.localId === localId
-          ? { ...row, [key]: value, ...(row.id ? { isEdited: true } : {}) }
-          : row
-      )
+      prev.map((row) => {
+        if (row.localId !== localId) return row;
+        const nextRow = { ...row, [key]: value };
+        if (!row.id) return nextRow;
+        const initial = initialRowsByIdRef.current[row.id];
+        const isEdited = initial ? !isSameRow(nextRow, initial) : true;
+        return { ...nextRow, isEdited };
+      })
     );
   };
 
@@ -109,7 +138,7 @@ const RoundPage: React.FC = () => {
   const handleSave = async () => {
     if (!tripId) return;
     const rowsToCreate = rows.filter((r) => !r.id && r.name.trim() && r.time.trim());
-    const rowsToUpdate = rows.filter((r) => r.id && r.isEdited);
+    const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
 
     try {
       setIsSaving(true);
