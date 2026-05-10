@@ -107,6 +107,7 @@ const PassengerPage: React.FC = () => {
 
   const busOptions = useMemo(() => (!selectedTripId ? [] : busesByTrip[selectedTripId] || []), [busesByTrip, selectedTripId]);
   const isAllTripsView = selectedTripId === null && selectedBusId === null;
+  const isTargetSelectionReady = Boolean(selectedTripId && selectedBusId);
 
   const isSameRow = (current: PassengerRow, initial: PassengerRow) => {
     const currentNote = (current.note || '').trim();
@@ -164,6 +165,20 @@ const PassengerPage: React.FC = () => {
 
   const handleSave = async () => {
     if (isAllTripsView) return;
+    if (!selectedTripId || !selectedBusId) {
+      enqueueSnackbar('Vui lòng chọn cả chuyến đi và xe trước khi lưu', { variant: 'warning' });
+      return;
+    }
+
+    const rowsMissingBus = rows.filter(
+      (row) => !row.id && isNewRowDirty(row) && !row.busId
+    );
+
+    if (rowsMissingBus.length > 0) {
+      enqueueSnackbar(`Có ${rowsMissingBus.length} dòng chưa gán xe. Vui lòng kiểm tra lại trước khi lưu`, { variant: 'warning' });
+      return;
+    }
+
     try {
       setIsSaving(true);
       await Promise.all([
@@ -174,6 +189,48 @@ const PassengerPage: React.FC = () => {
       setDeletedIds([]); await refetch(); setImportResetToken(p => p + 1);
       enqueueSnackbar('Đã lưu thành công', { variant: 'success' });
     } catch (err: any) { enqueueSnackbar(err?.message || 'Lỗi khi lưu dữ liệu', { variant: 'error' }); } finally { setIsSaving(false); }
+  };
+
+  const handleImportedPreview = (payload: {
+    rows: Array<{
+      localId?: string;
+      name: string;
+      tel: string;
+      note: string;
+      tripId: number | null;
+      busId: number | null;
+      busCode?: string;
+    }>;
+  }) => {
+    setRows((prev) => {
+      const keptRows = prev.filter((row) => row.id || isNewRowDirty(row));
+
+      const importedRows: PassengerRow[] = payload.rows.map((row, index) => ({
+        localId: row.localId || `excel_${Date.now()}_${index}`,
+        name: row.name || '',
+        tel: row.tel || '',
+        note: row.note || '',
+        tripId: row.tripId ?? selectedTripId,
+        busId: row.busId ?? selectedBusId ?? null,
+        busCode: row.busCode || '',
+      }));
+
+      const nextRows = [...keptRows, ...importedRows];
+
+      if (!nextRows.length) {
+        nextRows.push({
+          localId: makeLocalId(),
+          name: '',
+          tel: '',
+          note: '',
+          tripId: selectedTripId,
+          busId: selectedBusId,
+          busCode: '',
+        });
+      }
+
+      return nextRows;
+    });
   };
 
   const columns = buildPassengerColumns({
@@ -264,7 +321,7 @@ const PassengerPage: React.FC = () => {
         <div className="d-flex align-items-center gap-2">
           {!isAllTripsView ? (
             <>
-              <PassengerExcelImport selectedTripId={selectedTripId} resetToken={importResetToken} disabled={isSaving || !selectedTripId} onImported={() => {}} />
+              <PassengerExcelImport selectedTripId={selectedTripId} resetToken={importResetToken} disabled={isSaving || !isTargetSelectionReady} onImported={handleImportedPreview} />
             </>
           ) : (
              <span className="small px-3 py-1 rounded-pill" style={{ background: isDarkMode ? colors.surfaceLight : '#f1f5f9', color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
@@ -282,7 +339,7 @@ const PassengerPage: React.FC = () => {
             <button
               className="btn-custom-action-save shadow-sm"
               onClick={handleSave}
-              disabled={isSaving || dirtyCount === 0}
+              disabled={isSaving || dirtyCount === 0 || !isTargetSelectionReady}
               style={{ 
                 backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
                 color: dirtyCount > 0 ? '#fff' : colors.textMuted

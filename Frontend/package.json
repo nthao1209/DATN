@@ -30,6 +30,7 @@
     "react-speech-recognition": "^4.0.1",
     "redux": "^5.0.1",
     "redux-saga": "^1.4.2",
+    "xlsx": "^0.18.5",
     "yup": "^1.7.1"
   },
   "devDependencies": {

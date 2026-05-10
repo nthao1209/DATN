@@ -30,6 +30,14 @@ const waitForAuthInit = (): Promise<User | null> => {
 };
 
 axiosClient.interceptors.request.use(async (config: any) => {
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    // Let browser set multipart boundary automatically.
+    if (config.headers) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+    }
+  }
+
   const existingAuthorization = config.headers?.Authorization || config.headers?.authorization;
   if (existingAuthorization) {
     return config;
@@ -206,12 +214,7 @@ export const api = {
 
     return axiosClient.post<PassengerImportPreviewResponse, PassengerImportPreviewResponse>(
       `/trips/${tripId}/passengers/import-preview`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      }
+      formData
     );
   },
 

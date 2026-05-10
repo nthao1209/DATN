@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, ClipboardCheck, RefreshCw, UserPlus } from 'lucide-react';
+import { Save, ClipboardCheck, RefreshCw, UserPlus, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import DataTable from '../components/DataTable';
 import api from '../services/api';
 import { subscribeAttendanceUpdates } from '../services/mqtt';
@@ -21,9 +22,11 @@ import useDebounce from '../hooks/useDebounce';
 import { useTheme } from '../theme/ThemeContext';
 import { OFFLINE_QUEUE_SYNCED_EVENT } from '../services/offlineSync';
 import { useRegisterUnsavedChanges } from '../components/common/UnsavedChangesContext';
+import { useSnackbar } from 'notistack';
 
 const TransactionPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
   const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
@@ -429,6 +432,67 @@ const TransactionPage: React.FC = () => {
 
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
+  const handleExportExcel = () => {
+    if (!visiblePassengers.length) {
+      enqueueSnackbar('Không có dữ liệu để export', { variant: 'warning' });
+      return;
+    }
+
+    try {
+      const selectedTrip = trips.find((trip) => Number(trip.id) === Number(selectedTripId));
+      const tripName = selectedTrip?.name || `trip_${selectedTripId ?? 'unknown'}`;
+
+      const exportRows = visiblePassengers.map((passenger, index) => {
+        const baseRow: Record<string, string | number> = {
+          STT: index + 1,
+          'Họ và tên': passenger.name || '',
+          'Số điện thoại': passenger.tel || '',
+          'Xe điểm danh': passenger.busName || '',
+          'Xe biên chế': passenger.assignedBusName || '',
+        };
+
+        selectedRounds.forEach((round) => {
+          const roundId = Number(round.id);
+          const roundLabel = round.name || `Lượt ${roundId}`;
+          const cell = getCell(passenger.id, roundId);
+
+          baseRow[`${roundLabel} - Lượt đi`] = cell?.checkIn ? 'Có' : 'Không';
+          baseRow[`${roundLabel} - Lượt về`] = cell?.checkOut ? 'Có' : 'Không';
+          baseRow[`${roundLabel} - Ghi chú`] = cell?.note?.trim() || '';
+        });
+
+        return baseRow;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      worksheet['!cols'] = [
+        { wch: 6 },
+        { wch: 28 },
+        { wch: 16 },
+        { wch: 20 },
+        { wch: 20 },
+        ...selectedRounds.flatMap(() => [{ wch: 16 }, { wch: 16 }, { wch: 28 }]),
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+
+      const safeTripName = tripName
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, '_');
+
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const fileName = `transactions_${safeTripName}_${timestamp}.xlsx`;
+
+      XLSX.writeFile(workbook, fileName);
+      enqueueSnackbar('Đã export file Excel thành công', { variant: 'success' });
+    } catch (error) {
+      console.error('Export transaction excel error:', error);
+      enqueueSnackbar('Export Excel thất bại', { variant: 'error' });
+    }
+  };
+
   return (
     <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5">
       
@@ -474,6 +538,18 @@ const TransactionPage: React.FC = () => {
             <button className="btn-refresh-custom shadow-sm" onClick={() => { refetchTransactions(); refetchPassengers(); }}
                     style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}>
                 <RefreshCw size={18} />
+            </button>
+            <button
+              className="btn-custom-action-save shadow-sm"
+              onClick={handleExportExcel}
+              disabled={!visiblePassengers.length}
+              style={{
+                backgroundColor: visiblePassengers.length ? colors.info : colors.surfaceLight,
+                color: visiblePassengers.length ? '#fff' : colors.textMuted,
+              }}
+            >
+              <Download size={18} />
+              <span className="d-none d-sm-inline">Export Excel</span>
             </button>
             <button 
                 className="btn-custom-action-save shadow-sm" 
