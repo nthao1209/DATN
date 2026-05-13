@@ -4,6 +4,44 @@ import { AuthRequest } from '../types/auth';
 
 const prisma = new PrismaClient();
 
+const pickEarlierDate = (current?: Date | null, incoming?: Date | null): Date | null => {
+  if (!incoming) return current ?? null;
+  if (!current) return incoming;
+  return current < incoming ? current : incoming;
+};
+
+const syncBusRoundStatusTimes = async (
+  busId: number,
+  roundId: number,
+  checkInAt?: Date | null,
+  checkOutAt?: Date | null
+) => {
+  if (!checkInAt && !checkOutAt) return;
+
+  const current = await prisma.busRoundStatus.findUnique({
+    where: { busId_roundId: { busId, roundId } },
+  });
+
+  const nextCheckInAt = checkInAt ? pickEarlierDate(current?.checkInAt, checkInAt) : null;
+  const nextCheckOutAt = checkOutAt ? pickEarlierDate(current?.checkOutAt, checkOutAt) : null;
+
+  await prisma.busRoundStatus.upsert({
+    where: { busId_roundId: { busId, roundId } },
+    create: {
+      busId,
+      roundId,
+      checkInLocked: false,
+      checkOutLocked: false,
+      checkInAt: nextCheckInAt,
+      checkOutAt: nextCheckOutAt,
+    },
+    update: {
+      ...(nextCheckInAt ? { checkInAt: nextCheckInAt } : {}),
+      ...(nextCheckOutAt ? { checkOutAt: nextCheckOutAt } : {}),
+    },
+  });
+};
+
 const ensureTenant = (req: AuthRequest, res: Response): number | null => {
   if (!req.tenantId) {
     res.status(401).json({ message: 'Unauthorized' });
@@ -13,6 +51,12 @@ const ensureTenant = (req: AuthRequest, res: Response): number | null => {
 };
 
 const canAccessTransactions = (req: AuthRequest) => req.roleId === 2 || req.roleId === 3 || req.roleId === 1;
+
+const hasLockedAttendanceChange = (
+  locked: boolean | undefined,
+  currentValue: boolean | undefined,
+  incomingValue: boolean | undefined
+) => Boolean(locked) && incomingValue !== undefined && incomingValue !== Boolean(currentValue);
 
 export const transactionController = {
   getAll: async (req: AuthRequest, res: Response) => {
@@ -140,8 +184,37 @@ export const transactionController = {
 
       const incomingCheckIn = req.body?.checkIn !== undefined ? Boolean(req.body?.checkIn) : undefined;
       const incomingCheckOut = req.body?.checkOut !== undefined ? Boolean(req.body?.checkOut) : undefined;
+      const incomingCheckInAt = req.body?.checkInAt ? new Date(req.body.checkInAt) : undefined;
+      const incomingCheckOutAt = req.body?.checkOutAt ? new Date(req.body.checkOutAt) : undefined;
       const incomingNote = req.body?.note ? String(req.body.note).trim() : null;
-      const actorId = req.user?.id ?? null;
+      let actorId = req.user?.id ?? null;
+      console.log(req.user);
+      console.log(req.firebaseUser);
+      if (!actorId && req.firebaseUser?.uid) {
+        try {
+          const possibleUser = await prisma.user.findUnique({ where: { firebaseUid: req.firebaseUser.uid } });
+          if (possibleUser) {
+            actorId = possibleUser.id;
+          }
+        } catch (e) {
+          console.warn('Fallback user lookup failed', e);
+        }
+      }
+
+      if (!actorId) {
+        console.warn('transaction.create: actorId is null (request may be unauthenticated). req.user:', req.user?.id, 'req.firebaseUser:', req.firebaseUser?.uid);
+      }
+
+      // Check BusRoundStatus locks
+      const brs = await prisma.busRoundStatus.findUnique({ where: { busId_roundId: { busId, roundId } } });
+      if (brs) {
+        if (hasLockedAttendanceChange(brs.checkInLocked, existing?.checkIn, incomingCheckIn)) {
+          return res.status(403).json({ message: 'Check-in for this bus/round is locked' });
+        }
+        if (hasLockedAttendanceChange(brs.checkOutLocked, existing?.checkOut, incomingCheckOut)) {
+          return res.status(403).json({ message: 'Check-out for this bus/round is locked' });
+        }
+      }
 
       const nextCheckIn = existing
         ? Boolean(existing.checkIn) || Boolean(incomingCheckIn)
@@ -150,11 +223,17 @@ export const transactionController = {
         ? Boolean(existing.checkOut) || Boolean(incomingCheckOut)
         : Boolean(incomingCheckOut);
 
+      // Determine earliest timestamps between existing and incoming
+      const now = new Date();
+      const actorTimeIn = incomingCheckInAt ?? now;
+      const actorTimeOut = incomingCheckOutAt ?? now;
+
       const checkInAt = nextCheckIn
-        ? existing?.checkInAt ?? new Date()
+        ? (existing?.checkInAt ? (existing.checkInAt < actorTimeIn ? existing.checkInAt : actorTimeIn) : actorTimeIn)
         : null;
+
       const checkOutAt = nextCheckOut
-        ? existing?.checkOutAt ?? new Date()
+        ? (existing?.checkOutAt ? (existing.checkOutAt < actorTimeOut ? existing.checkOutAt : actorTimeOut) : actorTimeOut)
         : null;
 
       const created = await prisma.transaction.upsert({
@@ -168,9 +247,9 @@ export const transactionController = {
           busId,
           checkIn: nextCheckIn,
           checkOut: nextCheckOut,
-          checkInAt: nextCheckIn ? (existing?.checkInAt ?? new Date()) : null,
+          checkInAt: checkInAt,
           checkInBy: nextCheckIn ? (existing?.checkInBy ?? actorId) : null,
-          checkOutAt: nextCheckOut ? (existing?.checkOutAt ?? new Date()) : null,
+          checkOutAt: checkOutAt,
           checkOutBy: nextCheckOut ? (existing?.checkOutBy ?? actorId) : null,
           note: incomingNote
         },
@@ -180,13 +259,20 @@ export const transactionController = {
           passengerId: Number(passengerId),
           checkIn: nextCheckIn,
           checkOut: nextCheckOut,
-          checkInAt: nextCheckIn ? new Date() : null,
+          checkInAt: checkInAt,
           checkInBy: nextCheckIn ? actorId : null,
-          checkOutAt: nextCheckOut ? new Date() : null,
+          checkOutAt: checkOutAt,
           checkOutBy: nextCheckOut ? actorId : null,
           note: incomingNote
         }
       });
+
+      await syncBusRoundStatusTimes(
+        busId,
+        roundId,
+        nextCheckIn ? checkInAt : null,
+        nextCheckOut ? checkOutAt : null
+      );
 
       res.status(201).json(created);
     } catch (error: any) {
@@ -225,7 +311,29 @@ export const transactionController = {
 
       const checkInInput = req.body?.checkIn;
       const checkOutInput = req.body?.checkOut;
-      const actorId = req.user?.id ?? null;
+      const incomingCheckInAt = req.body?.checkInAt ? new Date(req.body.checkInAt) : undefined;
+      const incomingCheckOutAt = req.body?.checkOutAt ? new Date(req.body.checkOutAt) : undefined;
+
+      let actorId = req.user?.id ?? null;
+      if (!actorId && req.firebaseUser?.uid) {
+        try {
+          const possibleUser = await prisma.user.findUnique({ where: { firebaseUid: req.firebaseUser.uid } });
+          if (possibleUser) actorId = possibleUser.id;
+        } catch (e) {
+          console.warn('Fallback user lookup failed', e);
+        }
+      }
+
+      // enforce BusRoundStatus locks
+      const brs = await prisma.busRoundStatus.findUnique({ where: { busId_roundId: { busId: existing.busId, roundId: existing.roundId } } });
+      if (brs) {
+        if (hasLockedAttendanceChange(brs.checkInLocked, existing.checkIn, checkInInput !== undefined ? Boolean(checkInInput) : undefined)) {
+          return res.status(403).json({ message: 'Check-in for this bus/round is locked' });
+        }
+        if (hasLockedAttendanceChange(brs.checkOutLocked, existing.checkOut, checkOutInput !== undefined ? Boolean(checkOutInput) : undefined)) {
+          return res.status(403).json({ message: 'Check-out for this bus/round is locked' });
+        }
+      }
 
       const nextCheckIn = checkInInput !== undefined
         ? Boolean(checkInInput)
@@ -235,16 +343,20 @@ export const transactionController = {
         ? Boolean(checkOutInput)
         : existing.checkOut;
 
+      const now = new Date();
+      const actorTimeIn = incomingCheckInAt ?? now;
+      const actorTimeOut = incomingCheckOutAt ?? now;
+
       const nextCheckInAt = checkInInput === undefined
         ? existing.checkInAt
         : nextCheckIn
-          ? (existing.checkInAt ?? new Date())
+          ? (existing.checkInAt ? (existing.checkInAt < actorTimeIn ? existing.checkInAt : actorTimeIn) : actorTimeIn)
           : null;
 
       const nextCheckOutAt = checkOutInput === undefined
         ? existing.checkOutAt
         : nextCheckOut
-          ? (existing.checkOutAt ?? new Date())
+          ? (existing.checkOutAt ? (existing.checkOutAt < actorTimeOut ? existing.checkOutAt : actorTimeOut) : actorTimeOut)
           : null;
 
       const updated = await prisma.transaction.update({
@@ -257,6 +369,13 @@ export const transactionController = {
           ...(req.body?.note !== undefined ? { note: req.body.note ? String(req.body.note).trim() : null } : {})
         }
       });
+
+      await syncBusRoundStatusTimes(
+        existing.busId,
+        existing.roundId,
+        nextCheckIn ? nextCheckInAt : null,
+        nextCheckOut ? nextCheckOutAt : null
+      );
 
       res.json(updated);
     } catch (error: any) {

@@ -45,13 +45,49 @@ async function init() {
     client.on('message', async (_topic: string, msg: Buffer) => {
         try{
             const data = JSON.parse(msg.toString());
+            console.log(`📥 [${prj}] Received MQTT message:`, data);
 
             if (!data.passengerId || !data.roundId || !data.busId) {
                 throw new Error("Dữ liệu thiếu passengerId, roundId hoặc busId");
             }
-            const now = Date.now();
-            const checkInAt = data.checkIn ? new Date(now) : null;
-            const checkOutAt = data.checkOut ? new Date(now) : null;
+               // Validate checkInBy and checkOutBy fields
+               if ((data.checkIn && !data.checkInBy) || (data.checkOut && !data.checkOutBy)) {
+                   console.warn(`⚠️  [${prj}] WARNING - Missing user info:`, {
+                       checkIn: data.checkIn,
+                       checkInBy: data.checkInBy,
+                       checkOut: data.checkOut,
+                       checkOutBy: data.checkOutBy
+                   });
+               }
+               const now = Date.now();
+                    const checkInAt = data.checkIn ? new Date(now) : null;
+                    const checkOutAt = data.checkOut ? new Date(now) : null;
+
+                    // Derive operator fields: prefer explicit fields from message, then try common aliases.
+                    // Parse to integer if possible; otherwise use null to match DB integer column.
+                    const parseOperatorToInt = (val: any) => {
+                        if (val === undefined || val === null) return null;
+                        const n = Number(val);
+                        return Number.isInteger(n) ? n : null;
+                    };
+
+                    const candidateIn = data.checkInBy ?? data.user ?? data.operator;
+                    const candidateOut = data.checkOutBy ?? data.user ?? data.operator;
+
+                    const checkInBy = data.checkIn ? parseOperatorToInt(candidateIn) : null;
+                    const checkOutBy = data.checkOut ? parseOperatorToInt(candidateOut) : null;
+
+                    if (data.checkIn && candidateIn !== undefined && checkInBy === null) {
+                        console.warn(`⚠️  [${prj}] NOTE - checkInBy present but not numeric, storing NULL`);
+                    } else if (data.checkIn && candidateIn === undefined) {
+                        console.warn(`⚠️  [${prj}] NOTE - checkInBy missing, storing NULL`);
+                    }
+
+                    if (data.checkOut && candidateOut !== undefined && checkOutBy === null) {
+                        console.warn(`⚠️  [${prj}] NOTE - checkOutBy present but not numeric, storing NULL`);
+                    } else if (data.checkOut && candidateOut === undefined) {
+                        console.warn(`⚠️  [${prj}] NOTE - checkOutBy missing, storing NULL`);
+                    }
             const query = `
              WITH upsert_res AS (
                     INSERT INTO "Transaction" (
@@ -84,10 +120,10 @@ async function init() {
                 data.busId,
                 Boolean(data.checkIn), // Ép kiểu Boolean
                 checkInAt,
-                data.checkInBy || null,
+                   checkInBy,
                 Boolean(data.checkOut), // Ép kiểu Boolean
                 checkOutAt,
-                data.checkOutBy || null,
+                   checkOutBy,
                 data.note || ""
             ];
             
@@ -113,8 +149,10 @@ async function init() {
                         busId: result.busId,
                         checkIn: result.checkIn,
                         checkInAt: result.checkInAt,
+                        checkInBy: result.checkInBy,
                         checkOut: result.checkOut,
                         checkOutAt: result.checkOutAt,
+                        checkOutBy: result.checkOutBy,
                         note: result.note,
                     }),
                     { qos: 1 }

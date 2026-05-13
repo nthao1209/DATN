@@ -31,7 +31,6 @@ const waitForAuthInit = (): Promise<User | null> => {
 
 axiosClient.interceptors.request.use(async (config: any) => {
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
-    // Let browser set multipart boundary automatically.
     if (config.headers) {
       delete config.headers['Content-Type'];
       delete config.headers['content-type'];
@@ -208,14 +207,32 @@ export const api = {
   deletePassenger: (id: string) =>
     axiosClient.delete(`/passengers/${id}`),
 
-  importPassengersPreview: (tripId: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
+  getPassengerImportSheets: async (
+      tripId: string,
+      file: File
+    ) => {
+      const formData = new FormData();
 
-    return axiosClient.post<PassengerImportPreviewResponse, PassengerImportPreviewResponse>(
-      `/trips/${tripId}/passengers/import-preview`,
-      formData
-    );
+      formData.append('file', file);
+
+      return axiosClient.post<
+        { sheetNames: string[] },
+        { sheetNames: string[] }
+      >(
+        `/trips/${tripId}/passengers/import-sheets`,
+        formData
+      );
+    },
+
+    importPassengersPreview: (tripId: string, file: File, sheetName: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sheetName', sheetName);
+
+      return axiosClient.post<PassengerImportPreviewResponse, PassengerImportPreviewResponse>(
+        `/trips/${tripId}/passengers/import-preview`,
+        formData
+      );
   },
 
   // User APIs
@@ -256,6 +273,13 @@ export const api = {
 
   deleteTransaction: (id: string) =>
     axiosClient.delete(`/transactions/${id}`),
+
+  // Confirm checks (lock) for a specific bus & round
+  getBusRoundStatuses: (tripId: string) =>
+    axiosClient.get('/bus-round-status', { params: { tripId } }),
+
+  confirmBusRoundChecks: (busId: number, roundId: number, data: { checkInLocked?: boolean; checkOutLocked?: boolean }) =>
+    axiosClient.post(`/buses/${busId}/rounds/${roundId}/confirm-checks`, data),
 }
 
 export default api;

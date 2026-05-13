@@ -205,7 +205,33 @@ const PassengerPage: React.FC = () => {
     setRows((prev) => {
       const keptRows = prev.filter((row) => row.id || isNewRowDirty(row));
 
-      const importedRows: PassengerRow[] = payload.rows.map((row, index) => ({
+      // Helper: normalize for comparison
+      const normalizeForComparison = (text: string) => (text || '').trim().toLowerCase();
+
+      // Helper: check if row is duplicate
+      const isDuplicate = (importedRow: PassengerRow) => {
+        const importedNameNorm = normalizeForComparison(importedRow.name);
+        const importedTelNorm = normalizeForComparison(importedRow.tel);
+        const importedNoteNorm = normalizeForComparison(importedRow.note);
+        const importedBusId = importedRow.busId;
+
+        // Check against existing rows (both from DB and newly added)
+        return keptRows.some((existing) => {
+          const existingNameNorm = normalizeForComparison(existing.name);
+          const existingTelNorm = normalizeForComparison(existing.tel);
+          const existingNoteNorm = normalizeForComparison(existing.note);
+          const existingBusId = existing.busId;
+
+          return (
+            importedNameNorm === existingNameNorm &&
+            importedTelNorm === existingTelNorm &&
+            importedNoteNorm === existingNoteNorm &&
+            importedBusId === existingBusId
+          );
+        });
+      };
+
+      const importedRowsRaw: PassengerRow[] = payload.rows.map((row, index) => ({
         localId: row.localId || `excel_${Date.now()}_${index}`,
         name: row.name || '',
         tel: row.tel || '',
@@ -214,6 +240,16 @@ const PassengerPage: React.FC = () => {
         busId: row.busId ?? selectedBusId ?? null,
         busCode: row.busCode || '',
       }));
+
+      const importedRows = importedRowsRaw.filter((row) => !isDuplicate(row));
+      const skippedCount = importedRowsRaw.length - importedRows.length;
+
+      if (skippedCount > 0) {
+        enqueueSnackbar(
+          `Đã bỏ qua ${skippedCount} dòng vì trùng dữ liệu (tên + sdt + số xe + ghi chú)`,
+          { variant: 'warning' }
+        );
+      }
 
       const nextRows = [...keptRows, ...importedRows];
 
@@ -237,6 +273,53 @@ const PassengerPage: React.FC = () => {
     trips: selectedTripId ? trips.filter(t => t.id === selectedTripId) : trips,
     busesByTrip, readOnly: isAllTripsView, handleCellChange, handleDeleteRow,
   });
+
+  // When viewing all trips in read-only mode, aggregate rows that share same name+tel+note
+  const displayRows = useMemo(() => {
+    if (!isAllTripsView) return rows;
+
+    const groups: Record<string, PassengerRow & { tripAssignments?: Record<number, any> }> = {};
+
+    const keyFor = (r: PassengerRow) => `${(r.name||'').trim().toLowerCase()}||${(r.tel||'').trim().toLowerCase()}||${(r.note||'').trim().toLowerCase()}`;
+
+    rows.forEach((r) => {
+      const key = keyFor(r);
+      if (!groups[key]) {
+        groups[key] = {
+          localId: `agg_${Object.keys(groups).length}_${Date.now()}`,
+          name: r.name,
+          tel: r.tel,
+          note: r.note,
+          tripId: null,
+          busId: null,
+          busCode: '',
+          tripAssignments: {},
+        } as any;
+      }
+
+      const tripId = r.tripId ?? 0;
+      const group = groups[key];
+      if (!group.tripAssignments) group.tripAssignments = {};
+      if (!group.tripAssignments[tripId]) {
+        group.tripAssignments[tripId] = { tripId, busCodes: new Set<string>() } as any;
+      }
+      if (r.busCode) (group.tripAssignments[tripId] as any).busCodes.add(r.busCode);
+    });
+
+    // Convert sets to comma-joined strings to fit existing assignment shape
+    const result = Object.values(groups).map((g) => {
+      const assignments: Record<number, any> = {};
+      const ta = g.tripAssignments || {};
+      Object.keys(ta).forEach((k) => {
+        const tId = Number(k);
+        const busCodesSet: Set<string> = (ta[tId] as any).busCodes || new Set<string>();
+        assignments[tId] = { tripId: tId, busCode: Array.from(busCodesSet).join(', ') };
+      });
+      return { ...g, tripAssignments: assignments } as PassengerRow;
+    });
+
+    return result;
+  }, [rows, isAllTripsView]);
 
   return (
     <div className="animate-fade-in p-0 p-md-3 passenger-page">
@@ -266,67 +349,53 @@ const PassengerPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Toolbar / Filters - Tinh giản chiều cao và khung */}
+      
       <div 
-        className="p-2 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3 px-3 shadow-sm"
+        className="p-2 mb-4 d-flex align-items-center flex-wrap gap-3 px-3 shadow-sm"
         style={{ 
           background: colors.surface, 
           borderRadius: effects.borderRadius.md,
           border: `1px solid ${colors.border}`,
         }}
       >
-      <div className="d-flex align-items-center gap-3 flex-wrap w-100">
-          {/* Filter Chuyến đi */}
-          <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '200px' }}>
-            <Filter size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-            <select
-              className="form-select-custom-toolbar w-100"
-              value={selectedTripId ?? ''}
-              onChange={(e) => setSelectedTripId(e.target.value ? Number(e.target.value) : null)}
-              style={{ 
-                backgroundColor: isDarkMode ? colors.background : '#fff', 
-                color: colors.textPrimary, 
-                border: `1px solid ${colors.border}`,
-                height: '38px' 
-              }}
-            >
-              <option value="">Tất cả chuyến đi</option>
-              {trips.map((trip: any) => <option key={trip.id} value={trip.id}>{trip.name}</option>)}
-            </select>
-          </div>
+        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '200px' }}>
+          <Filter size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+          <select
+            className="form-select-custom-toolbar w-100"
+            value={selectedTripId ?? ''}
+            onChange={(e) => setSelectedTripId(e.target.value ? Number(e.target.value) : null)}
+            style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+          >
+            <option value="">Tất cả chuyến đi</option>
+            {trips.map((trip: any) => <option key={trip.id} value={trip.id}>{trip.name}</option>)}
+          </select>
+        </div>
 
-          {/* Filter Xe */}
-          <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '200px' }}>
-            <Bus size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-            <select
-              className="form-select-custom-toolbar w-100"
-              value={selectedBusId ?? ''}
-              onChange={(e) => setSelectedBusId(e.target.value ? Number(e.target.value) : null)}
-              disabled={!selectedTripId}
-              style={{ 
-                backgroundColor: isDarkMode ? colors.background : '#fff', 
-                color: colors.textPrimary, 
-                border: `1px solid ${colors.border}`,
-                height: '38px'
-              }}
-            >
-              <option value="">Tất cả xe</option>
-              {busOptions.map((bus: any) => (
-                <option key={bus.id} value={bus.id}>{bus.busCode} - {bus.registrationNumber}</option>
-              ))}
-            </select>
-          </div>
-      </div>
+        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '200px' }}>
+          <Bus size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+          <select
+            className="form-select-custom-toolbar w-100"
+            value={selectedBusId ?? ''}
+            onChange={(e) => setSelectedBusId(e.target.value ? Number(e.target.value) : null)}
+            disabled={!selectedTripId}
+            style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+          >
+            <option value="">Tất cả xe</option>
+            {busOptions.map((bus: any) => (
+              <option key={bus.id} value={bus.id}>{bus.busCode}</option>
+            ))}
+          </select>
+        </div>
 
-        <div className="d-flex align-items-center gap-2">
-          {!isAllTripsView ? (
-            <>
-              <PassengerExcelImport selectedTripId={selectedTripId} resetToken={importResetToken} disabled={isSaving || !isTargetSelectionReady} onImported={handleImportedPreview} />
-            </>
-          ) : (
-             <span className="small px-3 py-1 rounded-pill" style={{ background: isDarkMode ? colors.surfaceLight : '#f1f5f9', color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
-                Chế độ xem tổng hợp
-             </span>
+        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0 ms-md-auto">
+          
+          {!isAllTripsView && (
+            <PassengerExcelImport 
+              selectedTripId={selectedTripId} 
+              resetToken={importResetToken} 
+              disabled={isSaving || !isTargetSelectionReady} 
+              onImported={handleImportedPreview}
+            />
           )}
         </div>
       </div>
@@ -352,7 +421,7 @@ const PassengerPage: React.FC = () => {
           }         
           columns={columns}
           queryKey={['passengers-local', selectedTripId, selectedBusId]}
-          data={rows}
+          data={displayRows}
           isLoading={isLoading}
           isError={isError}
           onRefresh={refetch}
@@ -405,6 +474,7 @@ const PassengerPage: React.FC = () => {
           outline: none;
           cursor: pointer;
         }
+          
 
         /* Nút bấm Gọn & Hiệu ứng lún */
         .btn-custom-action-small, .btn-custom-action-save {

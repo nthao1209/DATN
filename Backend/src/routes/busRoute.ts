@@ -14,4 +14,8 @@ router.get('/busManagers', verifyFirebaseToken, busController.getBusManagers);
 router.put('/buses/:id', verifyFirebaseToken, busController.update);
 router.delete('/buses/:id', verifyFirebaseToken, busController.delete);
 
+// Confirm (lock) check-in/check-out for a specific bus & round
+router.get('/bus-round-status', verifyFirebaseToken, busController.getRoundStatuses);
+router.post('/buses/:busId/rounds/:roundId/confirm-checks', verifyFirebaseToken, busController.confirmChecks);
+
 export default router;

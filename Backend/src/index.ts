@@ -28,6 +28,22 @@ app.use('/api', userRoutes);
 app.use('/api', roleRoutes);
 app.use('/api', transactionRoutes);
 
+// Debug: list registered routes (temporary)
+app.get('/api/_routes', (_req, res) => {
+  try {
+    // @ts-ignore: access express internals for debugging
+    const routes: string[] = (app as any)._router.stack
+      .filter((layer: any) => layer.route)
+      .map((layer: any) => {
+        const methods = Object.keys(layer.route.methods).join(',').toUpperCase();
+        return `${methods} ${layer.route.path}`;
+      });
+    res.json({ routes });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to enumerate routes' });
+  }
+});
+
 const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => {

@@ -40,7 +40,6 @@ const normalizeBusLookupKeys = (value: unknown): string[] => {
 
 const toText = (value: SheetCell): string => String(value ?? '').trim();
 
-// Excel hay mat so 0 dau khi cot dien thoai o dang Number, nen bo sung quy tac phuc hoi an toan.
 const normalizeImportedPhone = (value: string): string => {
   const digitsOnly = value.replace(/\D/g, '').trim();
   if (digitsOnly.length === 9) {
@@ -63,7 +62,6 @@ const findMatchedHeader = (headers: string[], aliases: string[]): string | undef
 };
 
 const scoreHeaderRow = (cells: SheetCell[]): number => {
-  // Cham diem de tim dong co kha nang la header cao nhat trong cac dong dau.
   let score = 0;
   const seen = new Set<ImportField>();
 
@@ -93,7 +91,6 @@ const scoreHeaderRow = (cells: SheetCell[]): number => {
 };
 
 const parseRowsFromWorksheet = (worksheet: XLSX.WorkSheet): Record<string, unknown>[] => {
-  // Doc sheet theo ma tran de xu ly duoc file co dong tieu de khong nam o dong dau tien.
   const matrix = XLSX.utils.sheet_to_json<SheetCell[]>(worksheet, {
     header: 1,
     raw: false,
@@ -136,7 +133,6 @@ const parseRowsFromWorksheet = (worksheet: XLSX.WorkSheet): Record<string, unkno
 };
 
 const buildHeaderMap = (headers: string[]): Record<ImportField, string | undefined> => ({
-  // Map ten cot trong file nguoi dung vao cot noi bo cua he thong.
   name: findMatchedHeader(headers, HEADER_ALIASES.name),
   tel: findMatchedHeader(headers, HEADER_ALIASES.tel),
   note: findMatchedHeader(headers, HEADER_ALIASES.note),
@@ -286,6 +282,30 @@ export const passengerController = {
     }
   },
 
+  getImportSheets: async (req: AuthRequest, res: Response) => {
+    try {
+      const tripId = Number(req.params.tripId);
+
+      if (!tripId) {
+        return res.status(400).json({ message: 'Missing tripId' });
+      }
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: 'Vui lòng chọn file Excel' });
+      }
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      return res.json({ sheets: workbook.SheetNames });
+
+    } catch (error) {
+      console.error('❌ get import sheets error:', error);
+      return res.status(500).json({ message: 'Server error' });
+    }
+  },
   importPreview: async (req: AuthRequest, res: Response) => {
     try {
       const tripId = Number(req.params.tripId);
@@ -300,17 +320,30 @@ export const passengerController = {
 
       const file = req.file;
       if (!file) {
-        return res.status(400).json({ message: 'Vui long chon file Excel' });
+        return res.status(400).json({ message: 'Vui lòng chọn file Excel' });
       }
 
       const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const firstSheetName = workbook.SheetNames[0];
 
-      if (!firstSheetName) {
-        return res.status(400).json({ message: 'File Excel khong co sheet hop le' });
+      const requestedSheet = String(
+        req.body.sheetName || ''
+      ).trim();
+
+      const actualSheetName =
+        workbook.SheetNames.find(
+          (sheet) =>
+            sheet.trim() === requestedSheet
+        );
+
+      if (!actualSheetName) {
+        return res.status(400).json({
+          message: `Sheet "${requestedSheet}" not found`
+        });
       }
 
-      const worksheet = workbook.Sheets[firstSheetName];
+      const worksheet =
+        workbook.Sheets[actualSheetName];
+    
       const rawRows = parseRowsFromWorksheet(worksheet);
 
       if (!rawRows.length) {

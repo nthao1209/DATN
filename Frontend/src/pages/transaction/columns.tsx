@@ -8,6 +8,9 @@ type BuildColumnsParams = {
   roundSummary: RoundSummary;
   getCell: (passengerId: number, roundId: number) => DraftCell | null;
   setCell: (payload: DraftCell) => void;
+  isLocked: (busId: number, roundId: number, type: 'checkIn' | 'checkOut') => boolean;
+  onRemovePassenger?: (row: TransactionTableRow) => void;
+  canRemovePassenger?: (row: TransactionTableRow) => boolean;
 };
 
 export const buildTransactionColumns = ({
@@ -15,6 +18,9 @@ export const buildTransactionColumns = ({
   roundSummary,
   getCell,
   setCell,
+  isLocked,
+  onRemovePassenger,
+  canRemovePassenger,
 }: BuildColumnsParams): Column<TransactionTableRow>[] => {
   const {colors} = useTheme();
   const dynamicRoundCols: Column<TransactionTableRow>[] = selectedRounds.flatMap((round) => {
@@ -34,12 +40,15 @@ export const buildTransactionColumns = ({
         const current = getCell(row.id, roundId);
         const checkIn = Boolean(current?.checkIn);
         const checkOut = Boolean(current?.checkOut);
+        const locked = row.busId ? isLocked(Number(row.busId), roundId, 'checkIn') : false;
 
         return (
           <div className="d-flex justify-content-center">
             <input
               type="checkbox"
               checked={checkIn}
+              disabled={locked}
+              style={{ cursor: locked ? 'not-allowed' : 'pointer' }}
               onChange={(e) => {
                 if (!row.busId) return;
                 setCell({
@@ -75,12 +84,15 @@ export const buildTransactionColumns = ({
         const current = getCell(row.id, roundId);
         const checkIn = Boolean(current?.checkIn);
         const checkOut = Boolean(current?.checkOut);
+        const locked = row.busId ? isLocked(Number(row.busId), roundId, 'checkOut') : false;
 
         return (
           <div className="d-flex justify-content-center">
             <input
               type="checkbox"
               checked={checkOut}
+              disabled={locked}
+              style={{ cursor: locked ? 'not-allowed' : 'pointer' }}
               onChange={(e) => {
                 if (!row.busId) return;
                 setCell({
@@ -199,6 +211,26 @@ export const buildTransactionColumns = ({
               });
             }}
           />
+        );
+      },
+    },
+    {
+      header: 'Thao tác',
+      key: 'actions',
+      width: '120px',
+      render: (row) => {
+        if (row.isSummary) return null;
+        const canRemove = canRemovePassenger ? canRemovePassenger(row) : true;
+        return (
+          <button
+            className="btn btn-sm btn-outline-danger"
+            type="button"
+            disabled={!canRemove}
+            title={canRemove ? 'Xóa khách khỏi transaction' : 'Chỉ được xóa khách thuộc biên chế xe khác'}
+            onClick={() => onRemovePassenger?.(row)}
+          >
+            Xóa
+          </button>
         );
       },
     },

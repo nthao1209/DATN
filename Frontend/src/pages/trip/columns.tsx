@@ -93,7 +93,7 @@ export const buildTripColumns = ({
   key: 'actions',
   width: '100px', 
   render: (row) => (
-    <div className="d-flex justify-content-center align-items-center">
+    <div className="d-flex justify-content-md-center justify-content-end w-100">
       <button 
         className="btn-action-delete" 
         onClick={() => handleDeleteRow(row)} 

@@ -216,4 +216,82 @@ export const busController = {
     res.status(500).json({ message: 'Server error' });
   }
 }
+  ,
+  getRoundStatuses: async (req: AuthRequest, res: Response) => {
+    try {
+      const tripId = Number(req.query.tripId);
+      if (!tripId) {
+        return res.status(400).json({ message: 'Missing tripId' });
+      }
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const statuses = await prisma.busRoundStatus.findMany({
+        where: {
+          bus: {
+            tripId,
+            trip: {
+              tenantId: req.tenantId,
+            },
+          },
+        },
+      });
+
+      res.json(statuses);
+    } catch (error) {
+      console.error('getRoundStatuses error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  },
+
+  confirmChecks: async (req: AuthRequest, res: Response) => {
+    try {
+      const busId = Number(req.params.busId);
+      const roundId = Number(req.params.roundId);
+      if (!busId || !roundId) {
+        return res.status(400).json({ message: 'Missing busId or roundId' });
+      }
+      if (!req.tenantId) return res.status(401).json({ message: 'Unauthorized' });
+
+      const { checkInLocked, checkOutLocked } = req.body;
+      const nextCheckInLocked = checkInLocked === undefined ? undefined : Boolean(checkInLocked);
+      const nextCheckOutLocked = checkOutLocked === undefined ? undefined : Boolean(checkOutLocked);
+      const now = new Date();
+
+      const existingBus = await prisma.bus.findFirst({ where: { id: busId, trip: { tenantId: req.tenantId } } });
+      if (!existingBus) return res.status(404).json({ message: 'Bus not found' });
+
+      const up = await prisma.busRoundStatus.upsert({
+        where: { busId_roundId: { busId, roundId } },
+        create: {
+          busId,
+          roundId,
+          checkInLocked: nextCheckInLocked ?? false,
+          checkInAt: nextCheckInLocked ? now : null,
+          checkOutLocked: nextCheckOutLocked ?? false,
+          checkOutAt: nextCheckOutLocked ? now : null,
+        },
+        update: {
+          ...(nextCheckInLocked !== undefined
+            ? {
+                checkInLocked: nextCheckInLocked,
+                checkInAt: nextCheckInLocked ? now : null,
+              }
+            : {}),
+          ...(nextCheckOutLocked !== undefined
+            ? {
+                checkOutLocked: nextCheckOutLocked,
+                checkOutAt: nextCheckOutLocked ? now : null,
+              }
+            : {}),
+        }
+      });
+
+      res.json(up);
+    } catch (error) {
+      console.error('confirmChecks error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
 };

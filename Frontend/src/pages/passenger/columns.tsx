@@ -71,6 +71,13 @@ export const buildPassengerColumns = ({
       key: `trip_${tripId}`,
       render: (row: PassengerRow) => {
         if (readOnly) {
+          // If row has aggregated assignments for multiple trips, prefer that display
+          const assignment = (row as any).tripAssignments?.[tripId];
+          if (assignment) {
+            // assignment.busCode may be a single code or a comma-joined string of multiple codes
+            return <span className="text-white">{assignment.busCode || '-'}</span>;
+          }
+
           const busText = row.tripId === tripId ? (row.busCode || '-') : '-';
           return <span className="text-white">{busText}</span>;
         }

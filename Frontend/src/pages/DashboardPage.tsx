@@ -92,6 +92,7 @@ const Dashboard: React.FC = () => {
 
   const activeTrips = tripCards.filter((trip) => trip.status === 'DOING').length;
   const doneTrips = tripCards.filter((trip) => trip.status === 'DONE').length;
+  void doneTrips; // used for future UI; silence unused-variable TS error
   const totalBuses = buses.length;
   const totalRounds = rounds.length;
   const totalPassengers = passengers.length;

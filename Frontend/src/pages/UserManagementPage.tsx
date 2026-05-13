@@ -80,7 +80,7 @@ const UserManagementPage: React.FC = () => {
   const isSameRow = (current: UserRow, initial: UserRow) => {
     return (
       current.name.trim() === initial.name.trim() &&
-      current.description.trim() === initial.description.trim() &&
+      (current.description || '').trim() === (initial.description || '').trim() &&
       (current.roleId ?? null) === (initial.roleId ?? null) &&
       (current.tenantId ?? null) === (initial.tenantId ?? null)
     );
