@@ -5,9 +5,7 @@ import { useForm } from 'react-hook-form';
 import { type RootState } from '../redux/store';
 import { logout } from '../redux/slice/authSlice';
 import { 
-  LogOut, Building, Briefcase,
-  Bell, LayoutGrid, Map, ChevronDown,
-  Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
+  LogOut, Building, Bell,ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 import { useTheme } from '../theme/ThemeContext';
@@ -184,10 +182,7 @@ const TopBar: React.FC = () => {
             {/* Quick Actions Group */}
             <div className="d-flex align-items-center gap-1 border-end pe-3 me-2" style={{ borderColor: colors.border }}>
               {[
-                { icon: Briefcase, label: 'Projects' },
                 { icon: Bell, label: 'Notifications' },
-                { icon: Map, label: 'Tracking' },
-                { icon: LayoutGrid, label: 'Apps' }
               ].map((item, idx) => (
                 <button key={idx} className="btn-icon-topbar" title={item.label}>
                   <item.icon size={18} />

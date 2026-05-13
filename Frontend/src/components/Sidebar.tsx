@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, UserCircle,
-  MapPin, Route, Bus, ChevronDown, Menu, X, Clock, LogOut
+  MapPin, Route, Bus, ChevronDown, Menu, X, Clock,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -17,7 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   const { colors, isDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
-  const { roleId, user } = useSelector((state: RootState) => state.auth); // Giả sử bạn có user trong auth state
+  const { roleId } = useSelector((state: RootState) => state.auth); 
   const [collapsed, setCollapsed] = useState(isCollapsed);
   const [expandedItems, setExpandedItems] = useState<string[]>(['trips']);
 
@@ -127,101 +127,96 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
           {menuConfig.passengers && <MenuItem to="/passengers" icon={Users} label="Hành khách" />}
 
           {/* Trips Section */}
-          {menuConfig.trips && (
-            <li className="nav-item mb-1 px-2">
-              <div
-                className={`nav-link d-flex justify-content-between align-items-center py-2 px-3 rounded-3 cursor-pointer transition-all ${
-                  isActive('/trips') ? 'text-primary-custom' : 'text-sidebar hover-sidebar'
-                }`}
-                onClick={() => !collapsed && toggleExpanded('trips')}
-              >
-                <div className="d-flex align-items-center" onClick={(e) => { e.stopPropagation(); navigate('/trips'); }}>
-                  <MapPin size={19} className={collapsed ? 'mx-auto' : 'me-3'} />
-                  {!collapsed && <span className="fw-medium" style={{ fontSize: '0.875rem' }}>Quản lý Trip</span>}
-                </div>
-                {!collapsed && (
-                  <ChevronDown size={14} className={`transition-all ${expandedItems.includes('trips') ? 'rotate-180' : ''}`} />
-                )}
-              </div>
+{menuConfig.trips && (
+  <li className="nav-item mb-1 px-2">
+    {/* Mục Quản lý Trip chính */}
+    <div
+      className={`nav-link d-flex justify-content-between align-items-center py-2 px-3 rounded-3 cursor-pointer transition-all ${
+        isActive('/trips') && !currentTripId ? 'active-item text-white' : 'text-sidebar hover-sidebar'
+      }`}
+      onClick={() => !collapsed ? toggleExpanded('trips') : navigate('/trips')}
+      style={{ 
+        backgroundColor: (isActive('/trips') && !currentTripId) ? colors.primary : 'transparent',
+      }}
+    >
+      <div className="d-flex align-items-center" onClick={(e) => { e.stopPropagation(); navigate('/trips'); }}>
+        <MapPin size={19} className={collapsed ? 'mx-auto' : 'me-3'} />
+        {!collapsed && <span className="fw-medium" style={{ fontSize: '0.875rem' }}>Quản lý Trip</span>}
+      </div>
+      {!collapsed && (
+        <ChevronDown size={14} className={`transition-all ${expandedItems.includes('trips') ? 'rotate-180' : ''}`} />
+      )}
+    </div>
 
-              {!collapsed && expandedItems.includes('trips') && (
-                <ul className="nav flex-column ms-4 ps-3 border-start border-sub-menu mt-1 mb-2 gap-1 animate-slide-down">
-                  <li>
-                    <Link 
-                      to="/trips" 
-                      className={`nav-link py-2 px-3 small rounded-3 transition-all ${
-                        location.pathname === '/trips' 
-                          ? 'bg-primary text-white shadow-sm fw-bold' 
-                          : 'hover-text-primary'
-                      }`}
-                      style={{ 
-                        color: location.pathname === '/trips' ? '#fff' : colors.textMuted,
-                        backgroundColor: location.pathname === '/trips' ? colors.primary : 'transparent'
-                      }}
-                    >
-                       • Danh sách Trip
-                    </Link>
-                  </li>
-                  {currentTripId && (
-                    <>
-                      <li>
-                        <Link 
-                          to={`/trips/${currentTripId}/rounds`} 
-                          className={`nav-link py-2 px-3 small rounded-3 transition-all d-flex align-items-center ${
-                            isActive(`/trips/${currentTripId}/rounds`) 
-                              ? 'bg-primary text-white shadow-sm fw-bold' 
-                              : 'hover-text-primary'
-                          }`}
-                          style={{ 
-                            color: isActive(`/trips/${currentTripId}/rounds`) ? '#fff' : colors.textMuted,
-                            backgroundColor: isActive(`/trips/${currentTripId}/rounds`) ? colors.primary : 'transparent'
-                          }}
-                        >
-                          <Route size={14} className="me-2" /> Chặng đi
-                        </Link>
-                      </li>
-                      <li>
-                        <Link 
-                          to={`/trips/${currentTripId}/buses`} 
-                          className={`nav-link py-2 px-3 small rounded-3 transition-all d-flex align-items-center ${
-                            isActive(`/trips/${currentTripId}/buses`) 
-                              ? 'bg-primary text-white shadow-sm fw-bold' 
-                              : 'hover-text-primary'
-                          }`}
-                          style={{ 
-                            color: isActive(`/trips/${currentTripId}/buses`) ? '#fff' : colors.textMuted,
-                            backgroundColor: isActive(`/trips/${currentTripId}/buses`) ? colors.primary : 'transparent'
-                          }}
-                        >
-                          <Bus size={14} className="me-2" /> Đội xe
-                        </Link>
-                      </li>
-                    </>
-                  )}
-                </ul>
-              )}
-            </li>
-          )}
+    {( (collapsed && currentTripId) || (!collapsed && expandedItems.includes('trips')) ) && (
+      <ul className={`nav flex-column ${collapsed ? 'mt-2 gap-2' : 'ms-4 ps-3 border-start border-sub-menu mt-1 mb-2 gap-1'} animate-slide-down`}>
+        {!collapsed && (
+          <li>
+            <Link 
+              to="/trips" 
+              className={`nav-link py-2 px-3 small rounded-3 transition-all ${
+                location.pathname === '/trips' ? 'bg-primary text-white shadow-sm fw-bold' : 'hover-text-primary'
+              }`}
+              style={{ 
+                color: location.pathname === '/trips' ? '#fff' : colors.textMuted,
+                backgroundColor: location.pathname === '/trips' ? colors.primary : 'transparent'
+              }}
+            >
+               • Danh sách Trip
+            </Link>
+          </li>
+        )}
+
+        {/* Hiện icon Chặng đi và Đội xe khi có currentTripId */}
+            {currentTripId && (
+              <>
+                <li>
+                  <Link 
+                    to={`/trips/${currentTripId}/rounds`} 
+                    title={collapsed ? "Chặng đi" : ""}
+                    className={`nav-link py-2 rounded-3 transition-all d-flex align-items-center ${collapsed ? 'justify-content-center' : 'px-3 small'} ${
+                      isActive(`/trips/${currentTripId}/rounds`) 
+                        ? 'bg-primary text-white shadow-sm fw-bold' 
+                        : 'text-sidebar hover-sidebar'
+                    }`}
+                    style={{ 
+                      color: isActive(`/trips/${currentTripId}/rounds`) ? '#fff' : (collapsed ? colors.textSecondary : colors.textMuted),
+                      backgroundColor: isActive(`/trips/${currentTripId}/rounds`) ? colors.primary : 'transparent'
+                    }}
+                  >
+                    <Route size={collapsed ? 18 : 14} className={collapsed ? "" : "me-2"} /> 
+                    {!collapsed && "Chặng đi"}
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to={`/trips/${currentTripId}/buses`} 
+                    title={collapsed ? "Đội xe" : ""}
+                    className={`nav-link py-2 rounded-3 transition-all d-flex align-items-center ${collapsed ? 'justify-content-center' : 'px-3 small'} ${
+                      isActive(`/trips/${currentTripId}/buses`) 
+                        ? 'bg-primary text-white shadow-sm fw-bold' 
+                        : 'text-sidebar hover-sidebar'
+                    }`}
+                    style={{ 
+                      color: isActive(`/trips/${currentTripId}/buses`) ? '#fff' : (collapsed ? colors.textSecondary : colors.textMuted),
+                      backgroundColor: isActive(`/trips/${currentTripId}/buses`) ? colors.primary : 'transparent'
+                    }}
+                  >
+                    <Bus size={collapsed ? 18 : 14} className={collapsed ? "" : "me-2"} /> 
+                    {!collapsed && "Đội xe"}
+                  </Link>
+                </li>
+              </>
+            )}
+          </ul>
+        )}
+      </li>
+    )}
           
           {menuConfig.transactions && <MenuItem to="/transactions" icon={Clock} label="Điểm danh" />}
         </ul>
       </div>
 
-      {/* 3. Footer / User Section */}
-      <div className="p-3 mt-auto border-top border-sidebar shadow-inner">
-         <div className={`d-flex align-items-center ${collapsed ? 'justify-content-center' : 'gap-3'} p-2 rounded-3 hover-sidebar-light cursor-pointer`}>
-            <div className="avatar-mini flex-shrink-0">
-               {user?.name?.charAt(0).toUpperCase() || 'A'}
-            </div>
-            {!collapsed && (
-              <div className="overflow-hidden flex-grow-1">
-                 <p className="m-0 small fw-bold text-truncate" style={{ color: colors.textPrimary }}>Thảo Admin</p>
-                 <p className="m-0 text-muted text-truncate" style={{ fontSize: '10px' }}>Manager System</p>
-              </div>
-            )}
-            {!collapsed && <LogOut size={14} className="text-muted hover-text-danger" />}
-         </div>
-      </div>
 
       <style>{`
         /* Sidebar Typography & Elements */

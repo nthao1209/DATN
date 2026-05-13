@@ -19,7 +19,6 @@ export const useRoundLocks = (tripId: number | null) => {
     enabled: !!tripId,
   });
 
-  // Hàm trả về true nếu ô đó đã bị khóa
   const isLocked = (busId: number, roundId: number, type: 'checkIn' | 'checkOut') => {
     const status = lockStatuses.find(
       (s) => Number(s.busId) === Number(busId) && Number(s.roundId) === Number(roundId)
@@ -29,5 +28,5 @@ export const useRoundLocks = (tripId: number | null) => {
     return type === 'checkIn' ? Boolean(status.checkInLocked) : Boolean(status.checkOutLocked);
   };
 
-  return { isLocked, refetchLocks };
+  return { isLocked, refetchLocks, lockStatuses };
 };

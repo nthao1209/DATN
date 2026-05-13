@@ -36,6 +36,7 @@ const TransactionPage: React.FC = () => {
   const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
   const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
   const [draftMap, setDraftMap] = useState<Record<string, DraftCell>>({});
+  const [tripDropdownOpen, setTripDropdownOpen] = useState(false);
   const [busDropdownOpen, setBusDropdownOpen] = useState(false);
   const [roundDropdownOpen, setRoundDropdownOpen] = useState(false);
   const [departureRoundFilter, setDepartureRoundFilter] = useState<number | null>(null);
@@ -49,11 +50,12 @@ const TransactionPage: React.FC = () => {
         if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
           setBusDropdownOpen(false);
           setRoundDropdownOpen(false);
+          setTripDropdownOpen(false);
         }
       };
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [setBusDropdownOpen, setRoundDropdownOpen]);
+  }, [setBusDropdownOpen, setRoundDropdownOpen, setTripDropdownOpen]);
 
   
   const {
@@ -568,9 +570,11 @@ const TransactionPage: React.FC = () => {
             selectedTripId={selectedTripId} 
             selectedBusIds={selectedBusIds} 
             selectedRoundIds={selectedRoundIds}
+            tripDropdownOpen={tripDropdownOpen}
             busDropdownOpen={busDropdownOpen} 
             roundDropdownOpen={roundDropdownOpen}
             setSelectedTripId={setSelectedTripId} 
+            setTripDropdownOpen={setTripDropdownOpen}
             setBusDropdownOpen={setBusDropdownOpen} 
             setRoundDropdownOpen={setRoundDropdownOpen}
             toggleBus={(id) => setSelectedBusIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])}
@@ -616,7 +620,7 @@ const TransactionPage: React.FC = () => {
                 </select>
               </div>
             </div>
-          </div>
+          </div>  
            <ExtraPassengerPanel
               show={showAddPassengerPanel}
               passengers={passengers}

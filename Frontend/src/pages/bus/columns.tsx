@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import type { Column } from '../../components/DataTable';
 import type { BusManager, BusRow } from './types';
+import { AutoResizeTextarea } from '../../hooks/useAutoResize';
 
 type BuildBusColumnsParams = {
   managers: BusManager[];
@@ -94,10 +95,11 @@ export const buildBusColumns = ({
     header: 'Đặc điểm xe',
     key: 'description',
     render: (row) => (
-      <input
-        className="form-control form-control-sm"
+      <AutoResizeTextarea
+        className="form-control form-control-sm bus-wrap-input"
         value={row.description}
         onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
+        placeholder="Đặc điểm xe"
       />
     ),
   },

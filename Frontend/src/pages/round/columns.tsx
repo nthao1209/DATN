@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2, Lock } from 'lucide-react';
 import type { Column } from '../../components/DataTable';
 import type { RoundRow, RoundStatus } from './types';
 
@@ -9,15 +9,17 @@ type BuildRoundColumnsParams = {
     value: RoundRow[K]
   ) => void;
   handleDeleteRow: (row: RoundRow) => void;
+  openLocksForRound?: (roundId: number) => void;
 };
 
 export const buildRoundColumns = ({
   handleCellChange,
   handleDeleteRow,
+  openLocksForRound,
 }: BuildRoundColumnsParams): Column<RoundRow>[] => [
   { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
   {
-    header: 'Ten chặng',
+    header: 'Tên chặng',
     key: 'name',
     render: (row) => (
       <input
@@ -63,6 +65,44 @@ export const buildRoundColumns = ({
     header: 'Số khách check-out',
     key: 'checkOutCount',
     render: (row) => (row.id ? `${row.checkOutCount ?? 0}/${row.passengerCount}` : '-'),
+  },
+  {
+    header: 'Xe đã xác nhận lượt đi',
+    key: 'lockedInCount',
+    render: (row) => (
+      row.id ? (
+        <div className="d-flex align-items-center gap-2">
+          <span>{row.lockedInCount ?? 0}</span>
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            title="Xem danh sách xe đã khóa lượt đi"
+            onClick={() => openLocksForRound && row.id && openLocksForRound(Number(row.id))}
+          >
+            <Lock size={14} />
+          </button>
+        </div>
+      ) : '-'
+    ),
+    width: '160px'
+  },
+  {
+    header: 'Xe đã xác nhận lượt về',
+    key: 'lockedOutCount',
+    render: (row) => (
+      row.id ? (
+        <div className="d-flex align-items-center gap-2">
+          <span>{row.lockedOutCount ?? 0}</span>
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            title="Xem danh sách xe đã khóa lượt về"
+            onClick={() => openLocksForRound && row.id && openLocksForRound(Number(row.id))}
+          >
+            <Lock size={14} />
+          </button>
+        </div>
+      ) : '-'
+    ),
+    width: '160px'
   },
   {
   header: 'Thao tác',

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../redux/store';
@@ -11,18 +11,11 @@ import TenantSelector from '../components/TenantSelector';
 import { useTheme } from '../theme/ThemeContext';
 import { useSnackbar } from 'notistack';
 import api from '../services/api';
-
-const getBusLabel = (bus: any) => bus?.busCode || bus?.registrationNumber || (bus?.id ? `Xe ${bus.id}` : '-');
-
-const formatRelativeTime = (value: string | Date) => {
-  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000));
-  if (diffMinutes < 1) return 'Vừa xong';
-  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} giờ trước`;
-  const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} ngày trước`;
-};
+import { subscribeAttendanceUpdates } from '../services/mqtt';
+import { 
+  XAxis, YAxis, CartesianGrid, Tooltip, 
+  ResponsiveContainer, AreaChart, Area,Cell, PieChart, Pie 
+} from 'recharts';
 
 const formatCount = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
 
@@ -30,6 +23,7 @@ const Dashboard: React.FC = () => {
   const { colors } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const [showTenantSelector, setShowTenantSelector] = useState(false);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
   const { currentTenant, roleId } = useSelector((state: RootState) => state.auth);
   const canViewJoinCode = [1, 2].includes(roleId || 0);
 
@@ -42,6 +36,7 @@ const Dashboard: React.FC = () => {
     () => trips.map((trip: any) => Number(trip.id)).filter((id: number) => Number.isFinite(id) && id > 0),
     [trips]
   );
+  const tripIdsKey = useMemo(() => tripIds.join(','), [tripIds]);
 
   const { data: buses = [], isLoading: busesLoading, refetch: refetchBuses } = useQuery<any[]>({
     queryKey: ['dashboard-buses', tripIds.join(',')],
@@ -92,40 +87,13 @@ const Dashboard: React.FC = () => {
 
   const activeTrips = tripCards.filter((trip) => trip.status === 'DOING').length;
   const doneTrips = tripCards.filter((trip) => trip.status === 'DONE').length;
-  void doneTrips; // used for future UI; silence unused-variable TS error
+  void doneTrips; 
   const totalBuses = buses.length;
   const totalRounds = rounds.length;
   const totalPassengers = passengers.length;
   const completedRounds = rounds.filter((round: any) => String(round.status || '').toUpperCase() === 'DONE').length;
-
-  const recentActivities = useMemo(() => {
-    return [...transactions]
-      .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, 5)
-      .map((transaction: any) => ({
-        id: transaction.id,
-        title: transaction.passenger?.name || `Hành khách #${transaction.passengerId}`,
-        detail: `${getBusLabel(transaction.bus || transaction.passenger?.bus)} · ${transaction.round?.name || `Round #${transaction.roundId}`}`,
-        time: formatRelativeTime(transaction.updatedAt),
-        status: transaction.checkIn && transaction.checkOut
-          ? 'Đã check-in/out'
-          : transaction.checkIn
-            ? 'Đã check-in'
-            : transaction.checkOut
-              ? 'Đã check-out'
-              : 'Chưa xác nhận',
-      }));
-  }, [transactions]);
-
-  const busiestTrips = useMemo(() => {
-    return [...tripCards]
-      .sort((a, b) => b.passengerCount - a.passengerCount)
-      .slice(0, 5);
-  }, [tripCards]);
-
-  const maxPassengerCount = Math.max(1, ...busiestTrips.map((trip) => trip.passengerCount));
-
-  const handleRefresh = async () => {
+  
+  const refetchDashboardData = async () => {
     await Promise.all([
       refetchTrips(),
       refetchBuses(),
@@ -133,8 +101,45 @@ const Dashboard: React.FC = () => {
       refetchPassengers(),
       refetchTransactions(),
     ]);
+  };
+
+  const handleRefresh = async () => {
+    await refetchDashboardData();
     enqueueSnackbar('Đã tải lại dữ liệu thật', { variant: 'success' });
   };
+
+  useEffect(() => {
+    if (!tripIds.length) return;
+
+    const clients = tripIds.map((tripId) =>
+      subscribeAttendanceUpdates(tripId, () => {
+        // Debounce nhẹ để gộp nhiều event realtime đến gần nhau.
+        if (realtimeRefreshTimerRef.current !== null) return;
+
+        realtimeRefreshTimerRef.current = window.setTimeout(async () => {
+          realtimeRefreshTimerRef.current = null;
+          await refetchDashboardData();
+        }, 500);
+      })
+    );
+
+    return () => {
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+
+      clients.forEach((client) => client.end(true));
+    };
+  }, [
+    tripIdsKey,
+    tripIds,
+    refetchTrips,
+    refetchBuses,
+    refetchRounds,
+    refetchPassengers,
+    refetchTransactions,
+  ]);
 
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
@@ -144,6 +149,26 @@ const Dashboard: React.FC = () => {
       enqueueSnackbar('Đã sao chép mã mời!', { variant: 'success' });
     }
   };
+  const attendanceTrendData = useMemo(() => {
+    const last7Days = [...Array(7)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    }).reverse();
+
+    return last7Days.map(date => {
+      const count = transactions.filter(tx => 
+        new Date(tx.updatedAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) === date
+      ).length;
+      return { name: date, lượt: count };
+    });
+  }, [transactions]);
+
+  // 3. Dữ liệu cho biểu đồ tròn (Trạng thái chuyến đi)
+  const tripStatusData = [
+    { name: 'Đang chạy', value: activeTrips, color: 'var(--bs-primary)' },
+    { name: 'Hoàn thành', value: doneTrips, color: 'var(--bs-success)' },
+  ];
 
   return (
     <div className="animate-fade-in">
@@ -260,71 +285,90 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Real summaries */}
-      <div className="row g-4">
+      <div className="row g-4 mb-4">
+        {/* BIỂU ĐỒ ĐƯỜNG - XU HƯỚNG ĐIỂM DANH */}
         <div className="col-lg-8">
-          <div className="card-glass h-100 p-4">
-            <div className="d-flex align-items-center justify-content-between mb-4">
-              <h5 className=" fw-bold mb-0">Phân bổ theo chuyến đi</h5>
-              <span 
-                className="badge rounded-pill border border-gray-800"
-                style={{
-                  backgroundColor: 'var(--bs-info)',
-                  color: '#ffffff',
-                  fontSize: '11px',
-                }}>Top 5 theo số khách</span>
-            </div>
-            <div className="d-grid gap-3">
-              {busiestTrips.length > 0 ? busiestTrips.map((trip) => (
-                <div key={trip.id} className="trip-summary-row">
-                  <div className="d-flex align-items-center justify-content-between gap-3 mb-2">
-                    <div>
-                      <div className=" fw-semibold">{trip.name}</div>
-                      <div className="text-gray-500 extra-small">{trip.status === 'DONE' ? 'Hoàn thành' : 'Đang diễn ra'}</div>
-                    </div>
-                    <div className="text-end text-gray-500 extra-small">
-                      <div>{formatCount(trip.passengerCount)} khách</div>
-                      <div>{formatCount(trip.busCount)} xe · {formatCount(trip.roundCount)} round</div>
-                    </div>
-                  </div>
-                  <div className="progress trip-progress">
-                    <div
-                      className="progress-bar"
-                      style={{ width: `${Math.max(8, Math.round((trip.passengerCount / maxPassengerCount) * 100))}%`, backgroundColor: 'var(--bs-primary)' }}
-                    />
-                  </div>
-                </div>
-              )) : (
-                <div className="d-flex align-items-center justify-content-center border border-dashed border-gray-800 rounded-4" style={{ minHeight: '240px' }}>
-                  <p className="text-gray-600 m-0">Chưa có dữ liệu chuyến đi trong tổ chức này</p>
-                </div>
-              )}
+          <div className="card-glass p-4" style={{ minHeight: '400px' }}>
+            <h5 className="fw-bold mb-4">Xu hướng điểm danh (7 ngày qua)</h5>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <AreaChart data={attendanceTrendData}>
+                  <defs>
+                    <linearGradient id="colorLượt" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--bs-primary)" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="var(--bs-primary)" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: colors.textMuted, fontSize: 12}}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: colors.textMuted, fontSize: 12}}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: colors.surface, 
+                      borderRadius: '12px', 
+                      border: `1px solid ${colors.border}`,
+                      color: colors.textPrimary 
+                    }} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="lượt" 
+                    stroke="var(--bs-primary)" 
+                    fillOpacity={1} 
+                    fill="url(#colorLượt)" 
+                    strokeWidth={3}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
+
+        {/* BIỂU ĐỒ TRÒN - TÌNH TRẠNG CHUYẾN ĐI */}
         <div className="col-lg-4">
-          <div className="card-glass h-100 p-4">
-            <h5 className=" fw-bold mb-4">Hoạt động gần đây</h5>
-            <div className="timeline">
-              {recentActivities.length > 0 ? recentActivities.map((activity) => (
-                <div key={activity.id} className="d-flex gap-3 mb-4">
-                  <div className="timeline-dot"></div>
-                  <div>
-                    <p className=" small mb-0 fw-bold">{activity.title}</p>
-                    <p className="text-gray-500 extra-small mb-1">{activity.detail}</p>
-                    <p className="text-gray-500 extra-small mb-0">{activity.status} · {activity.time}</p>
+          <div className="card-glass p-4 h-100">
+            <h5 className="fw-bold mb-4">Trạng thái chuyến đi</h5>
+            <div style={{ width: '100%', height: 250 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={tripStatusData}
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {tripStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3">
+              {tripStatusData.map((item, idx) => (
+                <div key={idx} className="d-flex align-items-center justify-content-between mb-2">
+                  <div className="d-flex align-items-center gap-2">
+                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: item.color }}></div>
+                    <span className="small text-gray-500">{item.name}</span>
                   </div>
+                  <span className="fw-bold">{item.value}</span>
                 </div>
-              )) : (
-                <div className="d-flex align-items-center justify-content-center border border-dashed border-gray-800 rounded-4" style={{ minHeight: '240px' }}>
-                  <p className="text-gray-600 m-0">Chưa có transaction nào để hiển thị</p>
-                </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
       </div>
-
       <TenantSelector isOpen={showTenantSelector} onClose={() => setShowTenantSelector(false)} />
 
       <style>{`

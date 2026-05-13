@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Users, Filter, Bus, RefreshCw } from 'lucide-react';
+import { Plus, Save, Users, Bus, RefreshCw,ChevronDown, MapPin  } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import { PassengerExcelImport } from '../components/passenger-import';
 import api from '../services/api';
@@ -24,11 +24,14 @@ const PassengerPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusId, setSelectedBusId] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<PassengerRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [importResetToken, setImportResetToken] = useState(0);
   const initialRowsByIdRef = useRef<Record<number, PassengerRow>>({});
+
+  
 
   // --- DATA FETCHING (Giữ nguyên logic của bạn) ---
   const { data: trips = [] } = useQuery<PassengerTrip[]>({
@@ -36,6 +39,7 @@ const PassengerPage: React.FC = () => {
     queryFn: api.getTrips,
   });
 
+  
   const { data: allBuses = [] } = useQuery<PassengerBus[]>({
     queryKey: ['buses-all-trips', trips.map((t: any) => t.id).join(',')],
     enabled: trips.length > 0,
@@ -104,8 +108,16 @@ const PassengerPage: React.FC = () => {
     });
     return map;
   }, [allBuses, selectedTripId]);
+    const busOptions = useMemo(() => {
+      const options = !selectedTripId ? [] : busesByTrip[selectedTripId] || [];
+      return [...options].sort((a, b) => {
+        return (a.busCode || "").localeCompare(b.busCode || "", undefined, {
+          numeric: true,      
+          sensitivity: 'base'
+        });
+      });
+    }, [busesByTrip, selectedTripId]);
 
-  const busOptions = useMemo(() => (!selectedTripId ? [] : busesByTrip[selectedTripId] || []), [busesByTrip, selectedTripId]);
   const isAllTripsView = selectedTripId === null && selectedBusId === null;
   const isTargetSelectionReady = Boolean(selectedTripId && selectedBusId);
 
@@ -205,17 +217,14 @@ const PassengerPage: React.FC = () => {
     setRows((prev) => {
       const keptRows = prev.filter((row) => row.id || isNewRowDirty(row));
 
-      // Helper: normalize for comparison
       const normalizeForComparison = (text: string) => (text || '').trim().toLowerCase();
 
-      // Helper: check if row is duplicate
       const isDuplicate = (importedRow: PassengerRow) => {
         const importedNameNorm = normalizeForComparison(importedRow.name);
         const importedTelNorm = normalizeForComparison(importedRow.tel);
         const importedNoteNorm = normalizeForComparison(importedRow.note);
         const importedBusId = importedRow.busId;
 
-        // Check against existing rows (both from DB and newly added)
         return keptRows.some((existing) => {
           const existingNameNorm = normalizeForComparison(existing.name);
           const existingTelNorm = normalizeForComparison(existing.tel);
@@ -274,7 +283,6 @@ const PassengerPage: React.FC = () => {
     busesByTrip, readOnly: isAllTripsView, handleCellChange, handleDeleteRow,
   });
 
-  // When viewing all trips in read-only mode, aggregate rows that share same name+tel+note
   const displayRows = useMemo(() => {
     if (!isAllTripsView) return rows;
 
@@ -306,7 +314,6 @@ const PassengerPage: React.FC = () => {
       if (r.busCode) (group.tripAssignments[tripId] as any).busCodes.add(r.busCode);
     });
 
-    // Convert sets to comma-joined strings to fit existing assignment shape
     const result = Object.values(groups).map((g) => {
       const assignments: Record<number, any> = {};
       const ta = g.tripAssignments || {};
@@ -358,27 +365,97 @@ const PassengerPage: React.FC = () => {
           border: `1px solid ${colors.border}`,
         }}
       >
-        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '200px' }}>
-          <Filter size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-          <select
-            className="form-select-custom-toolbar w-100"
-            value={selectedTripId ?? ''}
-            onChange={(e) => setSelectedTripId(e.target.value ? Number(e.target.value) : null)}
-            style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-          >
-            <option value="">Tất cả chuyến đi</option>
-            {trips.map((trip: any) => <option key={trip.id} value={trip.id}>{trip.name}</option>)}
-          </select>
-        </div>
+       <div className="dropdown-custom-container" style={{ position: 'relative', width: '280px' }}>
+        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '0', flexBasis: '280px' }}>
+          <MapPin size={16} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+          
+          <div className="dropdown-custom-container" style={{ position: 'relative', width: '100%' }}>
+            <div 
+              className={`custom-filter-input d-flex align-items-center justify-content-between cursor-pointer ${open ? 'active' : ''}`}
+              onClick={() => setOpen(!open)}
+              style={{ 
+                whiteSpace: 'normal', 
+                minHeight: '38px', 
+                height: 'auto', 
+                padding: '8px 12px',
+                lineHeight: '1.4',
+                backgroundColor: isDarkMode ? colors.background : '#fff',
+                borderRadius: '10px',
+                border: `1px solid ${open ? colors.primary : colors.border}`,
+                transition: 'all 0.2s ease',
+                color: colors.textPrimary,
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: '500' }}>
+                {trips.find(t => t.id === selectedTripId)?.name || "Tất cả chuyến đi"}
+              </span>
+              <ChevronDown 
+                size={14} 
+                className={`ms-2 transition-all flex-shrink-0 ${open ? 'rotate-180' : ''}`} 
+                style={{ color: colors.textSecondary }}
+              />
+            </div>
 
-        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '200px' }}>
+            {open && (
+              <div className="custom-multi-menu shadow-lg animate-fade-in" style={{ 
+                position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 1000, 
+                backgroundColor: isDarkMode ? colors.background : '#ffffff', borderRadius: '12px', border: `1px solid ${colors.border}`, overflow: 'hidden'
+              }}>
+                <div className="menu-header" style={{ padding: '10px 15px', fontSize: '11px', fontWeight: '700', opacity: 0.8, borderBottom: `1px solid ${colors.border}55`, color: colors.textPrimary, backgroundColor: isDarkMode ? colors.surface : '#f0f0ed'}}>
+                  DANH SÁCH CHUYẾN ĐI
+                </div>
+                <div style={{ maxHeight: '250px', overflowY: 'auto', padding: '6px' }}>
+                  
+                  <div 
+                    className={`multi-item-custom ${selectedTripId === null ? 'selected' : ''}`}
+                    onClick={() => { setSelectedTripId(null); setOpen(false); }}
+                    style={{ 
+                      whiteSpace: 'normal', 
+                      fontSize: '13px', 
+                      padding: '10px 12px', 
+                      borderRadius: '8px', 
+                      marginBottom: '2px', 
+                      cursor: 'pointer', 
+                      lineHeight: '1.4',
+                      fontWeight: selectedTripId === null ? '600' : '500'
+                    }}
+                  >
+                    Tất cả chuyến đi
+                  </div>
+
+                  {trips.map(trip => (
+                    <div 
+                      key={trip.id} 
+                      className={`multi-item-custom ${selectedTripId === trip.id ? 'selected' : ''}`}
+                      onClick={() => { setSelectedTripId(trip.id); setOpen(false); }}
+                      style={{ whiteSpace: 'normal', fontSize: '13px', padding: '10px 12px', borderRadius: '8px', marginBottom: '2px', cursor: 'pointer', lineHeight: '1.4' }}
+                    >
+                      {trip.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" 
+             style={{ minWidth: '200px' }}
+        >
           <Bus size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
           <select
             className="form-select-custom-toolbar w-100"
             value={selectedBusId ?? ''}
             onChange={(e) => setSelectedBusId(e.target.value ? Number(e.target.value) : null)}
             disabled={!selectedTripId}
-            style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+            title={!selectedTripId ? "Bạn cần chọn Chuyến đi trước" : ""}
+            style={{ 
+              backgroundColor: isDarkMode ? colors.background : '#fff',
+              color: colors.textPrimary, 
+              border: `1px solid ${colors.border}`,
+              opacity: !selectedTripId ? 0.6 : 1
+            }}
           >
             <option value="">Tất cả xe</option>
             {busOptions.map((bus: any) => (
@@ -474,7 +551,38 @@ const PassengerPage: React.FC = () => {
           outline: none;
           cursor: pointer;
         }
-          
+        .custom-filter-input {
+    background-color: ${isDarkMode ? 'rgba(255,255,255,0.05)' : '#ffffff'};
+    border: 1px solid ${colors.border};
+    border-radius: 10px;
+    color: ${colors.textPrimary};
+    transition: all 0.2s ease;
+  }
+
+  .custom-filter-input.active {
+    border-color: ${colors.primary};
+    box-shadow: 0 0 0 3px ${colors.primary}22;
+  }
+
+  /* Hiệu ứng khi di chuột vào từng dòng chuyến đi */
+  .multi-item-custom:hover {
+    background-color: ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9'};
+    color: ${colors.primary};
+  }
+
+  /* Trạng thái chuyến đi đang được chọn */
+  .multi-item-custom.selected {
+    background-color: ${colors.primary}15;
+    color: ${colors.primary};
+    font-weight: 600;
+  }
+
+  .rotate-180 { transform: rotate(180deg); }
+  .transition-all { transition: all 0.3s ease; }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
 
         /* Nút bấm Gọn & Hiệu ứng lún */
         .btn-custom-action-small, .btn-custom-action-save {

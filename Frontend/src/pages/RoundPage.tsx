@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Map, RefreshCw } from 'lucide-react';
+import { Plus, Save, Map, RefreshCw, } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import api from '../services/api';
 import { buildRoundColumns } from './round/columns';
+import { useRoundLocks } from '../hooks/useRoundLocks';
 import { useTheme } from '../theme/ThemeContext'; 
 import type { RoundRow } from './round/types';
+import LockRoundModal from './round/LockRoundModal';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../components/common/UnsavedChangesContext';
 
@@ -35,25 +37,39 @@ const RoundPage: React.FC = () => {
     enabled: !!tripId,
   });
 
+  const { lockStatuses = [], refetchLocks } = useRoundLocks(tripId ? Number(tripId) : null);
+  const { data: buses = [] } = useQuery<any[]>({
+    queryKey: ['buses', tripId],
+    queryFn: () => api.getBuses(String(tripId)),
+    enabled: !!tripId,
+  });
+
+  const [openLockRoundId, setOpenLockRoundId] = useState<number | null>(null);
+  const [toggling, setToggling] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
-    const mapped: RoundRow[] = rounds.map((r: any) => ({
-      id: Number(r.id),
-      localId: `db_${r.id}`,
-      name: r.name || '',
-      time: r.time || '',
-      status: r.status === 'DONE' ? 'DONE' : 'DOING',
-      // transactionCount here represents number of check-ins for compatibility with existing UI
-      transactionCount: Number(
-        (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === Number(r.id) && Boolean(tx.checkIn)).length
-      ),
-      checkInCount: Number(
-        (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === Number(r.id) && Boolean(tx.checkIn)).length
-      ),
-      checkOutCount: Number(
-        (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === Number(r.id) && Boolean(tx.checkOut)).length
-      ),
-      passengerCount: Number(r?.passengerCount || 0),
-    }));
+    const mapped: RoundRow[] = rounds.map((r: any) => {
+      const roundId = Number(r.id);
+      const checkInTxCount = (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === roundId && Boolean(tx.checkIn)).length;
+      const checkOutTxCount = (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === roundId && Boolean(tx.checkOut)).length;
+
+      const lockedInCount = (lockStatuses || []).filter((s: any) => Number(s.roundId) === roundId && Boolean(s.checkInLocked)).length;
+      const lockedOutCount = (lockStatuses || []).filter((s: any) => Number(s.roundId) === roundId && Boolean(s.checkOutLocked)).length;
+
+      return {
+        id: roundId,
+        localId: `db_${r.id}`,
+        name: r.name || '',
+        time: r.time || '',
+        status: r.status === 'DONE' ? 'DONE' : 'DOING',
+        transactionCount: Number(checkInTxCount),
+        checkInCount: Number(checkInTxCount),
+        checkOutCount: Number(checkOutTxCount),
+        passengerCount: Number(r?.passengerCount || 0),
+        lockedInCount,
+        lockedOutCount,
+      } as RoundRow;
+    });
 
     const initialById: Record<number, RoundRow> = {};
     mapped.forEach((row) => {
@@ -73,7 +89,7 @@ const RoundPage: React.FC = () => {
       });
     }
     setRows(padded);
-  }, [rounds]);
+  }, [rounds, transactions, lockStatuses]);
 
   const isSameRow = (current: RoundRow, initial: RoundRow) => {
     return (
@@ -160,7 +176,22 @@ const RoundPage: React.FC = () => {
   const columns = buildRoundColumns({
     handleCellChange,
     handleDeleteRow,
+    openLocksForRound: (roundId: number) => setOpenLockRoundId(roundId),
   });
+
+  const toggleCheckInLock = async (busId: number, roundId: number, value: boolean) => {
+    const key = `${busId}_${roundId}`;
+    setToggling((s) => ({ ...s, [key]: true }));
+    try {
+      await api.confirmBusRoundChecks(Number(busId), Number(roundId), { checkInLocked: value });
+      enqueueSnackbar(`${value ? 'Đã khóa' : 'Đã mở khóa'} lượt đi cho xe ${busId}`, { variant: 'success' });
+      await refetchLocks();
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || 'Lỗi khi cập nhật khóa', { variant: 'error' });
+    } finally {
+      setToggling((s) => ({ ...s, [key]: false }));
+    }
+  };
 
   return (
     <div className="animate-fade-in p-0 p-md-3 round-page">
@@ -219,6 +250,19 @@ const RoundPage: React.FC = () => {
           isLoading={isLoading}
           isError={isError}
         />
+        {openLockRoundId !== null && (
+          <LockRoundModal 
+            roundId={openLockRoundId}
+            onClose={() => setOpenLockRoundId(null)}
+            lockStatuses={lockStatuses}
+            buses={buses}
+            toggling={toggling}
+            onToggleLock={toggleCheckInLock}
+            onRefetch={refetchLocks}
+            colors={colors}
+            isDarkMode={isDarkMode}
+          />
+        )}
         <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
           <button 
             className="btn-add-row-bottom w-100 py-2" 

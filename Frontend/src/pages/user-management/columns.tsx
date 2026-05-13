@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import type { Column } from '../../components/DataTable';
+import { AutoResizeTextarea } from '../../hooks/useAutoResize.tsx';
 import type { UserRow } from './types';
 
 type BuildUserColumnsParams = {
@@ -76,8 +77,8 @@ export const buildUserColumns = ({
     header: 'Ghi chú',
     key: 'description',
     render: (row) => (
-      <input
-        className="form-control form-control-sm"
+      <AutoResizeTextarea
+        className="form-control form-control-sm user-note-input"
         value={row.description}
         onChange={(e) => handleCellChange(row.localId, 'description', e.target.value)}
         placeholder="Ghi chú"

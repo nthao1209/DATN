@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import type { Column } from '../../components/DataTable';
 import type { BusesByTrip, PassengerRow, PassengerTrip } from './types';
+import { AutoResizeTextarea } from '../../hooks/useAutoResize.tsx';
 
 type BuildPassengerColumnsParams = {
   trips: PassengerTrip[];
@@ -71,10 +72,8 @@ export const buildPassengerColumns = ({
       key: `trip_${tripId}`,
       render: (row: PassengerRow) => {
         if (readOnly) {
-          // If row has aggregated assignments for multiple trips, prefer that display
           const assignment = (row as any).tripAssignments?.[tripId];
           if (assignment) {
-            // assignment.busCode may be a single code or a comma-joined string of multiple codes
             return <span className="text-white">{assignment.busCode || '-'}</span>;
           }
 
@@ -121,14 +120,13 @@ export const buildPassengerColumns = ({
     key: 'note',
     render: (row) =>
       readOnly ? (
-        <span className="text-white">{row.note || '-'}</span>
+        <span className="text-white text-wrap passenger-wrap-cell" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{row.note || '-'}</span>
       ) : (
-        <input
-          className="form-control form-control-sm"
+        <AutoResizeTextarea
+          className="form-control form-control-sm passenger-wrap-input"
           value={row.note}
           onChange={(e) => handleCellChange(row.localId, 'note', e.target.value)}
           placeholder="Ghi chú"
-          style={{ minWidth: 200 }}
         />
       ),
   },
@@ -155,3 +153,4 @@ export const buildPassengerColumns = ({
 
   return columns;
 };
+

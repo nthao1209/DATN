@@ -2,6 +2,7 @@ import PassengerActionButtons from '../../components/PassengerActionButtons';
 import type { Column } from '../../components/DataTable';
 import type { DraftCell, RoundOption, RoundSummary, TransactionTableRow } from './types';
 import { useTheme} from '../../theme/ThemeContext'; 
+import { AutoResizeTextarea } from '../../hooks/useAutoResize';
 
 type BuildColumnsParams = {
   selectedRounds: RoundOption[];
@@ -185,8 +186,8 @@ export const buildTransactionColumns = ({
           .find((n) => n.trim().length > 0) || '';
 
         return (
-          <input
-            className="form-control form-control-sm"
+          <AutoResizeTextarea
+            className="form-control form-control-sm transaction-note-input"
             value={noteSource}
             placeholder="Ghi chú"
             onChange={(e) => {

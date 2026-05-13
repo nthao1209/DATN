@@ -10,9 +10,11 @@ type TransactionFiltersProps = {
   selectedTripId: number | null;
   selectedBusIds: number[];
   selectedRoundIds: number[];
+  tripDropdownOpen: boolean;
   busDropdownOpen: boolean;
   roundDropdownOpen: boolean;
   setSelectedTripId: (tripId: number) => void;
+  setTripDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setBusDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setRoundDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   toggleBus: (busId: number) => void;
@@ -27,8 +29,10 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
   selectedTripId,
   selectedBusIds,
   selectedRoundIds,
+  tripDropdownOpen,
   busDropdownOpen,
   roundDropdownOpen,
+  setTripDropdownOpen,
   setSelectedTripId,
   setBusDropdownOpen,
   setRoundDropdownOpen,
@@ -37,10 +41,14 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
   onTripChange,
 }) => {
   const { colors, isDarkMode } = useTheme();
+  const tripMenuRef = useRef<HTMLDivElement>(null);
   const busMenuRef = useRef<HTMLDivElement>(null);
   const roundMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if(tripMenuRef.current && !tripMenuRef.current.contains(event.target as Node)) {
+        setTripDropdownOpen(false);
+      }
       if (busMenuRef.current && !busMenuRef.current.contains(event.target as Node)) {
         setBusDropdownOpen(false);
       }
@@ -50,28 +58,51 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [setBusDropdownOpen, setRoundDropdownOpen]);
+  }, [setTripDropdownOpen, setBusDropdownOpen, setRoundDropdownOpen]);
+    const selectedTripName = trips.find(t => t.id === selectedTripId)?.name || 'Chưa chọn chuyến đi';
+
  return (
     <div className="row g-3 align-items-end">
       {/* 1. CHUYẾN ĐI */}
-      <div className="col-12 col-md-4">
+      <div ref={tripMenuRef} className="col-12 col-md-4 position-relative" style={{ minWidth: 0 }}>
         <label className="filter-label">Chuyến đi</label>
-        <div className="select-wrapper">
-          <select
-            className="form-select custom-filter-input"
-            value={selectedTripId ?? ''}
-            onChange={(e) => {
-              setSelectedTripId(Number(e.target.value));
-              onTripChange?.();
-            }}
-          >
-            {trips.map((trip) => (
-              <option key={trip.id} value={trip.id}>{trip.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+        <button
+          type="button"
+          className={`custom-filter-input d-flex align-items-center justify-content-between w-100 ${tripDropdownOpen ? 'active' : ''}`}
+          onClick={() => setTripDropdownOpen((v) => !v)}
+        >
+          <span className="text-start pe-2 text-wrap" style={{ flex: 1, minWidth: 0, lineHeight: '1.4' }}>
+            {selectedTripName}
+          </span>
+          <ChevronDown size={16} className={`flex-shrink-0 transition-all ${tripDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
 
+        {tripDropdownOpen && (
+          <div className="custom-multi-menu shadow-lg animate-fade-in w-100">
+            <div className="menu-header">Chọn chuyến đi</div>
+            <div className="menu-body">
+              {trips.map((trip) => {
+                const id = Number(trip.id);
+                const isSelected = selectedTripId === id;
+                return (
+                  <div 
+                    key={id} 
+                    className={`multi-item-custom ${isSelected ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedTripId(id);
+                      setTripDropdownOpen(false);
+                      onTripChange?.();
+                    }}
+                  >
+                    <span className="text-wrap" style={{ lineHeight: '1.4' }}>{trip.name}</span>
+                    {isSelected && <Check size={16} className="ms-auto flex-shrink-0" color={colors.primary} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
       {/* 2. CHỌN XE */}
       <div 
       ref={busMenuRef}
@@ -171,6 +202,16 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           font-weight: 500;
           transition: all 0.2s ease;
           text-align: left;
+        }
+        .custom-filter-input, 
+        .form-select {
+          display: block !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          white-space: nowrap !important;
+          padding-right: 36px !important; 
         }
 
         .custom-filter-input:hover {

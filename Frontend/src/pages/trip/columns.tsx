@@ -1,6 +1,8 @@
 import { Trash2, BusFront, Route } from 'lucide-react';
 import type { Column } from '../../components/DataTable';
+import { AutoResizeTextarea } from '../../hooks/useAutoResize.tsx';
 import type { TripRow, TripStatus } from './types';
+
 
 type BuildTripColumnsParams = {
   handleCellChange: <K extends keyof TripRow>(
@@ -24,12 +26,13 @@ export const buildTripColumns = ({
     header: 'Tên chuyến',
     key: 'name',
     render: (row) => (
-      <div className="td-content">
-        <input
+      <div className="td-content d-flex align-items-center" style={{ minHeight: '60px' }}>
+        <AutoResizeTextarea
           className="form-control form-control-sm"
           value={row.name}
           onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
           placeholder="Nhập tên chuyến"
+          style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#ffffff' }}
         />
       </div>
     ),
