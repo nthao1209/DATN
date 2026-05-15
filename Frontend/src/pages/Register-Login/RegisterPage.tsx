@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { Eye, EyeOff } from "lucide-react";
 import { fetchSignInMethodsForEmail } from "firebase/auth";
 
+import { getFirebaseErrorMessage } from "../../utils/firebaseErrorMessages";
 import { registerRequest } from "../../redux/slice/authSlice";
 import { type RootState } from "../../redux/store";
 import { auth } from "../../config/firebase";
@@ -81,8 +82,9 @@ const Register: React.FC = () => {
        
         enqueueSnackbar("Đăng ký thành công!", { variant: "success" });
 
-      } catch {
-        enqueueSnackbar("Không thể kiểm tra email", { variant: "error"});
+        } catch (error: any) {
+        const errorMsg = getFirebaseErrorMessage(error) || "Không thể kiểm tra email";
+        enqueueSnackbar(errorMsg, { variant: "error"});
       }
     }
   );

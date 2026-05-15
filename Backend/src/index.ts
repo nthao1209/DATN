@@ -10,6 +10,7 @@ import passengerRoutes from './routes/passengerRoute';
 import userRoutes from './routes/userRoute';
 import roleRoutes from './routes/roleRoute';
 import transactionRoutes from './routes/transactionRoute';
+import unlockRequestRoutes from './routes/unlockRequestRoute';
 dotenv.config()
 
 
@@ -27,6 +28,7 @@ app.use('/api', passengerRoutes);
 app.use('/api', userRoutes);
 app.use('/api', roleRoutes);
 app.use('/api', transactionRoutes);
+app.use('/api/unlock-requests', unlockRequestRoutes);
 
 // Debug: list registered routes (temporary)
 app.get('/api/_routes', (_req, res) => {

@@ -35,17 +35,19 @@ async function init() {
     });
 
     const uiTopicPrefix = config.mqtt.uiTopicPrefix || 'attendance/ui/trip';
+    const unlockRequestTopic = 'attendance/backend/unlock-requests';
 
 
     client.on('connect', () => {
         parentPort?.postMessage(`[${prj}] Connected.`);
         client.subscribe(config.mqtt.topic);
+        client.subscribe(unlockRequestTopic);
     });
 
-    client.on('message', async (_topic: string, msg: Buffer) => {
+    // Handler cho attendance updates
+    const handleAttendanceMessage = async (_topic: string, data: any) => {
         try{
-            const data = JSON.parse(msg.toString());
-            console.log(`📥 [${prj}] Received MQTT message:`, data);
+            console.log(`📥 [${prj}] Received attendance message:`, data);
 
             if (!data.passengerId || !data.roundId || !data.busId) {
                 throw new Error("Dữ liệu thiếu passengerId, roundId hoặc busId");
@@ -109,7 +111,7 @@ async function init() {
                         "checkOutBy" = CASE WHEN EXCLUDED."checkOut" THEN COALESCE(EXCLUDED."checkOutBy", "Transaction"."checkOutBy") ELSE NULL END
                     RETURNING *
                 )
-                SELECT ur.*, b."tripId" 
+                SELECT ur.*, b."tripId", b."busCode", b."registrationNumber" 
                 FROM upsert_res ur
                 JOIN "Bus" b ON b.id = ur."busId";
             `;
@@ -138,6 +140,19 @@ async function init() {
             }
 
              if (result && result.tripId) {
+                const passengerRes = await pool.query(
+                    `SELECT p.id, p.name, p."busId", b."busCode", b."registrationNumber", b."managerId", u.name AS "managerName"
+                     FROM "Passenger" p
+                     JOIN "Bus" b ON b.id = p."busId"
+                     LEFT JOIN "User" u ON u.id = b."managerId"
+                     WHERE p.id = $1`,
+                    [result.passengerId]
+                );
+                const passengerInfo = passengerRes.rows[0];
+                const roundRes = await pool.query(`SELECT id, name FROM "Round" WHERE id = $1`, [result.roundId]);
+                const roundInfo = roundRes.rows[0];
+                const isMisassigned = passengerInfo && Number(passengerInfo.busId) !== Number(result.busId);
+
                 client.publish(
                     `${uiTopicPrefix}/${result.tripId}`,
                     JSON.stringify({
@@ -145,8 +160,20 @@ async function init() {
                         project: prj,
                         tripId: result.tripId,
                         passengerId: result.passengerId,
+                        passengerName: passengerInfo?.name,
+                        passengerBusId: passengerInfo?.busId,
+                        passengerBusCode: passengerInfo?.busCode,
+                        passengerBusRegistrationNumber: passengerInfo?.registrationNumber,
+                        passengerBusManagerId: passengerInfo?.managerId,
+                        passengerBusManagerName: passengerInfo?.managerName,
+                        actualBusCode: result.busCode,
+                        actualBusRegistrationNumber: result.registrationNumber,
+                        targetManagerId: isMisassigned ? passengerInfo?.managerId : null,
+                        targetManagerName: isMisassigned ? passengerInfo?.managerName : undefined,
                         roundId: result.roundId,
+                        roundName: roundInfo?.name,
                         busId: result.busId,
+                        busCode: result.busCode,
                         checkIn: result.checkIn,
                         checkInAt: result.checkInAt,
                         checkInBy: result.checkInBy,
@@ -166,7 +193,145 @@ async function init() {
             }
 
         } catch (e: any) {
-            parentPort?.postMessage(`❌ [${prj}] SQL Error: ${e.message}`);
+            parentPort?.postMessage(`❌ [${prj}] Attendance Error: ${e.message}`);
+        }
+    };
+
+    const handleUnlockMessage = async (_topic: string, data: any) => {
+        try {
+            const { action, requestId, approvedBy, rejectReason } = data;
+
+            if (!action) throw new Error("Missing action");
+
+            // =========================
+            // APPROVE
+            // =========================
+            if (action === 'approve') {
+                const requestRes = await pool.query(
+                    `SELECT * FROM "UnlockRequest" WHERE id = $1`,
+                    [requestId]
+                );
+
+                if (requestRes.rows.length === 0) {
+                    throw new Error("Unlock request not found");
+                }
+
+                const request = requestRes.rows[0];
+
+                if (request.status !== 'PENDING') return;
+
+                // 1. unlock bus state
+                await pool.query(
+                    `UPDATE "BusRoundStatus"
+                     SET "checkInLocked" = CASE WHEN $3 = 'check_in' THEN false ELSE "checkInLocked" END,
+                         "checkOutLocked" = CASE WHEN $3 = 'check_out' THEN false ELSE "checkOutLocked" END
+                     WHERE "busId" = $1 AND "roundId" = $2`,
+                    [request.busId, request.roundId, request.type]
+                );
+
+                // 2. update request
+                await pool.query(
+                    `UPDATE "UnlockRequest"
+                     SET status = 'APPROVED',
+                         "approvedBy" = $2,
+                         "respondedAt" = NOW()
+                     WHERE id = $1`,
+                    [requestId, approvedBy]
+                );
+
+                const busRes = await pool.query(
+                    `SELECT b.*, t.id as "tripId"
+                     FROM "Bus" b JOIN "Trip" t ON b."tripId" = t.id
+                     WHERE b.id = $1`,
+                    [request.busId]
+                );
+
+                const bus = busRes.rows[0];
+
+                client.publish(
+                    `${uiTopicPrefix}/${bus.tripId}`,
+                    JSON.stringify({
+                        type: 'unlock.request.approved',
+                        requestId,
+                        busId: request.busId,
+                        roundId: request.roundId,
+                        lockType: request.type,
+                    }),
+                    { qos: 1 }
+                );
+
+                parentPort?.postMessage(`✅ Approved request ${requestId}`);
+            }
+
+            // =========================
+            // REJECT
+            // =========================
+            else if (action === 'reject') {
+                const requestRes = await pool.query(
+                    `SELECT * FROM "UnlockRequest" WHERE id = $1`,
+                    [requestId]
+                );
+
+                if (requestRes.rows.length === 0) {
+                    throw new Error("Unlock request not found");
+                }
+
+                const request = requestRes.rows[0];
+
+                if (request.status !== 'PENDING') return;
+
+                await pool.query(
+                    `UPDATE "UnlockRequest"
+                     SET status = 'REJECTED',
+                         "approvedBy" = $2,
+                         "respondedAt" = NOW()
+                     WHERE id = $1`,
+                    [requestId, approvedBy]
+                );
+
+                const busRes = await pool.query(
+                    `SELECT b.*, t.id as "tripId"
+                     FROM "Bus" b JOIN "Trip" t ON b."tripId" = t.id
+                     WHERE b.id = $1`,
+                    [request.busId]
+                );
+
+                const bus = busRes.rows[0];
+
+                client.publish(
+                    `${uiTopicPrefix}/${bus.tripId}`,
+                    JSON.stringify({
+                        type: 'unlock.request.rejected',
+                        requestId,
+                        busId: request.busId,
+                        roundId: request.roundId,
+                        rejectReason: rejectReason || '',
+                    }),
+                    { qos: 1 }
+                );
+
+                parentPort?.postMessage(`❌ Rejected request ${requestId}`);
+            }
+
+        } catch (e: any) {
+            parentPort?.postMessage(`❌ Unlock error: ${e.message}`);
+        }
+    };
+
+    // =========================
+    // MQTT ROUTER
+    // =========================
+    client.on('message', async (topic, msg) => {
+        try {
+            const data = JSON.parse(msg.toString());
+
+            if (topic === unlockRequestTopic) {
+                await handleUnlockMessage(topic, data);
+            } else {
+                await handleAttendanceMessage(topic, data);
+            }
+        } catch (e: any) {
+            parentPort?.postMessage(`❌ Parse error: ${e.message}`);
         }
     });
 

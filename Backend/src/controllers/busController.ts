@@ -1,8 +1,39 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
+import mqtt from 'mqtt';
 
 const prisma = new PrismaClient();
+
+const mqttClient = mqtt.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
+  username: process.env.MQTT_USERNAME,
+  password: process.env.MQTT_PASSWORD,
+  clean: true,
+  clientId: `backend_bus_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+});
+
+const publishToAdmin = (tripId: number, payload: any) => {
+  const topic = `attendance/admin/unlock-requests/${tripId}`;
+
+  mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+  console.log(`[Bus] Published admin notification to ${topic}:`, payload);
+};
+
+const publishLockUpdate = (tripId: number, busId: number, roundId: number, checkInLocked: boolean, checkOutLocked: boolean) => {
+  const topic = 'attendance/ui/locks';
+  const payload = {
+    type: 'bus.round.lock.updated',
+    tripId,
+    busId,
+    roundId,
+    checkInLocked,
+    checkOutLocked,
+    updatedAt: new Date().toISOString(),
+  };
+
+  mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+  console.log(`[Bus] Published lock update to ${topic}:`, payload);
+};
 
 export const busController = {
   getAll: async (req: AuthRequest, res: Response) => {
@@ -249,10 +280,14 @@ export const busController = {
     try {
       const busId = Number(req.params.busId);
       const roundId = Number(req.params.roundId);
+
       if (!busId || !roundId) {
         return res.status(400).json({ message: 'Missing busId or roundId' });
       }
-      if (!req.tenantId) return res.status(401).json({ message: 'Unauthorized' });
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
 
       const { checkInLocked, checkOutLocked } = req.body;
       const nextCheckInLocked = checkInLocked === undefined ? undefined : Boolean(checkInLocked);
@@ -260,7 +295,9 @@ export const busController = {
       const now = new Date();
 
       const existingBus = await prisma.bus.findFirst({ where: { id: busId, trip: { tenantId: req.tenantId } } });
-      if (!existingBus) return res.status(404).json({ message: 'Bus not found' });
+      if (!existingBus) {
+        return res.status(404).json({ message: 'Bus not found' });
+      }
 
       const up = await prisma.busRoundStatus.upsert({
         where: { busId_roundId: { busId, roundId } },
@@ -285,8 +322,32 @@ export const busController = {
                 checkOutAt: nextCheckOutLocked ? now : null,
               }
             : {}),
-        }
+        },
       });
+
+      const [busInfo, roundInfo] = await Promise.all([
+        prisma.bus.findFirst({
+          where: { id: busId, trip: { tenantId: req.tenantId } },
+          include: { trip: true },
+        }),
+        prisma.round.findFirst({ where: { id: roundId } }),
+      ]);
+
+      if (busInfo?.trip?.id) {
+        publishToAdmin(busInfo.trip.id, {
+          type: 'round.lock.changed',
+          busId,
+          busCode: busInfo.busCode,
+          roundId,
+          roundName: roundInfo?.name,
+          checkInLocked: up.checkInLocked,
+          checkOutLocked: up.checkOutLocked,
+          lockedBy: req.user?.name || req.user?.email || String(req.user?.id || ''),
+          tripId: busInfo.trip.id,
+        });
+
+        publishLockUpdate(busInfo.trip.id, busId, roundId, up.checkInLocked, up.checkOutLocked);
+      }
 
       res.json(up);
     } catch (error) {

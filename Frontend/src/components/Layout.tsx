@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar.tsx";
 import TopBar from "./AppHeader";
 import { useTheme } from '../theme/ThemeContext';
 import { UnsavedChangesGuard } from './common/UnsavedChangesContext';
+import { UnlockRequestRealtimeListener } from './UnlockRequestRealtimeListener';
 
 const Layout: React.FC = () => {
   const { colors } = useTheme();
@@ -34,6 +35,7 @@ const Layout: React.FC = () => {
       }}>
         
         <TopBar />
+        <UnlockRequestRealtimeListener />
         
         <main style={{ 
           flex: 1, 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
@@ -19,6 +19,7 @@ import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {enqueueSnackbar} from 'notistack';
 import { useUnsavedChanges } from './common/UnsavedChangesContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 
 const schema = yup.object({
@@ -38,10 +39,13 @@ const TopBar: React.FC = () => {
   const dispatch = useDispatch();
   const { currentTenant, user } = useSelector((state: RootState) => state.auth);
   const mqttStatus = useMqttBrokerStatus();
+  const { notifications, removeNotification } = useNotification();
   const { state: unsavedChanges, clearUnsavedChanges } = useUnsavedChanges();
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
@@ -70,6 +74,26 @@ const TopBar: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChangePasswordOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!notificationRef.current) return;
+      if (!notificationRef.current.contains(event.target as Node)) {
+        setIsNotificationOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const unreadCount = notifications.length;
+  const recentNotifications = useMemo(() => [...notifications].slice(0, 8), [notifications]);
+
+  const shortenMessage = (message: string) => {
+    if (message.length <= 72) return message;
+    return `${message.slice(0, 72).trimEnd()}...`;
+  };
 
   const statusMeta = {
     connecting: { label: 'Connecting', color: colors.warning, bg: `${colors.warning}15` },
@@ -161,17 +185,18 @@ const TopBar: React.FC = () => {
               style={{ 
                 border: `1px solid ${statusMeta.color}44`, 
                 background: statusMeta.bg,
+                padding: '4px 8px'
               }}>
               <span className={`status-dot ${mqttStatus === 'connected' ? 'pulse' : ''}`} 
                     style={{ backgroundColor: statusMeta.color }}></span>
-              <span className="status-label" style={{ color: statusMeta.color }}>
+              <span className="status-label d-none d-md-inline" style={{ color: statusMeta.color }}>
                 {statusMeta.label}
               </span>
             </div>
 
             <div className="tenant-badge" style={{ backgroundColor: colors.surfaceLight, border: `1px solid ${colors.border}` }}>
               <Building size={14} className="text-primary" />
-              <span style={{ color: colors.textPrimary }}>
+              <span  style={{ color: colors.textPrimary }}>
                 {currentTenant?.name || 'Hệ thống'}
               </span>
             </div>
@@ -181,13 +206,82 @@ const TopBar: React.FC = () => {
             
             {/* Quick Actions Group */}
             <div className="d-flex align-items-center gap-1 border-end pe-3 me-2" style={{ borderColor: colors.border }}>
-              {[
-                { icon: Bell, label: 'Notifications' },
-              ].map((item, idx) => (
-                <button key={idx} className="btn-icon-topbar" title={item.label}>
-                  <item.icon size={18} />
+              <div className="position-relative" ref={notificationRef}>
+                <button
+                  type="button"
+                  className="btn-icon-topbar position-relative"
+                  title="Notifications"
+                  onClick={() => setIsNotificationOpen((prev) => !prev)}
+                >
+                  <Bell size={18} />
+                  {unreadCount > 0 && (
+                    <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                  )}
                 </button>
-              ))}
+
+                {isNotificationOpen && (
+                  <div
+                    className="notification-dropdown shadow-lg"
+                    style={{
+                      backgroundColor: colors.surface,
+                      border: `1px solid ${colors.border}`,
+                      color: colors.textPrimary,
+                    }}
+                  >
+                    <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style={{ borderColor: colors.border }}>
+                      <div>
+                        <div className="fw-bold">Thông báo</div>
+                        <div className="small" style={{ color: colors.textMuted }}>
+                          {unreadCount} thông báo hiện có
+                        </div>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-link text-decoration-none p-0"
+                          style={{ color: colors.primary }}
+                          onClick={() => recentNotifications.forEach((item) => removeNotification(item.id))}
+                        >
+                          Xóa tất cả
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="notification-dropdown-list">
+                      {recentNotifications.length === 0 ? (
+                        <div className="px-3 py-4 text-center small" style={{ color: colors.textMuted }}>
+                          Chưa có thông báo mới
+                        </div>
+                      ) : (
+                        recentNotifications.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="notification-dropdown-item"
+                            onClick={() => removeNotification(item.id)}
+                            style={{ borderBottom: `1px solid ${colors.border}` }}
+                          >
+                            <div className="d-flex align-items-start gap-2">
+                              <span className={`notification-dot notification-${item.type}`} />
+                              <div className="flex-grow-1 text-start">
+                                <div className="small fw-medium notification-preview">
+                                  {shortenMessage(item.message)}
+                                </div>
+                                <div className="tiny text-uppercase" style={{ color: colors.textMuted }}>
+                                  {new Date(item.createdAt).toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               
               {/* Theme Toggle Button */}
               <button 
@@ -368,6 +462,70 @@ const TopBar: React.FC = () => {
         .btn-icon-topbar:hover {
           background: ${colors.surfaceLight}; color: ${colors.primary}; transform: translateY(-1px);
         }
+
+        .notification-badge {
+          position: absolute;
+          top: 1px;
+          right: 1px;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 5px;
+          border-radius: 999px;
+          background: ${colors.danger};
+          color: white;
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 18px;
+          text-align: center;
+          border: 2px solid ${isDarkMode ? colors.surface : '#fff'};
+        }
+
+        .notification-dropdown {
+          position: absolute;
+          top: calc(100% + 12px);
+          right: 0;
+          width: 360px;
+          max-width: calc(100vw - 24px);
+          border-radius: 16px;
+          overflow: hidden;
+          z-index: 2000;
+        }
+
+        .notification-dropdown-list {
+          max-height: 360px;
+          overflow: auto;
+        }
+
+        .notification-dropdown-item {
+          width: 100%;
+          display: block;
+          padding: 12px 16px;
+          background: transparent;
+          border: none;
+          color: inherit;
+          transition: background 0.15s ease;
+        }
+
+        .notification-dropdown-item:hover {
+          background: ${colors.surfaceLight};
+        }
+
+        .notification-preview {
+          line-height: 1.35;
+        }
+
+        .notification-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          margin-top: 6px;
+          flex-shrink: 0;
+        }
+
+        .notification-success { background: #22c55e; }
+        .notification-error { background: #ef4444; }
+        .notification-info { background: ${colors.primary}; }
+        .notification-warning { background: #f59e0b; }
 
         .theme-toggle-btn:hover { background: ${isDarkMode ? 'rgba(251, 191, 36, 0.1)' : 'rgba(99, 102, 241, 0.1)'} !important; }
 

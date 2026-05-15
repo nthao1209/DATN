@@ -12,7 +12,6 @@ const prisma = new client_1.PrismaClient();
  */
 const getOrCreatePrismaUser = async (token) => {
     const decodedToken = await firebaseAdmin_1.default.auth().verifyIdToken(token);
-    // 1️⃣ Thử tìm user theo firebaseUid (primary lookup)
     let user = await prisma.user.findUnique({
         where: { firebaseUid: decodedToken.uid },
     });

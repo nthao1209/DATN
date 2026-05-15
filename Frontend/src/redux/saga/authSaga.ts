@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { auth as fbAuth } from '../../config/firebase';
 import { api } from '../../services/api'; // Import bộ api tổng hợp
+import { getFirebaseErrorMessage } from '../../utils/firebaseErrorMessages';
 import * as authActions from '../slice/authSlice';
 
 function* handleLogin(action: any): any {
@@ -36,7 +37,8 @@ function* handleLogin(action: any): any {
     }));
 
   } catch (error: any) {
-    yield put(authActions.authFailure(error.message));
+    const errorMessage = getFirebaseErrorMessage(error);
+    yield put(authActions.authFailure(errorMessage));
   }
 }
 
@@ -64,7 +66,8 @@ function* handleRegister(action: any): any {
     yield call(signOut, fbAuth);
     yield put(authActions.registerSuccess("Đăng ký thành công! Hãy xác thực email trước khi đăng nhập."));
   } catch (error: any) {
-    yield put(authActions.authFailure(error.message));
+    const errorMessage = getFirebaseErrorMessage(error);
+    yield put(authActions.authFailure(errorMessage));
   }
 }
 
@@ -89,7 +92,8 @@ function* handleJoinTenant(action: any): any {
       yield put(authActions.joinTenantSuccess({ ...joinResponse.tenant, role: 'member' }));
     }
   } catch (error: any) {
-    yield put(authActions.authFailure(error.message));
+    const errorMessage = getFirebaseErrorMessage(error);
+    yield put(authActions.authFailure(errorMessage));
   }
 }
 

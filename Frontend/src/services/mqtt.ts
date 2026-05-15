@@ -3,15 +3,54 @@ import type { OfflineAction } from './offlineSync';
 
 export type AttendanceUpdateEvent = {
   type: 'attendance.updated' | 'attendance.changed';
-  project?: string;
   tripId: number;
-  passengerId: number;
   roundId: number;
+  roundName?: string;
   busId: number;
+  busCode?: string;
+  passengerId: number;
+  passengerName?: string;
+  passengerBusId?: number;
+  passengerBusCode?: string;
+  passengerBusRegistrationNumber?: string;
+  passengerBusManagerId?: number | null;
+  passengerBusManagerName?: string;
+  actualBusCode?: string;
+  actualBusRegistrationNumber?: string;
+  targetManagerId?: number | null;
+  targetManagerName?: string;
   checkIn: boolean;
   checkOut: boolean;
   note?: string;
+  project?: string;
   updatedAt?: string;
+};
+
+export type UnlockMqttEvent = {
+  type: 'unlock.request.created' | 'unlock.request.approved' | 'unlock.request.rejected' | 'round.lock.changed' | 'bus.round.lock.updated';
+  tripId: number;
+  busId: number;
+  busCode?: string;
+  roundId: number;
+  roundName?: string;
+  lockType?: 'check_in' | 'check_out';
+  reason?: string;
+  requestedBy?: string;
+  approvedBy?: string;
+  rejectedBy?: string;
+  rejectReason?: string;
+  checkInLocked?: boolean;
+  checkOutLocked?: boolean;
+  lockedBy?: string;
+  createdAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  updatedAt?: string;
+};
+
+export type MqttBrokerStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
+export type MqttSubscriptionHandle = {
+  end: (...args: any[]) => void;
 };
 
 const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084';
@@ -22,11 +61,24 @@ const MQTT_ATTENDANCE_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ATTENDANCE_TOPIC_
 
 const getClientId = () => `web_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 
-export const subscribeAttendanceUpdates = (
-  tripId: number,
-  onMessage: (event: AttendanceUpdateEvent) => void,
-): MqttClient => {
-  const client = mqtt.connect(MQTT_WS_URL, {
+const topicHandlers = new Map<string, Set<(topic: string, message: Record<string, unknown>) => void>>();
+const activeTopics = new Set<string>();
+const statusListeners = new Set<(status: MqttBrokerStatus) => void>();
+
+let sharedClient: MqttClient | null = null;
+let currentStatus: MqttBrokerStatus = 'connecting';
+
+const notifyStatus = (status: MqttBrokerStatus) => {
+  currentStatus = status;
+  statusListeners.forEach((listener) => listener(status));
+};
+
+const ensureSharedClient = () => {
+  if (sharedClient) {
+    return sharedClient;
+  }
+
+  sharedClient = mqtt.connect(MQTT_WS_URL, {
     username: MQTT_USERNAME || undefined,
     password: MQTT_PASSWORD || undefined,
     clientId: getClientId(),
@@ -36,71 +88,199 @@ export const subscribeAttendanceUpdates = (
     keepalive: 30,
   });
 
-  client.on('connect', () => {
-    client.subscribe(`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, { qos: 1 });
-  });
-
-  client.on('message', (_topic, payload) => {
-    try {
-      const parsed = JSON.parse(payload.toString()) as AttendanceUpdateEvent;
-      if (
-        (parsed?.type === 'attendance.updated' || parsed?.type === 'attendance.changed') &&
-        Number(parsed.tripId) === Number(tripId)
-      ) {
-        onMessage(parsed);
-      }
-    } catch {
-      // Ignore malformed payloads from the broker.
+  sharedClient.on('connect', () => {
+    notifyStatus('connected');
+    for (const topic of activeTopics) {
+      sharedClient?.subscribe(topic, { qos: 1 });
     }
   });
 
-  return client;
-};
+  sharedClient.on('reconnect', () => notifyStatus('reconnecting'));
+  sharedClient.on('close', () => notifyStatus('disconnected'));
+  sharedClient.on('offline', () => notifyStatus('disconnected'));
+  sharedClient.on('error', () => notifyStatus('error'));
 
-export const publishAttendanceUpdate = (tripId: number, payload?: Partial<AttendanceUpdateEvent>) => {
-  const client = mqtt.connect(MQTT_WS_URL, {
-    username: MQTT_USERNAME || undefined,
-    password: MQTT_PASSWORD || undefined,
-    clientId: getClientId(),
-    clean: true,
-    reconnectPeriod: 0,
-    connectTimeout: 10000,
+  sharedClient.on('message', (topic, payload) => {
+    const handlers = topicHandlers.get(topic);
+    if (!handlers || handlers.size === 0) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(payload.toString()) as Record<string, unknown>;
+      handlers.forEach((handler) => handler(topic, parsed));
+    } catch (err) {
+      console.error('[MQTT] Parse error:', err);
+    }
   });
 
-  client.on('connect', () => {
-    const message: AttendanceUpdateEvent = {
-      type: 'attendance.changed',
-      tripId,
-      passengerId: payload?.passengerId || 0,
-      roundId: payload?.roundId || 0,
-      busId: payload?.busId || 0,
-      checkIn: payload?.checkIn || false,
-      checkOut: payload?.checkOut || false,
-      note: payload?.note,
-      updatedAt: new Date().toISOString(),
-      project: payload?.project,
+  notifyStatus('connecting');
+  return sharedClient;
+};
+
+const waitForClientConnection = async () => {
+  const client = ensureSharedClient();
+
+  if (client.connected) {
+    return client;
+  }
+
+  return await new Promise<MqttClient>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('MQTT connection timeout'));
+    }, 10000);
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      client.off('connect', onConnect);
+      client.off('error', onError);
     };
 
-    client.publish(`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, JSON.stringify(message), { qos: 1, retain: false }, () => {
-      client.end(true);
-    });
-  });
+    const onConnect = () => {
+      cleanup();
+      resolve(client);
+    };
 
-  client.on('error', () => {
-    client.end(true);
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+
+    client.on('connect', onConnect);
+    client.on('error', onError);
   });
 };
 
-export const publishAttendanceAction = (action: OfflineAction) => {
-  const client = mqtt.connect(MQTT_WS_URL, {
-    username: MQTT_USERNAME || undefined,
-    password: MQTT_PASSWORD || undefined,
-    clientId: getClientId(),
-    clean: true,
-    reconnectPeriod: 3000,
-    connectTimeout: 10000,
-    keepalive: 30,
+const registerTopicHandlers = (
+  topics: string[],
+  handler: (topic: string, message: Record<string, unknown>) => void,
+): MqttSubscriptionHandle => {
+  const client = ensureSharedClient();
+
+  topics.forEach((topic) => {
+    let handlers = topicHandlers.get(topic);
+
+    if (!handlers) {
+      handlers = new Set();
+      topicHandlers.set(topic, handlers);
+    }
+
+    const wasEmpty = handlers.size === 0;
+    handlers.add(handler);
+    activeTopics.add(topic);
+
+    if (wasEmpty && client.connected) {
+      client.subscribe(topic, { qos: 1 });
+    }
   });
+
+  return {
+    end: (_force?: boolean, callback?: () => void) => {
+      topics.forEach((topic) => {
+        const handlers = topicHandlers.get(topic);
+        if (!handlers) {
+          return;
+        }
+
+        handlers.delete(handler);
+        if (handlers.size === 0) {
+          topicHandlers.delete(topic);
+          activeTopics.delete(topic);
+          if (client.connected) {
+            client.unsubscribe(topic);
+          }
+        }
+      });
+
+      callback?.();
+    },
+  };
+};
+
+export const subscribeMqttTopics = (
+  topics: string[],
+  onMessage: (topic: string, message: Record<string, unknown>) => void,
+): MqttSubscriptionHandle => {
+  return registerTopicHandlers(topics, onMessage);
+};
+
+export const subscribeMqttStatus = (listener: (status: MqttBrokerStatus) => void) => {
+  ensureSharedClient();
+  statusListeners.add(listener);
+  listener(currentStatus);
+
+  return () => {
+    statusListeners.delete(listener);
+  };
+};
+
+export const getMqttStatus = () => currentStatus;
+
+export const subscribeAttendanceUpdates = (
+  tripId: number,
+  onMessage: (event: AttendanceUpdateEvent) => void,
+): MqttSubscriptionHandle => {
+  return registerTopicHandlers([`${MQTT_UI_TOPIC_PREFIX}/${tripId}`], (_topic, parsed) => {
+    if (
+      (parsed.type === 'attendance.updated' || parsed.type === 'attendance.changed') &&
+      Number(parsed.tripId) === Number(tripId)
+    ) {
+      onMessage(parsed as AttendanceUpdateEvent);
+    }
+  });
+};
+
+export const subscribeUnlockRequestEvents = (
+  tripId: number,
+  onMessage: (event: UnlockMqttEvent) => void,
+): MqttSubscriptionHandle => {
+  return registerTopicHandlers(
+    [`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, `attendance/admin/unlock-requests/${tripId}`],
+    (_topic, parsed) => {
+      if (
+        (parsed.type === 'unlock.request.created' ||
+          parsed.type === 'unlock.request.approved' ||
+          parsed.type === 'unlock.request.rejected' ||
+          parsed.type === 'round.lock.changed') &&
+        Number(parsed.tripId) === Number(tripId)
+      ) {
+        onMessage(parsed as UnlockMqttEvent);
+      }
+    },
+  );
+};
+
+export const publishAttendanceUpdate = async (tripId: number, payload?: Partial<AttendanceUpdateEvent>) => {
+  const client = await waitForClientConnection();
+
+  const message: AttendanceUpdateEvent = {
+    type: 'attendance.changed',
+    tripId,
+    passengerId: payload?.passengerId || 0,
+    roundId: payload?.roundId || 0,
+    busId: payload?.busId || 0,
+    checkIn: payload?.checkIn || false,
+    checkOut: payload?.checkOut || false,
+    note: payload?.note,
+    updatedAt: new Date().toISOString(),
+    project: payload?.project,
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    client.publish(`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, JSON.stringify(message), { qos: 1, retain: false }, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+};
+
+export const publishAttendanceAction = async (action: OfflineAction) => {
+  const client = await waitForClientConnection();
 
   const topic = `${MQTT_ATTENDANCE_TOPIC_PREFIX}/${action.tripId}/${action.busId}/${action.roundId}/check`;
   const payload = {
@@ -113,31 +293,14 @@ export const publishAttendanceAction = (action: OfflineAction) => {
     timestamp: action.timestamp,
   };
 
-  return new Promise<void>((resolve, reject) => {
-    const finish = (handler: () => void) => {
-      client.removeAllListeners('connect');
-      client.removeAllListeners('message');
-      client.removeAllListeners('error');
-      client.removeAllListeners('close');
-      client.end(true, handler);
-    };
+  await new Promise<void>((resolve, reject) => {
+    client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
 
-    client.on('connect', () => {
-      client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (error) => {
-        if (error) {
-          finish(() => reject(error));
-          return;
-        }
-        finish(() => resolve());
-      });
-    });
-
-    client.on('error', (error) => {
-      finish(() => reject(error));
-    });
-
-    client.on('close', () => {
-      finish(() => reject(new Error('Không thể kết nối MQTT để đồng bộ offline.')));
+      resolve();
     });
   });
 };

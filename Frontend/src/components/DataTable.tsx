@@ -131,22 +131,26 @@ function DataTable<T extends object>({
     <div className="card shadow-lg border-0 mb-4 overflow-hidden" 
          style={{ background: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}` }}>
       
-      <div className="card-header bg-transparent py-4 px-4" style={{ borderBottom: `1px solid ${colors.border}` }}>
-        <div className="d-flex align-items-center justify-content-between">
-          <div className="d-flex align-items-center gap-2">
+      <div className="card-header bg-transparent py-3 py-md-4 px-3 px-md-4" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <div className="d-flex flex-wrap flex-lg-nowrap align-items-center justify-content-between gap-3">
+          <div className="d-flex align-items-center gap-2 text-nowrap">
             <div className="p-2 rounded-3" style={{ backgroundColor: colors.primaryGlow, color: colors.primary }}>
               <ListFilter size={20} />
             </div>
-            <h5 className="mb-0 fw-bold " style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>{title}</h5>
+            <h5 className="mb-0 fw-bold" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>
+              {title}
+            </h5>
           </div>
-          <div className="d-flex align-items-center gap-3">
-            {titleActions}
-            {isFetching && !isLoading && (
-              <div className="d-flex align-items-center gap-2 text-info small animate-pulse">
-                <Loader2 size={14} className="spin" />
-                <span>Đang đồng bộ...</span>
-              </div>
-            )}
+            <div className="d-flex align-items-center justify-content-end gap-3 flex-wrap ms-auto" 
+                style={{ minWidth: 'max-content' }}> 
+                {titleActions}
+                
+                {isFetching && !isLoading && (
+                  <div className="d-flex align-items-center gap-2 text-info small animate-pulse">
+                    <Loader2 size={14} className="spin" />
+                    <span className="d-none d-sm-inline">Đang đồng bộ...</span>
+                  </div>
+                )}
           </div>
         </div>
       </div>

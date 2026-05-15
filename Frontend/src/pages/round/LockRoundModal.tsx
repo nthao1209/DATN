@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Unlock, RefreshCw, X } from 'lucide-react';
+import { Lock, Unlock } from 'lucide-react';
 
 interface LockStatus {
   busId: number;
@@ -26,7 +26,6 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
   buses,
   toggling,
   onToggleLock,
-  onRefetch,
   colors,
   isDarkMode
 }) => {

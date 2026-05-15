@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Map, RefreshCw, } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
@@ -11,6 +11,7 @@ import type { RoundRow } from './round/types';
 import LockRoundModal from './round/LockRoundModal';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../components/common/UnsavedChangesContext';
+import { subscribeMqttTopics } from '../services/mqtt';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
@@ -19,6 +20,7 @@ const RoundPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const { id: tripId } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const [rows, setRows] = useState<RoundRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,6 +48,30 @@ const RoundPage: React.FC = () => {
 
   const [openLockRoundId, setOpenLockRoundId] = useState<number | null>(null);
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
+
+  // Subscribe to realtime lock updates
+  useEffect(() => {
+    const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
+      if (message.type === 'bus.round.lock.updated') {
+        queryClient.setQueryData(['bus-round-locks', tripId], (oldData: any[]) => {
+          if (!oldData) return oldData;
+          return oldData.map((item) =>
+            Number(item.busId) === message.busId && Number(item.roundId) === message.roundId
+              ? {
+                  ...item,
+                  checkInLocked: message.checkInLocked,
+                  checkOutLocked: message.checkOutLocked,
+                }
+              : item
+          );
+        });
+      }
+    });
+
+    return () => {
+      subscription.end(true);
+    };
+  }, [queryClient, tripId]);
 
   useEffect(() => {
     const mapped: RoundRow[] = rounds.map((r: any) => {
@@ -89,7 +115,7 @@ const RoundPage: React.FC = () => {
       });
     }
     setRows(padded);
-  }, [rounds, transactions, lockStatuses]);
+  }, [rounds, transactions, lockStatuses, queryClient]);
 
   const isSameRow = (current: RoundRow, initial: RoundRow) => {
     return (
@@ -185,13 +211,35 @@ const RoundPage: React.FC = () => {
     try {
       await api.confirmBusRoundChecks(Number(busId), Number(roundId), { checkInLocked: value });
       enqueueSnackbar(`${value ? 'Đã khóa' : 'Đã mở khóa'} lượt đi cho xe ${busId}`, { variant: 'success' });
-      await refetchLocks();
     } catch (err: any) {
       enqueueSnackbar(err?.message || 'Lỗi khi cập nhật khóa', { variant: 'error' });
     } finally {
       setToggling((s) => ({ ...s, [key]: false }));
     }
   };
+
+  useEffect(() => {
+    const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
+      if (message.type === 'bus.round.lock.updated') {
+        queryClient.setQueryData(['bus-round-locks', tripId], (oldData: any[]) => {
+          if (!oldData) return oldData;
+          return oldData.map((item) =>
+            Number(item.busId) === message.busId && Number(item.roundId) === message.roundId
+              ? {
+                  ...item,
+                  checkInLocked: message.checkInLocked,
+                  checkOutLocked: message.checkOutLocked,
+                }
+              : item
+          );
+        });
+      }
+    });
+
+    return () => {
+      subscription.end(true);
+    };
+  }, [queryClient, tripId]);
 
   return (
     <div className="animate-fade-in p-0 p-md-3 round-page">

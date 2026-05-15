@@ -90,7 +90,6 @@ const TransactionPage: React.FC = () => {
     refetch: refetchPassengers,
   } = useQuery<any[]>({
     queryKey: ['transaction-passengers', selectedTripId],
-    // Dùng scope=attendance để không bị giới hạn managerId (chủ xe vẫn tìm được khách xe khác trong cùng trip)
     queryFn: () => api.getAttendancePassengers(String(selectedTripId)),
     enabled: !!selectedTripId,
   });
@@ -584,43 +583,69 @@ const TransactionPage: React.FC = () => {
         </div>
         
         <div className="mt-3 pt-3 border-top d-flex flex-column gap-3" style={{ borderColor: colors.border }}>
-          <div className="d-flex flex-column flex-md-row gap-2">
-            <button className="btn-outline-custom flex-grow-1" onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
-                    style={{ border: `1px solid ${colors.primary}44`, color: colors.primary }}>
-               <UserPlus size={16} /> <span>Khách ngoài biên chế</span>
-            </button>
-            <div className="row g-2 align-items-center">
-              <div className="col-6 d-flex align-items-center gap-2">
-                <label className="text-nowrap small fw-bold mb-0" style={{ color: colors.textSecondary, minWidth: 'fit-content' }}>
-                  Lượt đi:
-                </label>
-                <select 
-                  className="form-select-custom-toolbar flex-grow-1" 
-                  value={departureRoundFilter ?? ''} 
-                  onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}
-                  style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                >
-                  <option value="">Tất cả</option>
-                  {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              </div>
+            <div className="d-flex flex-wrap align-items-center gap-3">
+              
+              <button 
+                className="btn-outline-custom flex-grow-1 flex-md-grow-0" 
+                onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
+                style={{ 
+                  border: `1px solid ${colors.primary}44`, 
+                  color: colors.primary,
+                  padding: '8px 16px',
+                  minWidth: '200px' 
+                }}
+              >
+                <UserPlus size={16} /> <span className="ms-1">Khách ngoài biên chế</span>
+              </button>
 
-              <div className="col-6 d-flex align-items-center gap-2">
-                <label className="text-nowrap small fw-bold mb-0" style={{ color: colors.textSecondary, minWidth: 'fit-content' }}>
-                  Lượt về:
-                </label>
-                <select 
-                  className="form-select-custom-toolbar flex-grow-1" 
-                  value={returnRoundFilter ?? ''} 
-                  onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}
-                  style={{ backgroundColor: isDarkMode ? colors.background : '#fff', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                >
-                  <option value="">Tất cả</option>
-                  {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+              <div className="d-flex flex-grow-1 gap-2 justify-content-between">
+                
+                <div className="d-flex align-items-center gap-2 flex-grow-1">
+                  <label className="text-nowrap small fw-bold mb-0" style={{ color: colors.textSecondary }}>
+                    Lượt đi:
+                  </label>
+                  <select 
+                    className="form-select-custom-toolbar flex-grow-1" 
+                    value={departureRoundFilter ?? ''} 
+                    onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}
+                    style={{ 
+                      backgroundColor: isDarkMode ? colors.background : '#fff', 
+                      color: colors.textPrimary, 
+                      border: `1px solid ${colors.border}`,
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      width: '100%' 
+                    }}
+                  >
+                    <option value="">Tất cả</option>
+                    {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="d-flex align-items-center gap-2 flex-grow-1">
+                  <label className="text-nowrap small fw-bold mb-0" style={{ color: colors.textSecondary }}>
+                    Lượt về:
+                  </label>
+                  <select 
+                    className="form-select-custom-toolbar flex-grow-1" 
+                    value={returnRoundFilter ?? ''} 
+                    onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}
+                    style={{ 
+                      backgroundColor: isDarkMode ? colors.background : '#fff', 
+                      color: colors.textPrimary, 
+                      border: `1px solid ${colors.border}`,
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      width: '100%'
+                    }}
+                  >
+                    <option value="">Tất cả</option>
+                    {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+                
               </div>
             </div>
-          </div>  
            <ExtraPassengerPanel
               show={showAddPassengerPanel}
               passengers={passengers}
@@ -642,17 +667,22 @@ const TransactionPage: React.FC = () => {
         <DataTable<TransactionTableRow>
           title="Danh sách điểm danh"
           titleActions={
-            <div className="d-none d-lg-flex align-items-center gap-3">
-              <span className="badge rounded-pill px-3 py-2 fw-bold" style={{ backgroundColor: `${colors.primary}15`, color: colors.primary, border: `1px solid ${colors.primary}33` }}>
-                {tableHeaderSummary.totalPassengers} khách
+          <div className="d-flex flex-wrap align-items-center gap-2 gap-lg-3">
+            <span className="badge rounded-pill px-3 py-2 fw-bold" 
+                  style={{ backgroundColor: `${colors.primary}15`, color: colors.primary, border: `1px solid ${colors.primary}33` }}>
+              {tableHeaderSummary.totalPassengers} khách
+            </span>
+            <div className="d-flex align-items-center gap-2 small fw-bold" style={{ color: colors.textSecondary }}>
+              <span className="text-success text-nowrap">
+                {tableHeaderSummary.totalCheckIn} <span className="d-none d-sm-inline">CÓ MẶT</span> LƯỢT ĐI
               </span>
-              <div className="d-flex align-items-center gap-2 small fw-bold" style={{ color: colors.textSecondary }}>
-                <span className="text-success">{tableHeaderSummary.totalCheckIn} KHÁCH LƯỢT ĐI</span>
-                <span style={{ opacity: 0.3 }}>|</span>
-                <span className="text-warning">{tableHeaderSummary.totalCheckOut} KHÁCH LƯỢT VỀ</span>
-              </div>
+              <span style={{ opacity: 0.3 }}>|</span>
+              <span className="text-warning text-nowrap">
+                {tableHeaderSummary.totalCheckOut} <span className="d-none d-sm-inline">KHÁCH</span> LƯỢT VỀ
+              </span>
             </div>
-          }
+          </div>
+        }
           queryKey={['transaction-table', selectedTripId, selectedBusIds.join(','), selectedRoundIds.join(','), departureRoundFilter, returnRoundFilter]}
           data={visiblePassengers}
           columns={buildTransactionColumns({

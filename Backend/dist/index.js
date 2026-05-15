@@ -15,6 +15,7 @@ const passengerRoute_1 = __importDefault(require("./routes/passengerRoute"));
 const userRoute_1 = __importDefault(require("./routes/userRoute"));
 const roleRoute_1 = __importDefault(require("./routes/roleRoute"));
 const transactionRoute_1 = __importDefault(require("./routes/transactionRoute"));
+const unlockRequestRoute_1 = __importDefault(require("./routes/unlockRequestRoute"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -28,6 +29,23 @@ app.use('/api', passengerRoute_1.default);
 app.use('/api', userRoute_1.default);
 app.use('/api', roleRoute_1.default);
 app.use('/api', transactionRoute_1.default);
+app.use('/api/unlock-requests', unlockRequestRoute_1.default);
+// Debug: list registered routes (temporary)
+app.get('/api/_routes', (_req, res) => {
+    try {
+        // @ts-ignore: access express internals for debugging
+        const routes = app._router.stack
+            .filter((layer) => layer.route)
+            .map((layer) => {
+            const methods = Object.keys(layer.route.methods).join(',').toUpperCase();
+            return `${methods} ${layer.route.path}`;
+        });
+        res.json({ routes });
+    }
+    catch (err) {
+        res.status(500).json({ message: 'Failed to enumerate routes' });
+    }
+});
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

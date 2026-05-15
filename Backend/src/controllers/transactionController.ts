@@ -1,8 +1,34 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
+import mqtt from 'mqtt';
 
 const prisma = new PrismaClient();
+const mqttClient = mqtt.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
+  username: process.env.MQTT_USERNAME,
+  password: process.env.MQTT_PASSWORD,
+  clean: true,
+  clientId: `transaction_backend_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+});
+
+const MQTT_UI_TOPIC_PREFIX = process.env.MQTT_UI_TOPIC_PREFIX || 'attendance/ui/trip';
+
+mqttClient.on('connect', () => {
+  console.log('[Transaction] MQTT connected');
+});
+
+mqttClient.on('error', (error) => {
+  console.error('[Transaction] MQTT error:', error);
+});
+
+const publishToUiTopic = (tripId: number, payload: Record<string, unknown>) => {
+  if (!mqttClient.connected) {
+    console.warn('[Transaction] MQTT not connected');
+    return;
+  }
+
+  mqttClient.publish(`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, JSON.stringify(payload), { qos: 1 });
+};
 
 const pickEarlierDate = (current?: Date | null, incoming?: Date | null): Date | null => {
   if (!incoming) return current ?? null;
@@ -57,6 +83,89 @@ const hasLockedAttendanceChange = (
   currentValue: boolean | undefined,
   incomingValue: boolean | undefined
 ) => Boolean(locked) && incomingValue !== undefined && incomingValue !== Boolean(currentValue);
+
+const publishAttendanceUpdate = async (transactionId: number) => {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: {
+      passenger: {
+        include: {
+          bus: {
+            select: {
+              id: true,
+              busCode: true,
+              registrationNumber: true,
+              tripId: true,
+              managerId: true,
+              manager: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      bus: {
+        select: {
+          id: true,
+          busCode: true,
+          registrationNumber: true,
+          tripId: true,
+          managerId: true,
+          manager: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      round: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!transaction) {
+    return;
+  }
+
+  const passengerBus = transaction.passenger.bus;
+  const isMisassigned = Number(passengerBus.id) !== Number(transaction.busId);
+  const targetManagerId = isMisassigned ? passengerBus.managerId : null;
+
+  publishToUiTopic(transaction.bus.tripId, {
+    type: 'attendance.updated',
+    project: 'backend',
+    tripId: transaction.bus.tripId,
+    roundId: transaction.roundId,
+    roundName: transaction.round?.name,
+    busId: transaction.busId,
+    busCode: transaction.bus.busCode,
+    passengerId: transaction.passengerId,
+    passengerName: transaction.passenger.name,
+    passengerBusId: passengerBus.id,
+    passengerBusCode: passengerBus.busCode,
+    passengerBusRegistrationNumber: passengerBus.registrationNumber,
+    passengerBusManagerId: passengerBus.managerId,
+    passengerBusManagerName: passengerBus.manager?.name,
+    actualBusCode: transaction.bus.busCode,
+    actualBusRegistrationNumber: transaction.bus.registrationNumber,
+    targetManagerId,
+    targetManagerName: isMisassigned ? passengerBus.manager?.name : undefined,
+    checkIn: transaction.checkIn,
+    checkOut: transaction.checkOut,
+    note: transaction.note,
+    updatedAt: new Date().toISOString(),
+  });
+};
 
 export const transactionController = {
   getAll: async (req: AuthRequest, res: Response) => {
@@ -274,6 +383,10 @@ export const transactionController = {
         nextCheckOut ? checkOutAt : null
       );
 
+      if (nextCheckIn || nextCheckOut) {
+        await publishAttendanceUpdate(created.id);
+      }
+
       res.status(201).json(created);
     } catch (error: any) {
       console.error('create transaction error:', error);
@@ -376,6 +489,10 @@ export const transactionController = {
         nextCheckIn ? nextCheckInAt : null,
         nextCheckOut ? nextCheckOutAt : null
       );
+
+      if (checkInInput !== undefined || checkOutInput !== undefined) {
+        await publishAttendanceUpdate(updated.id);
+      }
 
       res.json(updated);
     } catch (error: any) {

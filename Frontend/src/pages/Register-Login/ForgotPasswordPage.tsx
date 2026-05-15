@@ -5,6 +5,7 @@ import { Mail, CircleCheckBig } from "lucide-react";
 
 import AuthLayout from "../../layouts/AuthLayout";
 import { auth, sendPasswordResetEmail } from "../../config/firebase";
+import { getFirebaseErrorMessage } from "../../utils/firebaseErrorMessages";
 
 type ForgotPasswordFormData = {
   email: string;
@@ -39,9 +40,9 @@ const ForgotPasswordPage: React.FC = () => {
       );
 
       reset();
-    } catch {
+    } catch (error: any) {
       setSubmitError(
-        "Không thể gửi email lúc này. Vui lòng kiểm tra lại email hoặc thử lại sau."
+        getFirebaseErrorMessage(error) || "Không thể gửi email. Vui lòng thử lại sau."
       );
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, UserCircle,
-  MapPin, Route, Bus, ChevronDown, Menu, X, Clock,
+  MapPin, Route, Bus, ChevronDown, Menu, X, Clock, ShieldAlert,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -44,6 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     trips: roleId === 2,
     passengers:  roleId === 2,
     transactions: roleId === 3,
+    unlockRequests: roleId === 3,
     about: true,
   };
 
@@ -214,6 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     )}
           
           {menuConfig.transactions && <MenuItem to="/transactions" icon={Clock} label="Điểm danh" />}
+          {menuConfig.unlockRequests && <MenuItem to="/unlock-requests" icon={ShieldAlert} label="Mở điểm danh" />}
         </ul>
       </div>
 

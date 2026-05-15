@@ -13,6 +13,8 @@ import { auth as fbAuth } from './config/firebase';
 import { api } from './services/api';
 import { authSuccess, logout } from './redux/slice/authSlice';
 import { ThemeProvider } from './theme/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { AttendanceMismatchListener } from './components/AttendanceMismatchListener';
 
 // Pages
 import Login from '../src/pages/Register-Login/LoginPage';
@@ -28,6 +30,7 @@ import PassengerPage from './pages/PassengerPage';
 import UserManagementPage from './pages/UserManagementPage';
 import RoleManagementPage from './pages/RoleManagementPage';
 import TransactionPage from './pages/TransactionPage';
+import UnlockRequestPage from './pages/UnlockRequestPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import SyncManager from './components/common/SyncManager';
 import { UnsavedChangesProvider } from './components/common/UnsavedChangesContext';
@@ -178,6 +181,14 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/unlock-requests"
+            element={
+              <ProtectedRoute allowedRoles={[3]}>
+                <UnlockRequestPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         <Route path="/" element={<Navigate to="/setup-org" replace />} />
@@ -206,10 +217,13 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <UnsavedChangesProvider>
-        <SyncManager />
-        <RouterProvider router={router} />
-      </UnsavedChangesProvider>
+      <NotificationProvider>
+        <UnsavedChangesProvider>
+          <AttendanceMismatchListener />
+          <SyncManager />
+          <RouterProvider router={router} />
+        </UnsavedChangesProvider>
+      </NotificationProvider>
     </ThemeProvider>
   );
 };
