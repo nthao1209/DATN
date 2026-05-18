@@ -25,10 +25,11 @@ model User {
   firebaseUid            String          @unique
   name                   String
   buses                  Bus[]           @relation("BusManager")
-  checkInActions         Transaction[]   @relation("CheckInUser")
-  checkOutActions        Transaction[]   @relation("CheckOutUser")
+  
+  attendanceEvents AttendanceEvent[] @relation("AttendanceEventActor")
   approvedUnlockRequests UnlockRequest[] @relation("UnlockRequestApprover")
   createdUnlockRequests  UnlockRequest[] @relation("UnlockRequestCreator")
+  notifications          Notification[]
   userTenants            UserTenant[]
 }
 
@@ -81,11 +82,30 @@ model Bus {
   passengers         Passenger[]
   transactions       Transaction[]
   unlockRequests     UnlockRequest[]
+  attendanceEvents AttendanceEvent[] @relation("AttendanceEventBus")
 
   @@unique([tripId, busCode])
   @@index([managerId])
   @@index([tripId])
 }
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String
+  title     String
+  content   String
+  payload   Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+ 
 
 model Round {
   id               Int              @id @default(autoincrement())
@@ -121,20 +141,43 @@ model Transaction {
   checkIn      Boolean   @default(false)
   checkOut     Boolean   @default(false)
   note         String?
-  checkInAt    DateTime?
-  checkInBy    Int?
-  checkOutAt   DateTime?
-  checkOutBy   Int?
+  
+  lastActionAt DateTime?
+
   bus          Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
-  checkInUser  User?     @relation("CheckInUser", fields: [checkInBy], references: [id])
-  checkOutUser User?     @relation("CheckOutUser", fields: [checkOutBy], references: [id])
+  
   passenger    Passenger @relation(fields: [passengerId], references: [id], onDelete: Cascade)
   round        Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  events       AttendanceEvent[]
 
   @@unique([passengerId, roundId])
   @@index([busId])
   @@index([roundId])
   @@index([passengerId])
+}
+ 
+enum AttendanceAction {
+  CHECK_IN_ON
+  CHECK_IN_OFF
+  CHECK_OUT_ON
+  CHECK_OUT_OFF
+}
+
+model AttendanceEvent {
+  id            Int              @id @default(autoincrement())
+  transactionId Int
+  action        AttendanceAction
+  actorId       Int?
+  busId         Int
+  note          String?
+  createdAt     DateTime @default(now())
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  actor         User? @relation("AttendanceEventActor",fields: [actorId], references: [id])
+  bus           Bus @relation("AttendanceEventBus",fields: [busId], references: [id])
+  @@index([transactionId])
+  @@index([actorId])
+  @@index([busId])
+  @@index([createdAt])
 }
 
 model BusRoundStatus {
@@ -172,6 +215,8 @@ model UnlockRequest {
   @@index([roundId])
   @@index([status])
 }
+
+
 
 enum Status {
   DOING

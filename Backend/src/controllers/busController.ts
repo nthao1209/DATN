@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
 import mqtt from 'mqtt';
+import { createNotificationsForUsers, getTenantNotificationRecipients } from '../services/notificationService';
 
 const prisma = new PrismaClient();
 
@@ -334,6 +335,21 @@ export const busController = {
       ]);
 
       if (busInfo?.trip?.id) {
+        const recipientIds = await getTenantNotificationRecipients(prisma, req.tenantId);
+        await createNotificationsForUsers(prisma, recipientIds, {
+          type: 'round.lock.changed',
+          title: 'Trạng thái khóa chặng đã thay đổi',
+          content: `Xe ${busInfo.busCode} ${up.checkInLocked || up.checkOutLocked ? 'đã khóa' : 'đã mở khóa'} chặng ${roundInfo?.name || roundId} bởi ${req.user?.name || req.user?.email || String(req.user?.id || '')}`,
+          payload: {
+            tripId: busInfo.trip.id,
+            busId,
+            roundId,
+            checkInLocked: up.checkInLocked,
+            checkOutLocked: up.checkOutLocked,
+            lockedBy: req.user?.id,
+          },
+        });
+
         publishToAdmin(busInfo.trip.id, {
           type: 'round.lock.changed',
           busId,

@@ -45,6 +45,11 @@ const TransactionPage: React.FC = () => {
   const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
+  const areNumberArraysEqual = (left: number[], right: number[]) => {
+    if (left.length !== right.length) return false;
+    return left.every((value, index) => Number(value) === Number(right[index]));
+  };
+
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
         if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
@@ -132,14 +137,18 @@ const TransactionPage: React.FC = () => {
 
   useEffect(() => {
     if (!buses.length) {
-      setSelectedBusIds([]);
+      setSelectedBusIds((prev) => (prev.length ? [] : prev));
       return;
     }
 
     setSelectedBusIds((prev) => {
-      if (!prev.length) return buses.map((b) => Number(b.id));
+      if (!prev.length) {
+        const next = buses.map((b) => Number(b.id));
+        return areNumberArraysEqual(prev, next) ? prev : next;
+      }
       const valid = prev.filter((id) => buses.some((b) => Number(b.id) === id));
-      return valid.length ? valid : buses.map((b) => Number(b.id));
+      const next = valid.length ? valid : buses.map((b) => Number(b.id));
+      return areNumberArraysEqual(prev, next) ? prev : next;
     });
   }, [buses]);
 
@@ -147,14 +156,18 @@ const TransactionPage: React.FC = () => {
 
   useEffect(() => {
     if (!rounds.length) {
-      setSelectedRoundIds([]);
+      setSelectedRoundIds((prev) => (prev.length ? [] : prev));
       return;
     }
 
     setSelectedRoundIds((prev) => {
-      if (!prev.length) return rounds.map((r) => Number(r.id));
+      if (!prev.length) {
+        const next = rounds.map((r) => Number(r.id));
+        return areNumberArraysEqual(prev, next) ? prev : next;
+      }
       const valid = prev.filter((id) => rounds.some((r) => Number(r.id) === id));
-      return valid.length ? valid : rounds.map((r) => Number(r.id));
+      const next = valid.length ? valid : rounds.map((r) => Number(r.id));
+      return areNumberArraysEqual(prev, next) ? prev : next;
     });
   }, [rounds]);
 
@@ -377,9 +390,8 @@ const TransactionPage: React.FC = () => {
     const map = new Map<number, PassengerRow>();
     busFilteredPassengers.forEach((p) => map.set(p.id, p));
     transactionBackedPassengers.forEach((p) => map.set(p.id, p));
-    extraPassengers.forEach((p) => map.set(p.id, p));
     return Array.from(map.values());
-  }, [busFilteredPassengers, transactionBackedPassengers, extraPassengers]);
+  }, [busFilteredPassengers, transactionBackedPassengers]);
 
   const existingPassengerIds = useMemo(() => displayedPassengers.map((p) => p.id), [displayedPassengers]);
 

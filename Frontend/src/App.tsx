@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const dispatch = useDispatch();
   const { user, loading, roleId } = useSelector((state: RootState) => state.auth);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const lastSyncedUserIdRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(fbAuth, async (firebaseUser) => {
@@ -68,8 +69,14 @@ const App: React.FC = () => {
         }
 
         const token = await firebaseUser.getIdToken();
+        if (lastSyncedUserIdRef.current === firebaseUser.uid) {
+          setIsBootstrapping(false);
+          return;
+        }
+
         const response = await api.getMyStatus(token);
         const status = (response as any)?.data ?? response;
+        lastSyncedUserIdRef.current = firebaseUser.uid;
 
         dispatch(
           authSuccess({
@@ -81,6 +88,7 @@ const App: React.FC = () => {
         );
       } catch (error) {
         sessionStorage.removeItem(SETUP_ORG_COMPLETE_KEY);
+        lastSyncedUserIdRef.current = null;
         dispatch(logout());
       } finally {
         setIsBootstrapping(false);

@@ -39,7 +39,7 @@ const TopBar: React.FC = () => {
   const dispatch = useDispatch();
   const { currentTenant, user } = useSelector((state: RootState) => state.auth);
   const mqttStatus = useMqttBrokerStatus();
-  const { notifications, removeNotification } = useNotification();
+  const { notifications, markNotificationAsRead, markAllNotificationsAsRead, refreshNotifications } = useNotification();
   const { state: unsavedChanges, clearUnsavedChanges } = useUnsavedChanges();
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -87,12 +87,22 @@ const TopBar: React.FC = () => {
     return () => window.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  const unreadCount = notifications.length;
+  useEffect(() => {
+    if (!isNotificationOpen || !user?.id) {
+      return;
+    }
+
+    void refreshNotifications();
+  }, [isNotificationOpen, refreshNotifications, user?.id]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
   const recentNotifications = useMemo(() => [...notifications].slice(0, 8), [notifications]);
 
   const shortenMessage = (message: string) => {
-    if (message.length <= 72) return message;
-    return `${message.slice(0, 72).trimEnd()}...`;
+    const text = message.trim();
+    if (!text) return 'Thông báo mới';
+    if (text.length <= 72) return text;
+    return `${text.slice(0, 72).trimEnd()}...`;
   };
 
   const statusMeta = {
@@ -240,9 +250,9 @@ const TopBar: React.FC = () => {
                           type="button"
                           className="btn btn-sm btn-link text-decoration-none p-0"
                           style={{ color: colors.primary }}
-                          onClick={() => recentNotifications.forEach((item) => removeNotification(item.id))}
+                          onClick={() => markAllNotificationsAsRead()}
                         >
-                          Xóa tất cả
+                          Đánh dấu tất cả đã đọc
                         </button>
                       )}
                     </div>
@@ -254,18 +264,23 @@ const TopBar: React.FC = () => {
                         </div>
                       ) : (
                         recentNotifications.map((item) => (
-                          <button
+                          <div
                             key={item.id}
-                            type="button"
                             className="notification-dropdown-item"
-                            onClick={() => removeNotification(item.id)}
-                            style={{ borderBottom: `1px solid ${colors.border}` }}
+                            style={{ borderBottom: `1px solid ${colors.border}`, opacity: item.isRead ? 0.6 : 1 }}
                           >
-                            <div className="d-flex align-items-start gap-2">
+                            <div 
+                              className="d-flex align-items-start gap-2 flex-grow-1 cursor-pointer"
+                              onClick={() => markNotificationAsRead(item.id)}
+                              style={{ paddingRight: '8px' }}
+                            >
                               <span className={`notification-dot notification-${item.type}`} />
                               <div className="flex-grow-1 text-start">
-                                <div className="small fw-medium notification-preview">
-                                  {shortenMessage(item.message)}
+                                <div className="small fw-bold notification-preview">
+                                  {item.title}
+                                </div>
+                                <div className="small notification-preview">
+                                  {shortenMessage(item.content)}
                                 </div>
                                 <div className="tiny text-uppercase" style={{ color: colors.textMuted }}>
                                   {new Date(item.createdAt).toLocaleTimeString('vi-VN', {
@@ -275,7 +290,7 @@ const TopBar: React.FC = () => {
                                 </div>
                               </div>
                             </div>
-                          </button>
+                          </div>
                         ))
                       )}
                     </div>
@@ -498,12 +513,13 @@ const TopBar: React.FC = () => {
 
         .notification-dropdown-item {
           width: 100%;
-          display: block;
+          display: flex;
+          align-items: flex-start;
           padding: 12px 16px;
           background: transparent;
-          border: none;
           color: inherit;
           transition: background 0.15s ease;
+          gap: 8px;
         }
 
         .notification-dropdown-item:hover {

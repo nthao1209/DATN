@@ -78,45 +78,17 @@ async function init() {
             else if (data.checkOut && candidateOut === undefined) {
                 console.warn(`⚠️  [${prj}] NOTE - checkOutBy missing, storing NULL`);
             }
-            const query = `
-             WITH upsert_res AS (
-                    INSERT INTO "Transaction" (
-                        "passengerId", "roundId", "busId", 
-                        "checkIn", "checkInAt", "checkInBy", 
-                        "checkOut", "checkOutAt", "checkOutBy", 
-                        "note"
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                    ON CONFLICT ("passengerId", "roundId") 
-                    DO UPDATE SET 
-                        "busId" = EXCLUDED."busId",
-                        "checkIn" = EXCLUDED."checkIn",
-                        "checkOut" = EXCLUDED."checkOut",
-                        "note" = EXCLUDED."note",
-                        "checkInAt" = CASE WHEN EXCLUDED."checkIn" THEN COALESCE("Transaction"."checkInAt", EXCLUDED."checkInAt") ELSE NULL END,
-                        "checkOutAt" = CASE WHEN EXCLUDED."checkOut" THEN COALESCE("Transaction"."checkOutAt", EXCLUDED."checkOutAt") ELSE NULL END,
-                        "checkInBy" = CASE WHEN EXCLUDED."checkIn" THEN COALESCE(EXCLUDED."checkInBy", "Transaction"."checkInBy") ELSE NULL END,
-                        "checkOutBy" = CASE WHEN EXCLUDED."checkOut" THEN COALESCE(EXCLUDED."checkOutBy", "Transaction"."checkOutBy") ELSE NULL END
-                    RETURNING *
-                )
-                SELECT ur.*, b."tripId", b."busCode", b."registrationNumber" 
-                FROM upsert_res ur
-                JOIN "Bus" b ON b.id = ur."busId";
-            `;
-            const values = [
-                data.passengerId,
-                data.roundId,
-                data.busId,
-                Boolean(data.checkIn), // Ép kiểu Boolean
-                checkInAt,
-                checkInBy,
-                Boolean(data.checkOut), // Ép kiểu Boolean
-                checkOutAt,
-                checkOutBy,
-                data.note || ""
-            ];
-            const res = await pool.query(query, values);
-            const result = res.rows[0];
+            const existingRes = await pool.query(`SELECT * FROM "Transaction" WHERE "passengerId" = $1 AND "roundId" = $2`, [data.passengerId, data.roundId]);
+            const existing = existingRes.rows[0];
+            let result = null;
+            if (existing) {
+                const updateRes = await pool.query(`UPDATE "Transaction" SET "busId" = $1, "checkIn" = $2, "checkOut" = $3, "note" = $4 WHERE id = $5 RETURNING *`, [data.busId, Boolean(data.checkIn), Boolean(data.checkOut), data.note || '', existing.id]);
+                result = updateRes.rows[0];
+            }
+            else {
+                const insertRes = await pool.query(`INSERT INTO "Transaction" ("passengerId", "roundId", "busId", "checkIn", "checkOut", "note") VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [data.passengerId, data.roundId, data.busId, Boolean(data.checkIn), Boolean(data.checkOut), data.note || '']);
+                result = insertRes.rows[0];
+            }
             if (!result) {
                 if (process.env.NODE_ENV === 'development') {
                     console.log(`⏭️ [${prj}] Ignored stale attendance payload for Passenger ${data.passengerId} in Round ${data.roundId}`);
@@ -127,13 +99,96 @@ async function init() {
                 const passengerRes = await pool.query(`SELECT p.id, p.name, p."busId", b."busCode", b."registrationNumber", b."managerId", u.name AS "managerName"
                      FROM "Passenger" p
                      JOIN "Bus" b ON b.id = p."busId"
-                     LEFT JOIN "User" u ON u.id = b."managerId"
+                    if (result) {
                      WHERE p.id = $1`, [result.passengerId]);
                 const passengerInfo = passengerRes.rows[0];
                 const roundRes = await pool.query(`SELECT id, name FROM "Round" WHERE id = $1`, [result.roundId]);
                 const roundInfo = roundRes.rows[0];
                 const isMisassigned = passengerInfo && Number(passengerInfo.busId) !== Number(result.busId);
-                client.publish(`${uiTopicPrefix}/${result.tripId}`, JSON.stringify({
+                if (result.checkIn && !(existing?.checkIn)) {
+                    const at = checkInAt ?? new Date();
+                    await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_IN_ON', checkInBy, data.busId, data.note || '', at]);
+                }
+                // create OFF when transitioned from true -> false
+                if (!result.checkIn && (existing === null || existing === void 0 ? void 0 : existing.checkIn)) {
+                    const at = checkInAt ?? new Date();
+                    await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_IN_OFF', checkInBy, data.busId, data.note || '', at]);
+                }
+                if (result.checkOut && !(existing?.checkOut)) {
+                    const at = checkOutAt ?? new Date();
+                    await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_OUT_ON', checkOutBy, data.busId, data.note || '', at]);
+                }
+                if (!result.checkOut && (existing === null || existing === void 0 ? void 0 : existing.checkOut)) {
+                    const at = checkOutAt ?? new Date();
+                    await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_OUT_OFF', checkOutBy, data.busId, data.note || '', at]);
+                }
+
+                const checkInEventRes = await pool.query(`SELECT "actorId", "createdAt" FROM "AttendanceEvent" WHERE "transactionId" = $1 AND action = 'CHECK_IN_ON' ORDER BY "createdAt" ASC LIMIT 1`, [result.id]);
+                const checkOutEventRes = await pool.query(`SELECT "actorId", "createdAt" FROM "AttendanceEvent" WHERE "transactionId" = $1 AND action = 'CHECK_OUT_ON' ORDER BY "createdAt" ASC LIMIT 1`, [result.id]);
+                const checkInEvent = checkInEventRes.rows[0];
+                const checkOutEvent = checkOutEventRes.rows[0];
+
+                    // If check-in actor differs from assigned passenger bus manager, emit requires_review instead
+                    const assignedManagerId = passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerId;
+                    if (assignedManagerId && (checkInEvent === null || checkInEvent === void 0 ? void 0 : checkInEvent.actorId) && (checkInEvent === null || checkInEvent === void 0 ? void 0 : checkInEvent.actorId) !== assignedManagerId) {
+                        client.publish(`${uiTopicPrefix}/${tripId}`, JSON.stringify({
+                            type: 'attendance.requires_review',
+                            project: prj,
+                            tripId,
+                            passengerId: result.passengerId,
+                            passengerName: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.name,
+                            passengerBusId: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.busId,
+                            passengerBusCode: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.busCode,
+                            passengerBusRegistrationNumber: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.registrationNumber,
+                            passengerBusManagerId: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerId,
+                            passengerBusManagerName: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerName,
+                            actualBusCode: busInfo === null || busInfo === void 0 ? void 0 : busInfo.busCode,
+                            actualBusRegistrationNumber: busInfo === null || busInfo === void 0 ? void 0 : busInfo.registrationNumber,
+                            targetManagerId: isMisassigned ? passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerId : null,
+                            targetManagerName: isMisassigned ? passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerName : undefined,
+                            roundId: result.roundId,
+                            roundName: roundInfo === null || roundInfo === void 0 ? void 0 : roundInfo.name,
+                            busId: result.busId,
+                            busCode: busInfo === null || busInfo === void 0 ? void 0 : busInfo.busCode,
+                            checkIn: result.checkIn,
+                            checkInAt: (checkInEvent === null || checkInEvent === void 0 ? void 0 : checkInEvent.createdAt) || null,
+                            checkInBy: (checkInEvent === null || checkInEvent === void 0 ? void 0 : checkInEvent.actorId) || null,
+                            checkOut: result.checkOut,
+                            checkOutAt: (checkOutEvent === null || checkOutEvent === void 0 ? void 0 : checkOutEvent.createdAt) || null,
+                            checkOutBy: (checkOutEvent === null || checkOutEvent === void 0 ? void 0 : checkOutEvent.actorId) || null,
+                            note: result.note,
+                            requiresReview: true,
+                        }), { qos: 1 });
+                    }
+                    else {
+                        client.publish(`${uiTopicPrefix}/${tripId}`, JSON.stringify({
+                            type: 'attendance.updated',
+                            project: prj,
+                            tripId,
+                            passengerId: result.passengerId,
+                            passengerName: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.name,
+                            passengerBusId: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.busId,
+                            passengerBusCode: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.busCode,
+                            passengerBusRegistrationNumber: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.registrationNumber,
+                            passengerBusManagerId: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerId,
+                            passengerBusManagerName: passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerName,
+                            actualBusCode: busInfo === null || busInfo === void 0 ? void 0 : busInfo.busCode,
+                            actualBusRegistrationNumber: busInfo === null || busInfo === void 0 ? void 0 : busInfo.registrationNumber,
+                            targetManagerId: isMisassigned ? passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerId : null,
+                            targetManagerName: isMisassigned ? passengerInfo === null || passengerInfo === void 0 ? void 0 : passengerInfo.managerName : undefined,
+                            roundId: result.roundId,
+                            roundName: roundInfo === null || roundInfo === void 0 ? void 0 : roundInfo.name,
+                            busId: result.busId,
+                            busCode: busInfo === null || busInfo === void 0 ? void 0 : busInfo.busCode,
+                            checkIn: result.checkIn,
+                            checkInAt: checkInEvent?.createdAt || null,
+                            checkInBy: checkInEvent?.actorId || null,
+                            checkOut: result.checkOut,
+                            checkOutAt: checkOutEvent?.createdAt || null,
+                            checkOutBy: checkOutEvent?.actorId || null,
+                            note: result.note,
+                        }), { qos: 1 });
+                    }
                     type: 'attendance.updated',
                     project: prj,
                     tripId: result.tripId,
@@ -145,25 +200,25 @@ async function init() {
                     passengerBusManagerId: passengerInfo?.managerId,
                     passengerBusManagerName: passengerInfo?.managerName,
                     actualBusCode: result.busCode,
-                    actualBusRegistrationNumber: result.registrationNumber,
+                            client.publish(`${uiTopicPrefix}/${tripId}`, JSON.stringify({
                     targetManagerId: isMisassigned ? passengerInfo?.managerId : null,
                     targetManagerName: isMisassigned ? passengerInfo?.managerName : undefined,
-                    roundId: result.roundId,
+                                tripId,
                     roundName: roundInfo?.name,
                     busId: result.busId,
                     busCode: result.busCode,
                     checkIn: result.checkIn,
-                    checkInAt: result.checkInAt,
-                    checkInBy: result.checkInBy,
+                    checkInAt: checkInEvent?.createdAt || null,
+                    checkInBy: checkInEvent?.actorId || null,
                     checkOut: result.checkOut,
-                    checkOutAt: result.checkOutAt,
-                    checkOutBy: result.checkOutBy,
+                                actualBusCode: busInfo === null || busInfo === void 0 ? void 0 : busInfo.busCode,
+                                actualBusRegistrationNumber: busInfo === null || busInfo === void 0 ? void 0 : busInfo.registrationNumber,
                     note: result.note,
                 }), { qos: 1 });
             }
             if (process.env.NODE_ENV === 'development') {
                 console.log(`✅ [${prj}] Updated Attendance: Passenger ${data.passengerId} in Round ${data.roundId}`);
-                console.log(`📌 [${prj}] DB Update Success: TransID ${result.id}`);
+                                busCode: busInfo === null || busInfo === void 0 ? void 0 : busInfo.busCode,
             }
         }
         catch (e) {

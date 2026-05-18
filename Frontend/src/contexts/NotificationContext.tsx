@@ -1,55 +1,116 @@
-import { createContext, useContext, useCallback, useState,type  ReactNode } from 'react';
+import { createContext, useContext, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useSelector } from 'react-redux';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import api from '../services/api';
 import { useTheme } from '../theme/ThemeContext';
+import type { RootState } from '../redux/store';
 
-interface Notification {
+export interface StoredNotification {
+  id: number;
+  userId: number;
+  type: 'success' | 'error' | 'info' | 'warning';
+  title: string;
+  content: string;
+  payload?: Record<string, unknown> | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+interface ToastNotification {
   id: string;
   type: 'success' | 'error' | 'info' | 'warning';
   message: string;
-  duration?: number;
   createdAt: number;
-  showToast?: boolean;
+  duration: number;
 }
 
 interface NotificationContextType {
-  notifications: Notification[];
+  notifications: StoredNotification[];
   addNotification: (
     message: string,
     type?: 'success' | 'error' | 'info' | 'warning',
     duration?: number,
-    options?: { showToast?: boolean; persist?: boolean }
+    options?: { showToast?: boolean }
   ) => void;
-  removeNotification: (id: string) => void;
+  refreshNotifications: () => Promise<void>;
+  markNotificationAsRead: (id: number) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const { colors, isDarkMode } = useTheme();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { user, loading: authLoading } = useSelector((state: RootState) => state.auth);
+  const [notifications, setNotifications] = useState<StoredNotification[]>([]);
+  const [toastNotifications, setToastNotifications] = useState<ToastNotification[]>([]);
+  const userId = user?.id ?? null;
 
-  const removeNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const refreshNotifications = useCallback(async () => {
+    if (!userId || authLoading) {
+      return;
+    }
+
+    try {
+      const response = await api.getNotifications({ limit: 100 });
+      setNotifications(Array.isArray(response) ? response : []);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    }
+  }, [authLoading, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setNotifications([]);
+      setToastNotifications([]);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!toastNotifications.length) return;
+
+    const timers = toastNotifications.map((toast) =>
+      window.setTimeout(() => {
+        setToastNotifications((prev) => prev.filter((item) => item.id !== toast.id));
+      }, toast.duration),
+    );
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [toastNotifications]);
+
+  const markNotificationAsRead = useCallback(async (id: number) => {
+    try {
+      await api.markNotificationAsRead(id);
+      setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  }, []);
+
+  const markAllNotificationsAsRead = useCallback(async () => {
+    try {
+      await api.markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
   }, []);
 
   const addNotification = useCallback(
     (
       message: string,
       type: 'success' | 'error' | 'info' | 'warning' = 'info',
-      duration = 4000,
-      options?: { showToast?: boolean; persist?: boolean }
+      duration = 3000,
+      options?: { showToast?: boolean }
     ) => {
-      const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-      setNotifications((prev) => [...prev, { id, type, message, duration, createdAt: Date.now(), showToast: options?.showToast ?? true }]);
-
-      if (!options?.persist) {
-        // Tự động đóng
-        setTimeout(() => {
-          removeNotification(id);
-        }, duration);
+      if (options?.showToast === false) {
+        return;
       }
+
+      const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      setToastNotifications((prev) => [...prev, { id, type, message, createdAt: Date.now(), duration }]);
     },
-    [removeNotification]
+    [],
   );
 
   // Icon tương ứng với từng loại thông báo
@@ -63,12 +124,12 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>
+    <NotificationContext.Provider value={{ notifications, addNotification, refreshNotifications, markNotificationAsRead, markAllNotificationsAsRead }}>
       {children}
 
       {/* Container chứa các thông báo */}
       <div className="notification-container">
-        {notifications.filter((n) => n.showToast !== false).map((n) => (
+        {toastNotifications.map((n) => (
           <div 
             key={n.id} 
             className={`notification-item animate-slide-in shadow-lg`}
@@ -80,7 +141,9 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
                 n.type === 'warning' ? '#f59e0b' : colors.primary
               }`,
               color: colors.textPrimary,
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)'
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)',
+              opacity: 1,
+              cursor: 'default',
             }}
           >
             <div className="d-flex align-items-center gap-3 pe-4">
@@ -90,8 +153,11 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
               </div>
               <button 
                 className="btn-close-notify" 
-                onClick={() => removeNotification(n.id)}
+                onClick={() => {
+                  setToastNotifications((prev) => prev.filter((item) => item.id !== n.id));
+                }}
                 style={{ color: colors.textMuted }}
+                title="Xóa thông báo"
               >
                 <X size={16} />
               </button>

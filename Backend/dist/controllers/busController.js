@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.busController = void 0;
 const client_1 = require("@prisma/client");
 const mqtt_1 = __importDefault(require("mqtt"));
+const notificationService_1 = require("../services/notificationService");
 const prisma = new client_1.PrismaClient();
 const mqttClient = mqtt_1.default.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
     username: process.env.MQTT_USERNAME,
@@ -284,6 +285,20 @@ exports.busController = {
                 prisma.round.findFirst({ where: { id: roundId } }),
             ]);
             if (busInfo?.trip?.id) {
+                const recipientIds = await (0, notificationService_1.getTenantNotificationRecipients)(prisma, req.tenantId);
+                await (0, notificationService_1.createNotificationsForUsers)(prisma, recipientIds, {
+                    type: 'round.lock.changed',
+                    title: 'Trạng thái khóa chặng đã thay đổi',
+                    content: `Xe ${busInfo.busCode} ${up.checkInLocked || up.checkOutLocked ? 'đã khóa' : 'đã mở khóa'} chặng ${roundInfo?.name || roundId} bởi ${req.user?.name || req.user?.email || String(req.user?.id || '')}`,
+                    payload: {
+                        tripId: busInfo.trip.id,
+                        busId,
+                        roundId,
+                        checkInLocked: up.checkInLocked,
+                        checkOutLocked: up.checkOutLocked,
+                        lockedBy: req.user?.id,
+                    },
+                });
                 publishToAdmin(busInfo.trip.id, {
                     type: 'round.lock.changed',
                     busId,

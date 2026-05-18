@@ -6,6 +6,9 @@ const router = Router();
 
 router.use(verifyFirebaseToken);
 
+// POST create an unlock request
+router.post('/bus/:busId/round/:roundId', unlockRequestController.create);
+
 // POST approve an unlock request
 router.post('/:requestId/approve', unlockRequestController.approve);
 

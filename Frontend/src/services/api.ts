@@ -274,6 +274,25 @@ export const api = {
   deleteTransaction: (id: string) =>
     axiosClient.delete(`/transactions/${id}`),
 
+  // Notification APIs
+  getNotifications: (params?: {
+    unreadOnly?: boolean;
+    type?: string;
+    tripId?: number;
+    busId?: number;
+    roundId?: number;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  }) => axiosClient.get('/notifications', { params }),
+
+  markNotificationAsRead: (id: number) =>
+    axiosClient.patch(`/notifications/${id}/read`),
+
+  markAllNotificationsAsRead: () =>
+    axiosClient.patch('/notifications/read-all'),
+
   // Confirm checks (lock) for a specific bus & round
   getBusRoundStatuses: (tripId: string) =>
     axiosClient.get('/bus-round-status', { params: { tripId } }),

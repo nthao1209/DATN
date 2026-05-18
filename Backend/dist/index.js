@@ -16,6 +16,7 @@ const userRoute_1 = __importDefault(require("./routes/userRoute"));
 const roleRoute_1 = __importDefault(require("./routes/roleRoute"));
 const transactionRoute_1 = __importDefault(require("./routes/transactionRoute"));
 const unlockRequestRoute_1 = __importDefault(require("./routes/unlockRequestRoute"));
+const notificationRoute_1 = __importDefault(require("./routes/notificationRoute"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -30,6 +31,7 @@ app.use('/api', userRoute_1.default);
 app.use('/api', roleRoute_1.default);
 app.use('/api', transactionRoute_1.default);
 app.use('/api/unlock-requests', unlockRequestRoute_1.default);
+app.use('/api', notificationRoute_1.default);
 // Debug: list registered routes (temporary)
 app.get('/api/_routes', (_req, res) => {
     try {

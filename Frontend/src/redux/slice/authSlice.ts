@@ -34,6 +34,11 @@ const authSlice = createSlice({
       } else {
         localStorage.removeItem('currentTenantId');
       }
+      if (action.payload.user?.id) {
+        localStorage.setItem('userId', String(action.payload.user.id));
+      } else {
+        localStorage.removeItem('userId');
+      }
       state.loading = false;
       state.error = null;
     },
@@ -49,6 +54,7 @@ const authSlice = createSlice({
       state.needsEmailVerification = true;
       state.error = null;
       localStorage.removeItem('currentTenantId');
+      localStorage.removeItem('userId');
     },
     emailVerificationRequired: (state, action: PayloadAction<string>) => {
       state.loading = false;
@@ -99,6 +105,7 @@ const authSlice = createSlice({
       state.statusMessage = null;
       state.error = null;
       localStorage.removeItem('currentTenantId');
+      localStorage.removeItem('userId');
     },
     clearMessages: (state) => {
       state.error = null;

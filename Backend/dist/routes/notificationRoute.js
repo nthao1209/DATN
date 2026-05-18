@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const authMiddleware_1 = require("../middleware/authMiddleware");
+const notificationController_1 = require("../controllers/notificationController");
+const router = (0, express_1.Router)();
+router.use(authMiddleware_1.verifyFirebaseToken);
+router.get('/notifications', notificationController_1.notificationController.list);
+router.post('/notifications', notificationController_1.notificationController.create);
+router.patch('/notifications/read-all', notificationController_1.notificationController.markAllRead);
+router.patch('/notifications/:id/read', notificationController_1.notificationController.markRead);
+exports.default = router;

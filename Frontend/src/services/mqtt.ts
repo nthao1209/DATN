@@ -2,25 +2,46 @@ import mqtt, { type MqttClient } from 'mqtt';
 import type { OfflineAction } from './offlineSync';
 
 export type AttendanceUpdateEvent = {
-  type: 'attendance.updated' | 'attendance.changed';
+  type:
+    | 'attendance.updated'
+    | 'attendance.changed'
+    | 'attendance.requires_review';
+
   tripId: number;
+
   roundId: number;
   roundName?: string;
+
+  // ===== XE HIỆN TẠI =====
   busId: number;
   busCode?: string;
+
+  // ===== KHÁCH =====
   passengerId: number;
   passengerName?: string;
+
+  // ===== XE BIÊN CHẾ =====
   passengerBusId?: number;
   passengerBusCode?: string;
   passengerBusRegistrationNumber?: string;
   passengerBusManagerId?: number | null;
-  passengerBusManagerName?: string;
-  actualBusCode?: string;
-  actualBusRegistrationNumber?: string;
-  targetManagerId?: number | null;
-  targetManagerName?: string;
+
+  // ===== CHECK IN =====
   checkIn: boolean;
+  checkInBy?: number | null;
+  checkInAt?: string;
+  checkInBusId?: number | null;
+
+  // ===== CHECK OUT =====
   checkOut: boolean;
+  checkOutBy?: number | null;
+  checkOutAt?: string;
+  checkOutBusId?: number | null;
+
+  targetManagerId?: number | null;
+  requiresReview?: boolean;
+
+  // ===== Khác =====
   note?: string;
   project?: string;
   updatedAt?: string;
@@ -223,7 +244,9 @@ export const subscribeAttendanceUpdates = (
 ): MqttSubscriptionHandle => {
   return registerTopicHandlers([`${MQTT_UI_TOPIC_PREFIX}/${tripId}`], (_topic, parsed) => {
     if (
-      (parsed.type === 'attendance.updated' || parsed.type === 'attendance.changed') &&
+      (parsed.type === 'attendance.updated' ||
+        parsed.type === 'attendance.changed' ||
+        parsed.type === 'attendance.requires_review') &&
       Number(parsed.tripId) === Number(tripId)
     ) {
       onMessage(parsed as AttendanceUpdateEvent);
@@ -289,6 +312,8 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
     busId: action.busId,
     checkIn: action.checkIn,
     checkOut: action.checkOut,
+    checkInBy: action.checkInBy,
+    checkOutBy: action.checkOutBy,
     note: action.note || '',
     timestamp: action.timestamp,
   };

@@ -6,6 +6,8 @@ export interface OfflineAction {
   busId: number;
   checkIn: boolean;
   checkOut: boolean;
+  checkInBy?: number | null;
+  checkOutBy?: number | null;
   note?: string;
   timestamp: number;
   status: 'pending' | 'syncing';

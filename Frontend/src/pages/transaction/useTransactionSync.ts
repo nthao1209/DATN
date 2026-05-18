@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { enqueueSnackbar } from 'notistack';
+import { useSelector } from 'react-redux';
 import type { DraftCell } from './types';
+import type { RootState } from '../../redux/store';
 import { offlineService, OFFLINE_QUEUE_SYNCED_EVENT, OFFLINE_QUEUE_UPDATED_EVENT, type OfflineAction } from '../../services/offlineSync';
 
 type UseTransactionSyncParams = {
@@ -23,6 +25,7 @@ export const useTransactionSync = ({
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [syncBanner, setSyncBanner] = useState<SyncBanner | null>(null);
   const isSyncingRef = useRef(false);
+  const authUserId = useSelector((state: RootState) => state.auth.user?.id ?? null);
 
   const handleSave = async () => {
     if (!dirtyEntries.length) {
@@ -43,6 +46,11 @@ export const useTransactionSync = ({
       isSyncingRef.current = true;
       setIsSaving(true);
 
+      // Get current user ID from localStorage (set during auth)
+      const userIdStr = localStorage.getItem('userId');
+      const localUserId = userIdStr ? parseInt(userIdStr, 10) : null;
+      const currentUserId = Number.isFinite(authUserId) ? authUserId : localUserId;
+
       const queueActions = dirtyEntries.map<OfflineAction>((entry) => ({
         id: '',
         tripId: selectedTripId,
@@ -51,6 +59,8 @@ export const useTransactionSync = ({
         busId: entry.busId,
         checkIn: entry.checkIn,
         checkOut: entry.checkOut,
+        checkInBy: currentUserId,
+        checkOutBy: currentUserId,
         note: entry.note?.trim() || '',
         timestamp: Date.now(),
         status: 'pending',
