@@ -1,4 +1,3 @@
-// hooks/useRoundLocks.ts
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
@@ -9,7 +8,10 @@ type BusRoundStatus = {
   checkOutLocked?: boolean;
 };
 
-export const useRoundLocks = (tripId: number | null) => {
+export const useRoundLocks = (
+  tripId: number | null,
+  getActualBusId: (passengerId: number, roundId: number, assignedBusId?: number | null) => number | null
+) => {
   const { data: lockStatuses = [], refetch: refetchLocks } = useQuery<BusRoundStatus[]>({
     queryKey: ['bus-round-locks', tripId],
     queryFn: async () => {
@@ -19,14 +21,37 @@ export const useRoundLocks = (tripId: number | null) => {
     enabled: !!tripId,
   });
 
-  const isLocked = (busId: number, roundId: number, type: 'checkIn' | 'checkOut') => {
-    const status = lockStatuses.find(
-      (s) => Number(s.busId) === Number(busId) && Number(s.roundId) === Number(roundId)
+
+  const isLocked = (
+    passengerId: number,
+    assignedBusId: number | null,
+    roundId: number,
+    type: 'checkIn' | 'checkOut'
+  ) => {
+    const actualBusId = getActualBusId(
+      passengerId,
+      roundId,
+      assignedBusId
     );
+
+    if (actualBusId == null) return false;
     
+    const status = lockStatuses.find(
+      (s) =>
+        Number(s.busId) === Number(actualBusId) &&
+        Number(s.roundId) === Number(roundId)
+    );
+
     if (!status) return false;
-    return type === 'checkIn' ? Boolean(status.checkInLocked) : Boolean(status.checkOutLocked);
+
+    return type === 'checkIn'
+      ? Boolean(status.checkInLocked)
+      : Boolean(status.checkOutLocked);
   };
 
-  return { isLocked, refetchLocks, lockStatuses };
+  return {
+    isLocked,
+    refetchLocks,
+    lockStatuses,
+  };
 };

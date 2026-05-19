@@ -137,6 +137,13 @@ const PassengerPage: React.FC = () => {
     return Boolean(row.name.trim() || row.tel.trim() || note || row.busId);
   };
 
+  // Remove empty newly-added rows on unmount and avoid adding duplicate empty rows
+  useEffect(() => {
+    return () => {
+      setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
+    };
+  }, []);
+
   const isRowDirty = (row: PassengerRow) => {
     if (!row.id) return isNewRowDirty(row);
     const initial = initialRowsByIdRef.current[row.id];
@@ -166,7 +173,11 @@ const PassengerPage: React.FC = () => {
 
   const handleAddRow = () => {
     if (isAllTripsView) return;
-    setRows((prev) => [...prev, { localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' }]);
+    setRows((prev) => {
+      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
+      if (hasEmptyNew) return prev;
+      return [...prev, { localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' }];
+    });
   };
 
   const handleDeleteRow = (row: PassengerRow) => {

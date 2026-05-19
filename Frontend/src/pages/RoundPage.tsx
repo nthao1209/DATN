@@ -39,7 +39,10 @@ const RoundPage: React.FC = () => {
     enabled: !!tripId,
   });
 
-  const { lockStatuses = [], refetchLocks } = useRoundLocks(tripId ? Number(tripId) : null);
+  const { lockStatuses = [], refetchLocks } = useRoundLocks(
+    tripId ? Number(tripId) : null,
+    () => null
+  );
   const { data: buses = [] } = useQuery<any[]>({
     queryKey: ['buses', tripId],
     queryFn: () => api.getBuses(String(tripId)),
@@ -129,6 +132,13 @@ const RoundPage: React.FC = () => {
     return Boolean(row.name.trim() || row.time.trim() || row.status !== 'DOING');
   };
 
+  // Clean up empty new rows on unmount and prevent multiple empty rows
+  useEffect(() => {
+    return () => {
+      setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
+    };
+  }, []);
+
   const isRowDirty = (row: RoundRow) => {
     if (!row.id) return isNewRowDirty(row);
     const initial = initialRowsByIdRef.current[row.id];
@@ -159,17 +169,21 @@ const RoundPage: React.FC = () => {
   };
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        localId: makeLocalId(),
-        name: '',
-        time: '',
-        status: 'DOING',
-        transactionCount: 0,
-        passengerCount: 0,
-      },
-    ]);
+    setRows((prev) => {
+      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
+      if (hasEmptyNew) return prev;
+      return [
+        ...prev,
+        {
+          localId: makeLocalId(),
+          name: '',
+          time: '',
+          status: 'DOING',
+          transactionCount: 0,
+          passengerCount: 0,
+        },
+      ];
+    });
   };
 
   const handleDeleteRow = (row: RoundRow) => {

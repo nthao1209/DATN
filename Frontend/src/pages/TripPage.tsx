@@ -59,6 +59,13 @@ const TripPage: React.FC = () => {
     return Boolean(row.name.trim() || row.status !== 'DOING');
   };
 
+  // Remove empty newly added rows on unmount and prevent multiple empty rows
+  useEffect(() => {
+    return () => {
+      setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
+    };
+  }, []);
+
   const isRowDirty = (row: TripRow) => {
     if (!row.id) return isNewRowDirty(row);
     const initial = initialRowsByIdRef.current[row.id];
@@ -87,7 +94,11 @@ const TripPage: React.FC = () => {
   };
 
   const handleAddRow = () => {
-    setRows((prev) => [...prev, { localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0 }]);
+    setRows((prev) => {
+      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
+      if (hasEmptyNew) return prev;
+      return [...prev, { localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0 }];
+    });
   };
 
   const handleDeleteRow = (row: TripRow) => {
@@ -138,7 +149,7 @@ const TripPage: React.FC = () => {
         
         <button 
           className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); refetch(); }}
+          onClick={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
           style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
         >
           <RefreshCw size={18} className={isFetching ? 'spin' : ''} />

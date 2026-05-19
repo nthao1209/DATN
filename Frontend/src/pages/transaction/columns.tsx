@@ -9,7 +9,12 @@ type BuildColumnsParams = {
   roundSummary: RoundSummary;
   getCell: (passengerId: number, roundId: number) => DraftCell | null;
   setCell: (payload: DraftCell) => void;
-  isLocked: (busId: number, roundId: number, type: 'checkIn' | 'checkOut') => boolean;
+  isLocked: (
+    passengerId: number,
+    assignedBusId: number | null,
+    roundId: number,
+    type: 'checkIn' | 'checkOut'
+  ) => boolean;
   onRemovePassenger?: (row: TransactionTableRow) => void;
   canRemovePassenger?: (row: TransactionTableRow) => boolean;
 };
@@ -41,7 +46,12 @@ export const buildTransactionColumns = ({
         const current = getCell(row.id, roundId);
         const checkIn = Boolean(current?.checkIn);
         const checkOut = Boolean(current?.checkOut);
-        const locked = row.busId ? isLocked(Number(row.busId), roundId, 'checkIn') : false;
+        const locked = isLocked(
+          row.id,
+          row.busId,
+          roundId,
+          'checkIn'
+        );
 
         return (
           <div className="d-flex justify-content-center">
@@ -85,7 +95,12 @@ export const buildTransactionColumns = ({
         const current = getCell(row.id, roundId);
         const checkIn = Boolean(current?.checkIn);
         const checkOut = Boolean(current?.checkOut);
-        const locked = row.busId ? isLocked(Number(row.busId), roundId, 'checkOut') : false;
+        const locked = isLocked(
+          row.id,
+          row.busId,
+          roundId,
+          'checkOut'
+        );
 
         return (
           <div className="d-flex justify-content-center">

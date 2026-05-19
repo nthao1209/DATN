@@ -292,8 +292,13 @@ export const api = {
 
   markAllNotificationsAsRead: () =>
     axiosClient.patch('/notifications/read-all'),
+  
+  deleteNotification : (id : number) =>
+    axiosClient.delete(`/notifications/${id}`),
 
-  // Confirm checks (lock) for a specific bus & round
+  deleteAllNotifications : () =>
+    axiosClient.delete('/notifications'),
+
   getBusRoundStatuses: (tripId: string) =>
     axiosClient.get('/bus-round-status', { params: { tripId } }),
 

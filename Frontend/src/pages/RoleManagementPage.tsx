@@ -62,6 +62,13 @@ const RoleManagementPage: React.FC = () => {
     return Boolean(row.name.trim() || row.description.trim());
   };
 
+  // Remove empty role rows on unmount and prevent duplicate empty rows
+  useEffect(() => {
+    return () => {
+      setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
+    };
+  }, []);
+
   const isRowDirty = (row: RoleRow) => {
     if (!row.id) return isNewRowDirty(row);
     const initial = initialRowsByIdRef.current[row.id];
@@ -90,14 +97,18 @@ const RoleManagementPage: React.FC = () => {
   };
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        localId: makeLocalId(),
-        name: '',
-        description: '',
-      },
-    ]);
+    setRows((prev) => {
+      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
+      if (hasEmptyNew) return prev;
+      return [
+        ...prev,
+        {
+          localId: makeLocalId(),
+          name: '',
+          description: '',
+        },
+      ];
+    });
   };
 
   const handleDeleteRow = (row: RoleRow) => {
@@ -172,7 +183,7 @@ const RoleManagementPage: React.FC = () => {
         
         <button 
           className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); refetch(); }}
+          onClick={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
           title="Làm mới dữ liệu"
           style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
         >

@@ -5,7 +5,7 @@ import {  Send, ShieldAlert, Sparkles } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import { type RootState } from '../redux/store';
 import api from '../services/api';
-import { useCreateUnlockRequest, useUnlockRequests } from '../hooks/useUnlockRequests';
+import { useCreateUnlockRequest } from '../hooks/useUnlockRequests';
 import { useTheme } from '../theme/ThemeContext';
 
 type RequestType = 'check_in' | 'check_out';
@@ -39,7 +39,6 @@ const UnlockRequestPage: React.FC = () => {
     enabled: !!selectedTripId,
   });
 
-  const { data: requests = [], isLoading: requestsLoading } = useUnlockRequests(selectedTripId || undefined);
 
   const createRequest = useCreateUnlockRequest();
 
@@ -90,30 +89,80 @@ const UnlockRequestPage: React.FC = () => {
     });
   }, [rounds]);
 
+const handleSubmit = async () => {
+  if (!selectedBusId || !selectedRoundId) {
+    enqueueSnackbar('Vui lòng chọn xe và chặng đi.', {
+      variant: 'warning',
+    });
+    return;
+  }
 
-  const handleSubmit = async () => {
-    if (!selectedBusId || !selectedRoundId) {
-      enqueueSnackbar('Vui lòng chọn xe và chặng đi.', { variant: 'warning' });
+  try {
+    const statuses =await api.getBusRoundStatuses(
+      String(selectedTripId)
+    );
+    console.log(statuses);
+
+    const currentStatus = statuses.find(
+      (s: any) =>
+        Number(s.busId) === Number(selectedBusId) &&
+        Number(s.roundId) === Number(selectedRoundId)
+    );
+
+    if (!currentStatus) {
+      enqueueSnackbar(
+        'Không tìm thấy trạng thái khóa.',
+        { variant: 'warning' }
+      );
       return;
     }
 
-    try {
-      await createRequest.mutateAsync({
-        busId: selectedBusId,
-        roundId: selectedRoundId,
-        type: requestType,
-        reason,
-      });
+    const isLocked =
+      requestType === 'check_in'
+        ? Boolean(currentStatus.checkInLocked)
+        : Boolean(currentStatus.checkOutLocked);
 
-      enqueueSnackbar('Đã gửi yêu cầu mở điểm danh.', { variant: 'success' });
-      setReason('');
-    } catch (error: any) {
-      enqueueSnackbar(error?.message || 'Gửi yêu cầu thất bại', { variant: 'error' });
+    if (!isLocked) {
+      enqueueSnackbar(
+        requestType === 'check_in'
+          ? 'Điểm danh vào chưa bị khóa.'
+          : 'Điểm danh ra chưa bị khóa.',
+        {
+          variant: 'info',
+        }
+      );
+      return;
     }
-  };
 
+    await createRequest.mutateAsync({
+      busId: selectedBusId,
+      roundId: selectedRoundId,
+      type: requestType,
+      reason,
+    });
+
+    enqueueSnackbar(
+      'Đã gửi yêu cầu mở khóa thành công.',
+      {
+        variant: 'success',
+      },
+    );
+
+    setReason('');
+  } catch (error: any) {
+    console.error(error);
+
+    enqueueSnackbar(
+      error?.response?.data?.message ||
+        error?.message ||
+        'Gửi yêu cầu thất bại',
+      {
+        variant: 'error',
+      }
+    );
+  }
+};
   const isLoading = tripsLoading || busesLoading || roundsLoading;
-  const recentRequests = [...requests].slice(0, 6);
 
   return (
     <div className="animate-fade-in p-0 p-md-3">
@@ -266,7 +315,6 @@ const UnlockRequestPage: React.FC = () => {
                     rows={4}
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
-                    placeholder="Ví dụ: Khách lên nhầm xe, cần mở khóa để điểm danh đúng..."
                     disabled={createRequest.isPending}
                     style={{
                       backgroundColor: isDarkMode ? colors.background : '#fff',
@@ -296,76 +344,6 @@ const UnlockRequestPage: React.FC = () => {
                   {createRequest.isPending ? 'Đang gửi...' : 'Gửi yêu cầu'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-12 col-xl-5">
-          <div
-            className="shadow-sm h-100"
-            style={{
-              backgroundColor: colors.surface,
-              borderRadius: effects.borderRadius.lg,
-              border: `1px solid ${colors.border}`,
-              overflow: 'hidden',
-            }}
-          >
-            <div className="p-4 border-bottom" style={{ borderColor: colors.border }}>
-              <h5 className="fw-bold mb-1" style={{ color: colors.textPrimary }}>
-                Trạng thái yêu cầu gần đây
-              </h5>
-              <div className="small" style={{ color: colors.textMuted }}>
-                Cập nhật realtime khi admin duyệt hoặc từ chối.
-              </div>
-            </div>
-
-            <div className="p-4">
-              {requestsLoading ? (
-                <div className="text-center py-4 small" style={{ color: colors.textMuted }}>
-                  Đang tải trạng thái...
-                </div>
-              ) : recentRequests.length === 0 ? (
-                <div className="text-center py-4 small" style={{ color: colors.textMuted }}>
-                  Chưa có yêu cầu nào
-                </div>
-              ) : (
-                <div className="d-grid gap-3">
-                  {recentRequests.map((request: any) => {
-                    const badgeStyle =
-                      request.status === 'APPROVED'
-                        ? { backgroundColor: `${colors.success}18`, color: colors.success }
-                        : request.status === 'REJECTED'
-                          ? { backgroundColor: `${colors.danger}18`, color: colors.danger }
-                          : { backgroundColor: `${colors.warning}18`, color: colors.warning };
-
-                    return (
-                      <div key={request.id} className="p-3 rounded-4" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc', border: `1px solid ${colors.border}` }}>
-                        <div className="d-flex align-items-start justify-content-between gap-2">
-                          <div>
-                            <div className="fw-bold" style={{ color: colors.textPrimary }}>
-                              {request.bus?.busCode} - {request.round?.name}
-                            </div>
-                            <div className="small" style={{ color: colors.textMuted }}>
-                              {request.type === 'check_in' ? 'Mở điểm danh vào' : 'Mở điểm danh ra'}
-                            </div>
-                          </div>
-                          <span className="badge rounded-pill" style={badgeStyle}>
-                            {request.status}
-                          </span>
-                        </div>
-
-                        <div className="small mt-2" style={{ color: colors.textSecondary }}>
-                          {request.status === 'APPROVED'
-                            ? `Admin đã duyệt${request.approver?.name ? ` bởi ${request.approver.name}` : ''}`
-                            : request.status === 'REJECTED'
-                              ? `Admin đã từ chối${request.approver?.name ? ` bởi ${request.approver.name}` : ''}`
-                              : 'Đang chờ admin xử lý'}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
         </div>

@@ -110,7 +110,33 @@ const TransactionPage: React.FC = () => {
     enabled: !!selectedTripId,
   });
 
-  const { isLocked, refetchLocks } = useRoundLocks(selectedTripId);
+    const getActualBusId = (
+      passengerId: number,
+      roundId: number,
+      assignedBusId?: number | null
+    ) => {
+      const key = keyOf(passengerId, roundId);
+
+      // Ưu tiên xe thực tế đã lưu DB
+      const txCell = txMap[key];
+
+      if (txCell?.busId) {
+        return Number(txCell.busId);
+      }
+
+      // Nếu chưa có transaction
+      // dùng xe biên chế để check lock
+      if (assignedBusId) {
+        return Number(assignedBusId);
+      }
+
+      return null;
+    };
+    
+  const { isLocked, refetchLocks } = useRoundLocks(
+    selectedTripId,
+    getActualBusId
+  );
 
   useEffect(() => {
     if (!selectedTripId && trips.length > 0) {
@@ -226,7 +252,7 @@ const TransactionPage: React.FC = () => {
     transactions.forEach((tx) => {
       const passengerId = Number(tx.passengerId ?? tx.passenger?.id ?? 0);
       const roundId = Number(tx.roundId ?? tx.round?.id ?? 0);
-      const busId = Number(tx.busId ?? tx.bus?.id ?? tx.passenger?.busId ?? 0);
+      const busId = Number(tx.busId ?? tx.bus?.id ?? 0);
       if (!passengerId || !roundId || !busId) return;
       map[keyOf(passengerId, roundId)] = {
         transactionId: Number(tx.id),
@@ -410,6 +436,47 @@ const TransactionPage: React.FC = () => {
   const key = keyOf(payload.passengerId, payload.roundId);
 
   const baseCell = txMap[key];
+
+      try {
+        const lockedIn = isLocked(
+          payload.passengerId,
+          payload.busId,
+          Number(payload.roundId),
+          'checkIn'
+        );
+
+        const lockedOut = isLocked(
+          payload.passengerId,
+          payload.busId,
+          Number(payload.roundId),
+          'checkOut'
+        );
+        const oldCell = getCell(payload.passengerId, payload.roundId);
+
+        const changingCheckIn =
+          payload.checkIn !== undefined &&
+          payload.checkIn !== oldCell?.checkIn;
+
+        const changingCheckOut =
+          payload.checkOut !== undefined &&
+          payload.checkOut !== oldCell?.checkOut;
+
+        if (
+          (changingCheckIn && lockedIn) ||
+          (changingCheckOut && lockedOut)
+        ) {
+          enqueueSnackbar(
+            'Lượt đã bị khóa, không thể chỉnh sửa điểm danh.',
+            {
+              variant: 'warning',
+            }
+          );
+          return;
+        }
+                
+      } catch (e) {
+        console.error('Lock check error:', e);
+      }
 
     const defaultCell: DraftCell = {
     passengerId: payload.passengerId,

@@ -138,10 +138,54 @@ const markAllRead = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };
+const remove = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = ensureUser(req, res);
+    if (!userId) return;
+
+    const id = Number(req.params.id);
+    if (!id) {
+      return res.status(400).json({ message: 'Missing notification id' });
+    }
+
+    const notification = await prisma.notification.findFirst({ where: { id, userId } });
+    if (!notification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    await prisma.notification.delete({
+      where: { id },
+    });
+
+    res.json({ message: 'Deleted successfully' });
+  } catch (error: any) {
+    console.error('delete notification error:', error);
+    res.status(500).json({ message: 'Server error', detail: error?.message });
+  }
+};
+
+const removeAll = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = ensureUser(req, res);
+    if (!userId) return;
+
+    const result = await prisma.notification.deleteMany({
+      where: { userId },
+    });
+
+    res.json({ message: 'All notifications deleted', count: result.count });
+  } catch (error: any) {
+    console.error('delete all notifications error:', error);
+    res.status(500).json({ message: 'Server error', detail: error?.message });
+  }
+};
+
 
 export const notificationController = {
   list,
   create,
   markRead,
   markAllRead,
+  remove,
+  removeAll
 };

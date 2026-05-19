@@ -19,8 +19,7 @@ import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {enqueueSnackbar} from 'notistack';
 import { useUnsavedChanges } from './common/UnsavedChangesContext';
-import { useNotification } from '../contexts/NotificationContext';
-
+import NotificationBell from './NotificationBell';
 
 const schema = yup.object({
   currentPassword : yup.string().required("Mật khẩu hiện tại không được để trống"),
@@ -39,13 +38,10 @@ const TopBar: React.FC = () => {
   const dispatch = useDispatch();
   const { currentTenant, user } = useSelector((state: RootState) => state.auth);
   const mqttStatus = useMqttBrokerStatus();
-  const { notifications, markNotificationAsRead, markAllNotificationsAsRead, refreshNotifications } = useNotification();
   const { state: unsavedChanges, clearUnsavedChanges } = useUnsavedChanges();
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const notificationRef = useRef<HTMLDivElement | null>(null);
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
@@ -75,35 +71,7 @@ const TopBar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChangePasswordOpen]);
 
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!notificationRef.current) return;
-      if (!notificationRef.current.contains(event.target as Node)) {
-        setIsNotificationOpen(false);
-      }
-    };
-
-    window.addEventListener('mousedown', handleOutsideClick);
-    return () => window.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  useEffect(() => {
-    if (!isNotificationOpen || !user?.id) {
-      return;
-    }
-
-    void refreshNotifications();
-  }, [isNotificationOpen, refreshNotifications, user?.id]);
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const recentNotifications = useMemo(() => [...notifications].slice(0, 8), [notifications]);
-
-  const shortenMessage = (message: string) => {
-    const text = message.trim();
-    if (!text) return 'Thông báo mới';
-    if (text.length <= 72) return text;
-    return `${text.slice(0, 72).trimEnd()}...`;
-  };
+  
 
   const statusMeta = {
     connecting: { label: 'Connecting', color: colors.warning, bg: `${colors.warning}15` },
@@ -216,89 +184,9 @@ const TopBar: React.FC = () => {
             
             {/* Quick Actions Group */}
             <div className="d-flex align-items-center gap-1 border-end pe-3 me-2" style={{ borderColor: colors.border }}>
-              <div className="position-relative" ref={notificationRef}>
-                <button
-                  type="button"
-                  className="btn-icon-topbar position-relative"
-                  title="Notifications"
-                  onClick={() => setIsNotificationOpen((prev) => !prev)}
-                >
-                  <Bell size={18} />
-                  {unreadCount > 0 && (
-                    <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                  )}
-                </button>
-
-                {isNotificationOpen && (
-                  <div
-                    className="notification-dropdown shadow-lg"
-                    style={{
-                      backgroundColor: colors.surface,
-                      border: `1px solid ${colors.border}`,
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style={{ borderColor: colors.border }}>
-                      <div>
-                        <div className="fw-bold">Thông báo</div>
-                        <div className="small" style={{ color: colors.textMuted }}>
-                          {unreadCount} thông báo hiện có
-                        </div>
-                      </div>
-                      {unreadCount > 0 && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-link text-decoration-none p-0"
-                          style={{ color: colors.primary }}
-                          onClick={() => markAllNotificationsAsRead()}
-                        >
-                          Đánh dấu tất cả đã đọc
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="notification-dropdown-list">
-                      {recentNotifications.length === 0 ? (
-                        <div className="px-3 py-4 text-center small" style={{ color: colors.textMuted }}>
-                          Chưa có thông báo mới
-                        </div>
-                      ) : (
-                        recentNotifications.map((item) => (
-                          <div
-                            key={item.id}
-                            className="notification-dropdown-item"
-                            style={{ borderBottom: `1px solid ${colors.border}`, opacity: item.isRead ? 0.6 : 1 }}
-                          >
-                            <div 
-                              className="d-flex align-items-start gap-2 flex-grow-1 cursor-pointer"
-                              onClick={() => markNotificationAsRead(item.id)}
-                              style={{ paddingRight: '8px' }}
-                            >
-                              <span className={`notification-dot notification-${item.type}`} />
-                              <div className="flex-grow-1 text-start">
-                                <div className="small fw-bold notification-preview">
-                                  {item.title}
-                                </div>
-                                <div className="small notification-preview">
-                                  {shortenMessage(item.content)}
-                                </div>
-                                <div className="tiny text-uppercase" style={{ color: colors.textMuted }}>
-                                  {new Date(item.createdAt).toLocaleTimeString('vi-VN', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
               
-              {/* Theme Toggle Button */}
+              <NotificationBell />
+              
               <button 
                 className="btn-icon-topbar theme-toggle-btn" 
                 onClick={toggleTheme} 
