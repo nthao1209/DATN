@@ -8,7 +8,8 @@ export interface OfflineAction {
   checkOut: boolean;
   checkInBy?: number | null;
   checkOutBy?: number | null;
-  note?: string;
+  checkInNote?: string;
+  checkOutNote?: string;
   timestamp: number;
   status: 'pending' | 'syncing';
   storageKey?: string;
@@ -22,6 +23,18 @@ const isBrowser = () => typeof window !== 'undefined' && typeof localStorage !==
 const queueMatchKey = (action: Pick<OfflineAction, 'tripId' | 'passengerId' | 'roundId' | 'storageKey'>) =>
   `${action.storageKey || ''}:${action.tripId}:${action.passengerId}:${action.roundId}`;
 
+const migrateOfflineAction = (action: OfflineAction & { note?: string }): OfflineAction => {
+  if (!action.note || action.checkInNote || action.checkOutNote) {
+    return action;
+  }
+
+  return {
+    ...action,
+    checkInNote: action.checkInNote ?? action.note,
+    checkOutNote: action.checkOutNote ?? action.note,
+  };
+};
+
 const readQueue = (): OfflineAction[] => {
   if (!isBrowser()) return [];
 
@@ -29,7 +42,7 @@ const readQueue = (): OfflineAction[] => {
     const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as OfflineAction[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map((action) => migrateOfflineAction(action as OfflineAction & { note?: string })) : [];
   } catch {
     return [];
   }

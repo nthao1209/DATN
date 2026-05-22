@@ -9,7 +9,10 @@ type BuildRoundColumnsParams = {
     value: RoundRow[K]
   ) => void;
   handleDeleteRow: (row: RoundRow) => void;
-  openLocksForRound?: (roundId: number) => void;
+  openLocksForRound?: (
+      roundId: number,
+      lockType: 'check_in' | 'check_out'
+    ) => void;
 };
 
 export const buildRoundColumns = ({
@@ -66,43 +69,68 @@ export const buildRoundColumns = ({
     key: 'checkOutCount',
     render: (row) => (row.id ? `${row.checkOutCount ?? 0}/${row.passengerCount}` : '-'),
   },
+ // ===== KHÓA LƯỢT ĐI =====
   {
     header: 'Xe đã xác nhận lượt đi',
     key: 'lockedInCount',
-    render: (row) => (
+
+    render: (row) =>
       row.id ? (
         <div className="d-flex align-items-center gap-2">
           <span>{row.lockedInCount ?? 0}</span>
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            title="Xem danh sách xe đã khóa lượt đi"
-            onClick={() => openLocksForRound && row.id && openLocksForRound(Number(row.id))}
-          >
-            <Lock size={14} />
-          </button>
+
+          {(row.lockedInCount ?? 0) > 0 && (
+            <button
+              className="btn btn-sm btn-outline-secondary"
+              title="Xem danh sách xe đã khóa lượt đi"
+              onClick={() =>
+                openLocksForRound?.(
+                  Number(row.id),
+                  'check_in'
+                )
+              }
+            >
+              <Lock size={14} />
+            </button>
+          )}
         </div>
-      ) : '-'
-    ),
-    width: '160px'
+      ) : (
+        '-'
+      ),
+
+    width: '180px',
   },
+
+  // ===== KHÓA LƯỢT VỀ =====
   {
     header: 'Xe đã xác nhận lượt về',
     key: 'lockedOutCount',
-    render: (row) => (
+
+    render: (row) =>
       row.id ? (
         <div className="d-flex align-items-center gap-2">
           <span>{row.lockedOutCount ?? 0}</span>
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            title="Xem danh sách xe đã khóa lượt về"
-            onClick={() => openLocksForRound && row.id && openLocksForRound(Number(row.id))}
-          >
-            <Lock size={14} />
-          </button>
+
+          {(row.lockedOutCount ?? 0) > 0 && (
+            <button
+              className="btn btn-sm btn-outline-secondary"
+              title="Xem danh sách xe đã khóa lượt về"
+              onClick={() =>
+                openLocksForRound?.(
+                  Number(row.id),
+                  'check_out'
+                )
+              }
+            >
+              <Lock size={14} />
+            </button>
+          )}
         </div>
-      ) : '-'
-    ),
-    width: '160px'
+      ) : (
+        '-'
+      ),
+
+    width: '180px',
   },
   {
   header: 'Thao tác',

@@ -9,4 +9,6 @@ router.get('/notifications', notificationController_1.notificationController.lis
 router.post('/notifications', notificationController_1.notificationController.create);
 router.patch('/notifications/read-all', notificationController_1.notificationController.markAllRead);
 router.patch('/notifications/:id/read', notificationController_1.notificationController.markRead);
+router.delete('/notifications/:id', notificationController_1.notificationController.remove);
+router.delete('/notifications', notificationController_1.notificationController.removeAll);
 exports.default = router;

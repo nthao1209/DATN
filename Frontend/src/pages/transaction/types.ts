@@ -30,11 +30,12 @@ export type DraftCell = {
   busId: number;
   checkIn: boolean;
   checkOut: boolean;
-  checkInAt?: string | null;
+  checkInNote: string;
+  checkOutNote: string;
+  checkInAt?: Date | string | null;
+  checkOutAt?: Date | string | null;
   checkInBy?: number | null;
-  checkOutAt?: string | null;
   checkOutBy?: number | null;
-  note: string;
   dirty?: boolean;
 };
 
@@ -45,11 +46,12 @@ export type TransactionRecord = {
   busId?: number;
   checkIn?: boolean;
   checkOut?: boolean;
-  checkInAt?: string | null;
+  checkInAt?: string | Date | null;
+  checkOutAt?: string | Date | null;
   checkInBy?: number | null;
-  checkOutAt?: string | null;
   checkOutBy?: number | null;
-  note?: string | null;
+  checkInNote?: string | null;
+  checkOutNote?: string | null;
   passenger?: {
     id?: number;
     name?: string;

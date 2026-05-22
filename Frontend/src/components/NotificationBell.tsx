@@ -25,7 +25,6 @@ const NotificationBell: React.FC = () => {
     return () => window.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Refresh thông báo khi mở dropdown
   useEffect(() => {
     if (!isNotificationOpen || !user?.id) {
       return;

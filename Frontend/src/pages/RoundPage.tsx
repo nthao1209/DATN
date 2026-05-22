@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Save, Map, RefreshCw, } from 'lucide-react';
+import { Plus, Save, Map, RefreshCw } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable';
 import api from '../services/api';
@@ -25,6 +25,10 @@ const RoundPage: React.FC = () => {
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const initialRowsByIdRef = useRef<Record<number, RoundRow>>({});
+  const [openLockModal, setOpenLockModal] = useState<{
+    roundId: number;
+    lockType: 'check_in' | 'check_out';
+  } | null>(null);
 
   // --- DATA FETCHING ---
   const { data: rounds = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
@@ -43,16 +47,26 @@ const RoundPage: React.FC = () => {
     tripId ? Number(tripId) : null,
     () => null
   );
+
   const { data: buses = [] } = useQuery<any[]>({
     queryKey: ['buses', tripId],
     queryFn: () => api.getBuses(String(tripId)),
     enabled: !!tripId,
   });
+  const { data: unlockRequests = [], refetch: refetchUnlockRequests } = useQuery<any[]>({
+    queryKey: ['unlock-requests', tripId, openLockModal?.roundId],
+    queryFn: async () => {
+      const response = await api.getPendingUnlockRequests(String(tripId), String(openLockModal?.roundId));
+      return Array.isArray(response) ? response : [];
+    },
+    enabled: !!tripId && !!openLockModal?.roundId,
+  });
 
-  const [openLockRoundId, setOpenLockRoundId] = useState<number | null>(null);
+  
+
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
-  // Subscribe to realtime lock updates
+  // Realtime updates MQTT
   useEffect(() => {
     const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
       if (message.type === 'bus.round.lock.updated') {
@@ -68,13 +82,21 @@ const RoundPage: React.FC = () => {
               : item
           );
         });
+        refetchLocks();
+      }
+      if (
+        message.type === 'unlock.request.created' ||
+        message.type === 'unlock.request.approved' ||
+        message.type === 'unlock.request.rejected'
+      ) {
+        refetchUnlockRequests();
       }
     });
 
     return () => {
       subscription.end(true);
     };
-  }, [queryClient, tripId]);
+  }, [queryClient, tripId, refetchLocks, refetchUnlockRequests]);
 
   useEffect(() => {
     const mapped: RoundRow[] = rounds.map((r: any) => {
@@ -118,7 +140,7 @@ const RoundPage: React.FC = () => {
       });
     }
     setRows(padded);
-  }, [rounds, transactions, lockStatuses, queryClient]);
+  }, [rounds, transactions, lockStatuses]);
 
   const isSameRow = (current: RoundRow, initial: RoundRow) => {
     return (
@@ -132,7 +154,6 @@ const RoundPage: React.FC = () => {
     return Boolean(row.name.trim() || row.time.trim() || row.status !== 'DOING');
   };
 
-  // Clean up empty new rows on unmount and prevent multiple empty rows
   useEffect(() => {
     return () => {
       setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
@@ -216,15 +237,30 @@ const RoundPage: React.FC = () => {
   const columns = buildRoundColumns({
     handleCellChange,
     handleDeleteRow,
-    openLocksForRound: (roundId: number) => setOpenLockRoundId(roundId),
+    openLocksForRound: (roundId: number, lockType: 'check_in' | 'check_out') => {
+      setOpenLockModal({ roundId, lockType });
+    },
   });
 
-  const toggleCheckInLock = async (busId: number, roundId: number, value: boolean) => {
-    const key = `${busId}_${roundId}`;
+  const toggleLock = async (
+    busId: number,
+    roundId: number,
+    value: boolean,
+    lockType: 'check_in' | 'check_out'
+  ) => {
+    const key = `${busId}_${roundId}_${lockType}`;
     setToggling((s) => ({ ...s, [key]: true }));
     try {
-      await api.confirmBusRoundChecks(Number(busId), Number(roundId), { checkInLocked: value });
-      enqueueSnackbar(`${value ? 'Đã khóa' : 'Đã mở khóa'} lượt đi cho xe ${busId}`, { variant: 'success' });
+      await api.confirmBusRoundChecks(
+        Number(busId),
+        Number(roundId),
+        lockType === 'check_in' ? { checkInLocked: value } : { checkOutLocked: value }
+      );
+      enqueueSnackbar(
+        `${value ? 'Đã khóa' : 'Đã mở khóa'} ${lockType === 'check_in' ? 'lượt đi' : 'lượt về'} cho xe ${busId}`,
+        { variant: 'success' }
+      );
+      refetchLocks();
     } catch (err: any) {
       enqueueSnackbar(err?.message || 'Lỗi khi cập nhật khóa', { variant: 'error' });
     } finally {
@@ -232,29 +268,48 @@ const RoundPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
-      if (message.type === 'bus.round.lock.updated') {
-        queryClient.setQueryData(['bus-round-locks', tripId], (oldData: any[]) => {
-          if (!oldData) return oldData;
-          return oldData.map((item) =>
-            Number(item.busId) === message.busId && Number(item.roundId) === message.roundId
-              ? {
-                  ...item,
-                  checkInLocked: message.checkInLocked,
-                  checkOutLocked: message.checkOutLocked,
-                }
-              : item
-          );
-        });
+  const handleUnlockRequest = async (
+  requestId: number,
+  status: 'APPROVED' | 'REJECTED',
+  rejectReason?: string
+) => {
+  try {
+    if (status === 'APPROVED') {
+      await api.approveUnlockRequest(requestId);
+    } else {
+      await api.rejectUnlockRequest(requestId, {
+        rejectReason,
+      });
+    }
+
+    enqueueSnackbar(
+      status === 'APPROVED'
+        ? 'Đã phê duyệt yêu cầu mở khóa'
+        : 'Đã từ chối yêu cầu mở khóa',
+      {
+        variant:
+          status === 'APPROVED'
+            ? 'success'
+            : 'info',
       }
-    });
+    );
 
-    return () => {
-      subscription.end(true);
-    };
-  }, [queryClient, tripId]);
+    await Promise.all([
+      refetchUnlockRequests(),
+      refetchLocks(),
+    ]);
+  } catch (err: any) {
+    enqueueSnackbar(
+      err?.message ||
+        'Lỗi khi xử lý yêu cầu mở khóa',
+      {
+        variant: 'error',
+      }
+    );
 
+    throw err;
+  }
+};
   return (
     <div className="animate-fade-in p-0 p-md-3 round-page">
       {/* Header Section */}
@@ -278,14 +333,13 @@ const RoundPage: React.FC = () => {
         
         <button 
           className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); refetch(); }}
+          onClick={() => { setDeletedIds([]); refetch(); refetchUnlockRequests(); }}
           title="Làm mới dữ liệu"
           style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
         >
           <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
         </button>
       </div>
-
 
       {/* Table Section */}
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
@@ -312,19 +366,24 @@ const RoundPage: React.FC = () => {
           isLoading={isLoading}
           isError={isError}
         />
-        {openLockRoundId !== null && (
+        
+        {openLockModal !== null && (
           <LockRoundModal 
-            roundId={openLockRoundId}
-            onClose={() => setOpenLockRoundId(null)}
+            roundId={openLockModal.roundId}
+            lockType={openLockModal.lockType}
+            onClose={() => setOpenLockModal(null)}
             lockStatuses={lockStatuses}
             buses={buses}
             toggling={toggling}
-            onToggleLock={toggleCheckInLock}
-            onRefetch={refetchLocks}
+            onToggleLock={toggleLock}
+            unlockRequests={unlockRequests}
+            onHandleUnlockRequest={handleUnlockRequest}
+
             colors={colors}
             isDarkMode={isDarkMode}
           />
         )}
+        
         <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
           <button 
             className="btn-add-row-bottom w-100 py-2" 
@@ -386,7 +445,6 @@ const RoundPage: React.FC = () => {
         }
           
         .round-page .btn-action-delete {
-          /* Ép kích thước và layout */
           width: 36px !important;
           height: 36px !important;
           display: flex !important;
@@ -412,12 +470,11 @@ const RoundPage: React.FC = () => {
         }
 
         .round-page .btn-action-delete:active {
-          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
+          transform: scale(0.9) !important;
           background-color: #a71d2a !important;
           box-shadow: none !important;
         }
 
-        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
         .round-page .btn-action-delete svg {
           color: #ffffff !important; 
           fill: none !important;

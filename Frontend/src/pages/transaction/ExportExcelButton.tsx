@@ -51,7 +51,8 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
 
           baseRow[`${roundLabel} - Lượt đi`] = cell?.checkIn ? 'Có' : 'Không';
           baseRow[`${roundLabel} - Lượt về`] = cell?.checkOut ? 'Có' : 'Không';
-          baseRow[`${roundLabel} - Ghi chú`] = cell?.note?.trim() || '';
+          baseRow[`${roundLabel} - Ghi chú lượt đi`] = cell?.checkInNote?.trim() || '';
+          baseRow[`${roundLabel} - Ghi chú lượt về`] = cell?.checkOutNote?.trim() || '';
         });
 
         return baseRow;
@@ -65,7 +66,7 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
         { wch: 16 },
         { wch: 20 },
         { wch: 20 },
-        ...selectedRounds.flatMap(() =>[{ wch: 16 }, { wch: 16 }, { wch: 28 }]),
+        ...selectedRounds.flatMap(() =>[{ wch: 16 }, { wch: 16 }, { wch: 28 }, { wch: 28 }]),
       ];
 
       const workbook = XLSX.utils.book_new();

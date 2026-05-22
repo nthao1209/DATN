@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
 
-const images = [
-  "https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=2000", // Hạ Long
-  "https://images.unsplash.com/photo-1504457047772-27fad17438ef?q=80&w=2000", // Ruộng bậc thang
-  "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=2000"  // Hội An
+const slides = [
+  {
+    background:
+      'linear-gradient(135deg, rgba(15,23,42,0.35), rgba(2,6,23,0.8)), radial-gradient(circle at top left, rgba(37,99,235,0.32), transparent 45%), linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0b1120 100%)',
+  },
+  {
+    background:
+      'linear-gradient(135deg, rgba(15,23,42,0.2), rgba(2,6,23,0.82)), radial-gradient(circle at 20% 20%, rgba(14,165,233,0.28), transparent 36%), linear-gradient(160deg, #11263f 0%, #1f3a5f 48%, #0b1120 100%)',
+  },
+  {
+    background:
+      'linear-gradient(135deg, rgba(15,23,42,0.18), rgba(2,6,23,0.86)), radial-gradient(circle at 80% 20%, rgba(16,185,129,0.24), transparent 34%), linear-gradient(160deg, #123024 0%, #1f3a2f 48%, #0b1120 100%)',
+  },
 ];
 
 interface AuthLayoutProps {
@@ -15,7 +24,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveIndex((prevIndex) => (prevIndex + 1) % images.length);
+      setActiveIndex((prevIndex) => (prevIndex + 1) % slides.length);
     }, 5000); 
 
     return () => clearInterval(interval);
@@ -27,12 +36,12 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
         <div className="row g-0">
           
           <div className="col-5 auth-left-slideshow d-flex flex-column h-100 position-relative">
-            {images.map((img, index) => (
+            {slides.map((slide, index) => (
               <div 
                 key={index}
                 className={`slideshow-img ${index === activeIndex ? 'active' : ''}`}
                 style={{ 
-                  backgroundImage: `url(${img})`,
+                  background: slide.background,
                   transform: index === activeIndex ? 'scale(1.1)' : 'scale(1)'}}
               />
             ))}
@@ -59,7 +68,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
               </p>
               
               <div className="d-flex gap-1 mt-3">
-                {images.map((_, index) => (
+                {slides.map((_, index) => (
                   <div 
                     key={index} 
                     className={`indicator ${index === activeIndex ? 'active' : ''}`}

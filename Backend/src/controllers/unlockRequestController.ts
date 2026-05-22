@@ -1,35 +1,115 @@
 import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
-import mqtt from 'mqtt';
 import { createNotification, createNotificationsForUsers, getTenantNotificationRecipients } from '../services/notificationService';
+import { publishJson } from '../services/mqtt';
 
 const prisma = new PrismaClient();
 
-const mqttClient = mqtt.connect(
-  process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084',
-  {
-    username: process.env.MQTT_USERNAME,
-    password: process.env.MQTT_PASSWORD,
-    clean: true,
-    clientId: `backend_${Date.now()}_${Math.random().toString(16).slice(2)}`
+type UnlockRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+
+const buildUnlockTitle = (status: UnlockRequestStatus) => {
+  switch (status) {
+    case 'PENDING':
+      return 'Yêu cầu mở khóa mới';
+    case 'APPROVED':
+      return 'Yêu cầu mở khóa đã được duyệt';
+    case 'REJECTED':
+      return 'Yêu cầu mở khóa bị từ chối';
   }
-);
-
-const publish = (topic: string, payload: any) => {
-  mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
 };
 
-const buildUnlockTitle = (status: 'PENDING' | 'APPROVED' | 'REJECTED') => {
-  if (status === 'PENDING') return 'Yêu cầu mở khóa mới';
-  if (status === 'APPROVED') return 'Yêu cầu mở khóa đã được duyệt';
-  return 'Yêu cầu mở khóa bị từ chối';
-};
-
-const buildUnlockContent = (request: any, busCode?: string, roundName?: string, extra?: string) => {
+const buildUnlockContent = (
+  request: any,
+  busCode?: string,
+  roundName?: string,
+  extra?: string,
+) => {
   const actionLabel = request.type === 'check_in' ? 'điểm danh vào' : 'điểm danh ra';
-  const base = `Xe ${busCode || request.bus?.busCode || request.busId} yêu cầu mở khóa ${actionLabel} cho chặng ${roundName || request.round?.name || request.roundId}`;
+
+  const base = `Xe ${busCode || request.bus?.busCode || request.busId} yêu cầu mở khóa ${actionLabel} cho chặng ${
+    roundName || request.round?.name || request.roundId
+  }`;
+
   return extra ? `${base}. ${extra}` : `${base}.`;
+};
+
+const unlockRequestInclude = {
+  bus: {
+    include: {
+      trip: true,
+    },
+  },
+  round: true,
+}
+
+
+const notifyAdmins = async (tenantId: number, handledBy: number, payload: any) => {
+  let recipientIds = await getTenantNotificationRecipients(prisma, tenantId);
+  recipientIds = recipientIds.filter((id) => id !== handledBy);
+  if(!recipientIds.length) return;
+
+  await createNotificationsForUsers(prisma, recipientIds, payload);
+}
+
+const getPendingRequests = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    if (!req.tenantId) {
+      return res.status(401).json({
+        message: 'Unauthorized',
+      });
+    }
+
+    const tripId = Number(req.query.tripId);
+    const roundId = Number(req.query.roundId);
+
+    if (!tripId || !roundId) {
+      return res.status(400).json({
+        message: 'Missing tripId or roundId',
+      });
+    }
+
+    const requests = await prisma.unlockRequest.findMany({
+      where: {
+        status: 'PENDING',
+
+        roundId,
+
+        bus: {
+          trip: {
+            id: tripId,
+            tenantId: req.tenantId,
+          },
+        },
+      },
+
+      include: {
+        bus: {
+          include: {
+            manager: true,
+          },
+        },
+
+        round: true,
+      },
+
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return res.json(requests);
+  } catch (error: any) {
+    console.error('get pending unlock requests error:', error);
+
+    return res.status(500).json({
+      message: error.message,
+    });
+  }
 };
 
 const create = async (req: AuthRequest, res: Response) => {
@@ -65,66 +145,79 @@ const create = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Round not found' });
     }
 
-    const request = await prisma.unlockRequest.upsert({
-      where: { busId_roundId_type: { busId, roundId, type } },
-      create: {
-        busId,
-        roundId,
-        type,
-        reason: reason ? String(reason) : null,
-        requestedBy: req.user.id,
-        status: 'PENDING',
-      },
-      update: {
-        reason: reason ? String(reason) : null,
-        requestedBy: req.user.id,
-        status: 'PENDING',
-        approvedBy: null,
-        respondedAt: null,
-      },
-      include: {
-        bus: { include: { trip: true } },
-        round: true,
-      },
+    const existingRequest = await prisma.unlockRequest.findFirst({
+      where: { busId, roundId, type },
+      include: unlockRequestInclude,
     });
 
-    // Notify tenant admins only (roleId = 2)
-    let recipientIds = await getTenantNotificationRecipients(prisma, req.tenantId, [2]);
-    // exclude requester from admin recipients if any
-    recipientIds = recipientIds.filter((id) => id !== req.user?.id);
-    if (recipientIds.length) {
-      await createNotificationsForUsers(prisma, recipientIds, {
-        type: 'unlock.request.created',
-        title: buildUnlockTitle('PENDING'),
-        content: buildUnlockContent(request, bus.busCode, round.name, reason ? `Lý do: ${reason}` : ''),
-        payload: {
-          requestId: request.id,
-          busId,
-          roundId,
-          tripId: bus.trip.id,
-          lockType: type,
-        },
-      });
-    }
+    const request = existingRequest
+      ? await prisma.unlockRequest.update({
+          where: { id: existingRequest.id },
+          data: {
+            reason: reason ? String(reason) : null,
+            requestedBy: req.user.id,
+            status: 'PENDING',
+            handledBy: null,
+            respondedAt: null,
+          },
+          include: unlockRequestInclude,
+        })
+      : await prisma.unlockRequest.create({
+          data: {
+            busId,
+            roundId,
+            type,
+            reason: reason ? String(reason) : null,
+            requestedBy: req.user.id,
+            status: 'PENDING',
+          },
+          include: unlockRequestInclude,
+        });
 
-    // Notify requester about successful send
-    if (req.user?.id) {
-      await createNotification(prisma, {
-        userId: req.user.id,
-        type: 'unlock.request.created.self',
-        title: 'Yêu cầu mở khóa đã được gửi',
-        content: `Yêu cầu mở khóa đã gửi cho chặng ${round.name} (Xe ${bus.busCode}).`,
-        payload: {
-          requestId: request.id,
-          busId,
-          roundId,
-          tripId: bus.trip.id,
-          lockType: type,
-        },
-      });
-    }
+   await notifyAdmins(req.tenantId, req.user.id, {
+      type: 'unlock.request.created',
+      title: buildUnlockTitle('PENDING'),
+      content: buildUnlockContent(request, bus.busCode, round.name, reason ? `Lý do: ${reason}` : undefined),
+      payload: {
+        requestId: request.id,
+        busId,
+        roundId,
+        tripId: bus.trip.id,
+        lockType: type,
+      }
+    });
 
-    publish(`attendance/ui/trip/${bus.trip.id}`, {
+    await createNotification(prisma, {
+          userId: req.user.id,
+          type: 'unlock.request.created.self',
+          title: 'Yêu cầu mở khóa đã được gửi',
+          content: `Yêu cầu mở khóa đã gửi cho chặng ${round.name} (Xe ${bus.busCode}).`,
+          payload: {
+            requestId: request.id,
+            busId,
+            roundId,
+            tripId: bus.trip.id,
+            lockType: type,
+          },
+        });
+    const requesterTopic = `attendance/requester/${req.user.id}/unlock-response`;
+    publishJson(requesterTopic, {
+      type: 'unlock.request.created.self',
+      requestId: request.id,
+      busId,
+      busCode: bus.busCode,
+      roundId,
+      roundName: round.name,
+      lockType: type,
+      reason: reason || '',
+      tripId: bus.trip.id,
+      requestedBy: req.user.id,
+      status: 'PENDING',
+    });
+
+    // Publish to admin-only topic for realtime UI refresh
+    const adminTopic = `attendance/trips/${bus.trip.id}/admin/unlock-requests`;
+    publishJson(adminTopic, {
       type: 'unlock.request.created',
       requestId: request.id,
       busId,
@@ -134,13 +227,15 @@ const create = async (req: AuthRequest, res: Response) => {
       lockType: type,
       reason: reason || '',
       tripId: bus.trip.id,
+      requestedBy: req.user.id,
+      status: 'PENDING',
     });
 
-    return res.status(201).json(request);
+        return res.status(201).json(request);
   } catch (error: any) {
-    console.error('create unlock request error:', error);
-    return res.status(500).json({ message: error.message });
-  }
+        console.error(error);
+        return res.status(500).json({ message: error.message });
+    }
 };
 
 
@@ -152,10 +247,9 @@ const approve = async (req: AuthRequest, res: Response) => {
     if (!req.user?.id) return res.status(401).json({ message: 'Unauthorized' });
     if (!req.tenantId) return res.status(401).json({ message: 'Unauthorized' });
 
-    // 1. Get request
     const request = await prisma.unlockRequest.findUnique({
       where: { id: requestId },
-      include: { bus: { include: { trip: true } } }
+      include: unlockRequestInclude
     });
 
     if (!request) {
@@ -170,13 +264,12 @@ const approve = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Request already processed' });
     }
 
-    // 2. Update BOTH tables (transaction)
     const updated = await prisma.$transaction(async (tx) => {
       const updatedRequest = await tx.unlockRequest.update({
         where: { id: requestId },
         data: {
           status: 'APPROVED',
-          approvedBy: req.user?.id,
+          handledBy: req.user?.id,
           respondedAt: new Date(),
         }
       });
@@ -202,7 +295,6 @@ const approve = async (req: AuthRequest, res: Response) => {
       return updatedRequest;
     });
 
-    // Notify requester only
     await createNotification(prisma, {
       userId: request.requestedBy,
       type: 'unlock.request.approved',
@@ -213,18 +305,43 @@ const approve = async (req: AuthRequest, res: Response) => {
         busId: request.busId,
         roundId: request.roundId,
         tripId: request.bus.trip.id,
-        approvedBy: req.user.id,
+        handledBy: req.user.id,
       },
     });
 
-    // 3. Notify realtime UI (KHÔNG chờ worker)
-    publish(`attendance/ui/trip/${request.bus.trip.id}`, {
+    const lockPayload = {
+      type: 'bus.round.lock.updated',
+      tripId: request.bus.trip.id,
+      busId: request.busId,
+      roundId: request.roundId,
+      checkInLocked: request.type === 'check_in' ? false : undefined,
+      checkOutLocked: request.type === 'check_out' ? false : undefined,
+      updatedAt: new Date().toISOString(),
+      handledBy: req.user.id,
+    };
+
+    publishJson('attendance/ui/locks', lockPayload);
+    publishJson(`attendance/trips/${request.bus.trip.id}/locks`, lockPayload);
+
+    // Notify requester in realtime (no system-wide broadcast)
+    publishJson(`attendance/requester/${request.requestedBy}/unlock-response`, {
       type: 'unlock.request.approved',
       requestId,
       busId: request.busId,
       roundId: request.roundId,
+      busCode: request.bus.busCode,
+      roundName: request.round?.name,
       lockType: request.type,
-      approvedBy: req.user.id,
+      handledBy: req.user.id,
+    });
+
+    const adminTopic = `attendance/trips/${request.bus.trip.id}/admin/unlock-requests`;
+    publishJson(adminTopic, {
+      type: 'unlock.request.approved',
+      requestId,
+      busId: request.busId,
+      roundId: request.roundId,
+      handledBy: req.user.id,
     });
 
     return res.json(updated);
@@ -248,7 +365,7 @@ const reject = async (req: AuthRequest, res: Response) => {
 
     const request = await prisma.unlockRequest.findUnique({
       where: { id: requestId },
-      include: { bus: { include: { trip: true } } }
+      include: unlockRequestInclude
     });
 
     if (!request) {
@@ -264,7 +381,7 @@ const reject = async (req: AuthRequest, res: Response) => {
         where: { id: requestId },
         data: {
           status: 'REJECTED',
-          approvedBy: req.user?.id,
+          handledBy: req.user?.id,
           respondedAt: new Date(),
         }
       });
@@ -283,18 +400,31 @@ const reject = async (req: AuthRequest, res: Response) => {
         busId: request.busId,
         roundId: request.roundId,
         tripId: request.bus.trip.id,
-        rejectedBy: req.user.id,
+        handledBy: req.user.id,
         rejectReason: rejectReason || '',
       },
     });
 
-    publish(`attendance/ui/trip/${request.bus.trip.id}`, {
+    // Notify requester in realtime (no system-wide broadcast)
+    publishJson(`attendance/requester/${request.requestedBy}/unlock-response`, {
       type: 'unlock.request.rejected',
       requestId,
       busId: request.busId,
       roundId: request.roundId,
+      busCode: request.bus.busCode,
+      roundName: request.round?.name,
       lockType: request.type,
-      rejectedBy: req.user.id,
+      handledBy: req.user.id,
+      rejectReason: rejectReason || '',
+    });
+    
+    const adminTopic = `attendance/trips/${request.bus.trip.id}/admin/unlock-requests`;
+    publishJson(adminTopic, {
+      type: 'unlock.request.rejected',
+      requestId,
+      busId: request.busId,
+      roundId: request.roundId,
+      handledBy: req.user.id,
       rejectReason: rejectReason || '',
     });
 
@@ -306,6 +436,7 @@ const reject = async (req: AuthRequest, res: Response) => {
 };
 
 export const unlockRequestController = {
+  getPendingRequests,
   create,
   approve,
   reject,

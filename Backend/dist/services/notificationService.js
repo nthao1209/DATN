@@ -29,12 +29,12 @@ const createNotificationsForUsers = async (prisma, userIds, input) => {
     })));
 };
 exports.createNotificationsForUsers = createNotificationsForUsers;
-const getTenantNotificationRecipients = async (prisma, tenantId) => {
+const getTenantNotificationRecipients = async (prisma, tenantId, roleIds = [1, 2, 3]) => {
     const rows = await prisma.userTenant.findMany({
         where: {
             tenantId,
             roleId: {
-                in: [1, 2, 3],
+                in: roleIds,
             },
         },
         select: { userId: true },

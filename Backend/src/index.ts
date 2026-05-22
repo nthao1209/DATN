@@ -32,6 +32,10 @@ app.use('/api', transactionRoutes);
 app.use('/api/unlock-requests', unlockRequestRoutes);
 app.use('/api', notificationRoutes);
 
+app.get("/health", (req, res) => {
+  res.status(200).send("ok");
+});
+
 // Debug: list registered routes (temporary)
 app.get('/api/_routes', (_req, res) => {
   try {

@@ -218,8 +218,18 @@ const TransactionPage: React.FC = () => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as Record<string, DraftCell>;
-      setDraftMap(parsed || {});
+      const parsed = JSON.parse(raw) as Record<string, DraftCell & { note?: string }>;
+      const migratedDrafts = Object.fromEntries(
+        Object.entries(parsed || {}).map(([key, cell]) => {
+          const legacyNote = (cell as any).note;
+          if (legacyNote && !cell.checkInNote && !cell.checkOutNote) {
+            return [key, { ...cell, checkInNote: legacyNote, checkOutNote: legacyNote }];
+          }
+
+          return [key, cell];
+        })
+      ) as Record<string, DraftCell>;
+      setDraftMap(migratedDrafts);
     } catch {
       setDraftMap({});
     }
@@ -261,31 +271,30 @@ const TransactionPage: React.FC = () => {
         busId,
         checkIn: Boolean(tx.checkIn),
         checkOut: Boolean(tx.checkOut),
-        checkInAt: tx.checkInAt || null,
-        checkInBy: tx.checkInBy ?? null,
-        checkOutAt: tx.checkOutAt || null,
-        checkOutBy: tx.checkOutBy ?? null,
-        note: tx.note || '',
+        checkInNote: tx.checkInNote || '',
+        checkOutNote: tx.checkOutNote || '',
       };
     });
     return map;
   }, [transactions]);
 
-  const normalizeNote = (note?: string) => (note ?? '').trim();
+  const normalizeNote = (note?: string | null) => (note ?? '').trim();
 
  const isSameCell = (current: DraftCell, base?: DraftCell) => {
   if (!base) {
     return (
       current.checkIn === false &&
       current.checkOut === false &&
-      normalizeNote(current.note) === ''
+      normalizeNote(current.checkInNote) === '' &&
+      normalizeNote(current.checkOutNote) === ''
     );
   }
 
   return (
     current.checkIn === Boolean(base.checkIn) &&
     current.checkOut === Boolean(base.checkOut) &&
-    normalizeNote(current.note) === normalizeNote(base.note) &&
+    normalizeNote(current.checkInNote) === normalizeNote(base.checkInNote) &&
+    normalizeNote(current.checkOutNote) === normalizeNote(base.checkOutNote) &&
     current.busId === base.busId
   );
 };
@@ -484,11 +493,8 @@ const TransactionPage: React.FC = () => {
     busId: payload.busId,
     checkIn: false,
     checkOut: false,
-    note: '',
-    checkInBy: null,
-    checkOutBy: null,
-    checkInAt: null,
-    checkOutAt: null,
+    checkInNote: '',
+    checkOutNote: '',
   };
 
   const merged: DraftCell = {
@@ -582,7 +588,8 @@ const TransactionPage: React.FC = () => {
             busId: passenger.busId!,
             checkIn: false,
             checkOut: false,
-            note: `Khách ở xe ${passenger.assignedBusName}`,
+            checkInNote: `Khách ở xe ${passenger.assignedBusName}`,
+            checkOutNote: `Khách ở xe ${passenger.assignedBusName}`,
           })
         )
       );

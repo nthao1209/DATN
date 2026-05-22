@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  ChevronLeft, ChevronRight, AlertCircle, Loader2, ListFilter, Search 
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertCircle, Loader2, ListFilter, Search } from 'lucide-react';
 import TableActionBar, { type FilterConfig } from './TableActionBar';
 import useDebounce from '../hooks/useDebounce';
 import { useTheme } from '../theme/ThemeContext';
@@ -52,7 +50,6 @@ function DataTable<T extends object>({
   
   const { colors, effects, isDarkMode } = useTheme();
 
-  // --- LOGIC TÌM KIẾM THÔNG MINH ---
   const normalizeText = (text: string) => {
     return text
       .normalize('NFD')
@@ -77,17 +74,8 @@ function DataTable<T extends object>({
   const [pageSize, setPageSize] = useState(initialPageSize);
 
   const queryResult = fetchFn
-    ? useQuery({
-        queryKey,
-        queryFn: fetchFn,
-      })
-    : {
-        data: undefined,
-        isLoading: false,
-        isError: false,
-        refetch: () => {},
-        isFetching: false,
-      };
+    ? useQuery({ queryKey, queryFn: fetchFn })
+    : { data: undefined, isLoading: false, isError: false, refetch: () => {}, isFetching: false };
 
   const { data: queryData, isLoading: queryLoading, isError: queryError, refetch, isFetching } = queryResult;
 
@@ -98,15 +86,13 @@ function DataTable<T extends object>({
   const filteredData = useMemo(() => {
     if (!tableData) return [];
     return tableData.filter((item: any) => {
-      const matchesSearch = debouncedSearchText === '' || 
-        smartMatch(JSON.stringify(item), debouncedSearchText);
+      const matchesSearch = debouncedSearchText === '' || smartMatch(JSON.stringify(item), debouncedSearchText);
       const matchesColumnFilters = Object.keys(columnFilters).every(key => {
         const filterVal = columnFilters[key].toLowerCase();
         if (!filterVal) return true;
         const itemVal = String(item[key] || '').toLowerCase();
         return itemVal.includes(filterVal);
       });
-
       return matchesSearch && matchesColumnFilters;
     });
   }, [tableData, debouncedSearchText, columnFilters]);
@@ -132,26 +118,25 @@ function DataTable<T extends object>({
          style={{ background: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}` }}>
       
       <div className="card-header bg-transparent py-3 py-md-4 px-3 px-md-4" style={{ borderBottom: `1px solid ${colors.border}` }}>
-          <div className="d-flex flex-wrap flex-lg-nowrap align-items-center justify-content-between gap-3">
-          <div className="d-flex align-items-center gap-2 text-nowrap">
+        <div className="d-flex flex-wrap flex-lg-nowrap align-items-center justify-content-between gap-3">
+          
+          <div className="d-flex align-items-center gap-2 w-100 w-lg-auto">
             <div className="p-2 rounded-3" style={{ backgroundColor: colors.primaryGlow, color: colors.primary }}>
               <ListFilter size={20} />
             </div>
-            <h5 className="mb-0 fw-bold" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>
-              {title}
-            </h5>
+            <h5 className="mb-0 fw-bold text-nowrap" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>{title}</h5>
           </div>
-            <div className="d-flex align-items-center justify-content-end gap-3 flex-wrap ms-auto" 
-                style={{ minWidth: 'max-content' }}> 
-                {titleActions}
-                
-                {isFetching && !isLoading && (
-                  <div className="d-flex align-items-center gap-2 text-info small animate-pulse">
-                    <Loader2 size={14} className="spin" />
-                    <span className="d-none d-sm-inline">Đang đồng bộ...</span>
-                  </div>
-                )}
+
+          <div className="d-flex align-items-center justify-content-start justify-content-lg-end gap-3 flex-wrap flex-grow-1 ms-auto">
+            {titleActions}
+            {isFetching && !isLoading && (
+              <div className="d-flex align-items-center gap-2 text-info small animate-pulse">
+                <Loader2 size={14} className="spin" />
+                <span className="d-none d-sm-inline">Đang đồng bộ...</span>
+              </div>
+            )}
           </div>
+
         </div>
       </div>
 
@@ -288,13 +273,8 @@ function DataTable<T extends object>({
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        .datatable-head {
-          display: table-header-group;
-        }
-        
-        .table-row-dark:hover {
-          background: rgba(251, 244, 236, 0.03) !important;
-        }
+        .datatable-head { display: table-header-group; }
+        .table-row-dark:hover { background: rgba(251, 244, 236, 0.03) !important; }
         
         .custom-table {
             background-color: transparent !important;
@@ -302,46 +282,28 @@ function DataTable<T extends object>({
             border-color: ${colors.border} !important;
         }
         .custom-table :not(caption) > * > * {
-            background-color: transparent !important; /* Xóa nền trắng mặc định của Bootstrap */
+            background-color: transparent !important;
             color: ${colors.textPrimary} !important;
             border-bottom-width: 1px;
             border-color: ${colors.border} !important;
-            box-shadow: none !important; /* Xóa shadow nếu có */
+            box-shadow: none !important;
         }
-        .table-row-dark:hover td {
-            background-color: rgba(56, 189, 248, 0.04) !important; /* Màu xanh mờ khi di chuột */
-        }
-        .td-content input, 
-        .td-content select,
-        .td-content textarea {
-            background-color: ${colors.background} !important; /* Màu nền tối sâu */
+        .table-row-dark:hover td { background-color: rgba(56, 189, 248, 0.04) !important; }
+        
+        .td-content input, .td-content select, .td-content textarea {
+            background-color: ${colors.background} !important;
             border: 1px solid ${colors.borderLight} !important;
             color: ${colors.textPrimary} !important;
             border-radius: 6px;
         }
-        .td-content input::placeholder,
-        .td-content textarea::placeholder {
-            color: ${colors.textMuted} !important; /* Dùng màu xám mờ từ theme */
-            opacity: 0.6; /* Chỉnh độ mờ cho vừa mắt */
-            font-size: 0.8rem;
-        }
-        .td-content input::-webkit-input-placeholder,
-        .td-content textarea::-webkit-input-placeholder {
+        .td-content input::placeholder, .td-content textarea::placeholder {
             color: ${colors.textMuted} !important;
-        }
-        .td-content input:focus::placeholder {
-            opacity: 0.3;
-        }
-        .td-content input, 
-        .td-content textarea {
-            color: ${colors.textPrimary} !important; /* Màu chữ trắng sáng để dễ đọc */
+            opacity: 0.6;
+            font-size: 0.8rem;
         }
 
         @media (max-width: 1150px) {
-          .datatable-head {
-            display: none;
-          }
-
+          .datatable-head { display: none; }
           .responsive-stack-table, .responsive-stack-table tbody, .responsive-stack-table tr, .responsive-stack-table td {
             display: block;
             width: 100%;
@@ -357,7 +319,7 @@ function DataTable<T extends object>({
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 10px !important;
+            padding: 12px 16px !important;
             border-bottom: 1px solid ${colors.border} !important;
           }
           .responsive-stack-table td:last-child { border-bottom: 0 !important; }
@@ -377,9 +339,13 @@ function DataTable<T extends object>({
             justify-content: flex-end;
             text-align: right;
           }
-          .td-content input, .td-content select, .td-content .form-control, .td-content .form-select {
+          .td-content input[type="checkbox"] {
+            width: 18px !important;
+            height: 18px !important;
+          }
+          .td-content input:not([type="checkbox"]), .td-content select, .td-content .form-control {
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: 160px !important;
             box-sizing: border-box !important;
           }
         }

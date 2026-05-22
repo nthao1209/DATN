@@ -34,7 +34,55 @@ async function init() {
     });
 
     const uiTopicPrefix = config.mqtt.uiTopicPrefix || 'attendance/ui/trip';
-    const unlockRequestTopic = 'attendance/backend/unlock-requests';
+
+    const readTrimmedNote = (value: any): string | null | undefined => {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+
+        const trimmed = String(value).trim();
+        return trimmed ? trimmed : null;
+    };
+
+    const resolveTransactionNotes = ({
+        checkIn,
+        checkOut,
+        checkInNote,
+        checkOutNote,
+        legacyNote,
+    }: {
+        checkIn: boolean;
+        checkOut: boolean;
+        checkInNote?: string | null | undefined;
+        checkOutNote?: string | null | undefined;
+        legacyNote?: string | null | undefined;
+    }) => {
+        const hasExplicitCheckInNote = checkInNote !== undefined;
+        const hasExplicitCheckOutNote = checkOutNote !== undefined;
+
+        if (hasExplicitCheckInNote || hasExplicitCheckOutNote) {
+            return {
+                ...(hasExplicitCheckInNote ? { checkInNote: checkInNote ?? null } : {}),
+                ...(hasExplicitCheckOutNote ? { checkOutNote: checkOutNote ?? null } : {}),
+            };
+        }
+
+        if (legacyNote === undefined) {
+            return {};
+        }
+
+        if (checkIn && !checkOut) {
+            return { checkInNote: legacyNote ?? null };
+        }
+
+        if (checkOut && !checkIn) {
+            return { checkOutNote: legacyNote ?? null };
+        }
+
+        return {
+            checkInNote: legacyNote ?? null,
+            checkOutNote: legacyNote ?? null,
+        };
+    };
 
     const createNotification = async (userId: number, type: string, title: string, content: string, payload: Record<string, unknown>) => {
         if (!Number.isInteger(userId) || userId <= 0) return;
@@ -64,7 +112,6 @@ async function init() {
     client.on('connect', () => {
         parentPort?.postMessage(`[${prj}] Connected.`);
         client.subscribe(config.mqtt.topic);
-        client.subscribe(unlockRequestTopic);
     });
 
     const handleAttendanceMessage = async (_topic: string, data: any) => {
@@ -84,9 +131,21 @@ async function init() {
                 });
             }
 
+            
+
             const now = Date.now();
             const checkInAt = data.checkIn ? new Date(now) : null;
             const checkOutAt = data.checkOut ? new Date(now) : null;
+            const incomingCheckInNote = readTrimmedNote(data.checkInNote);
+            const incomingCheckOutNote = readTrimmedNote(data.checkOutNote);
+            const incomingLegacyNote = readTrimmedNote(data.note);
+            const resolvedNotes = resolveTransactionNotes({
+                checkIn: Boolean(data.checkIn),
+                checkOut: Boolean(data.checkOut),
+                checkInNote: incomingCheckInNote,
+                checkOutNote: incomingCheckOutNote,
+                legacyNote: incomingLegacyNote,
+            });
 
             const parseOperatorToInt = (val: any) => {
                 if (val === undefined || val === null) return null;
@@ -118,21 +177,36 @@ async function init() {
             let result: any = null;
             if (existing) {
                 const updateRes = await pool.query(
-                    `UPDATE "Transaction" SET "busId" = $1, "checkIn" = $2, "checkOut" = $3, "note" = $4 WHERE id = $5 RETURNING *`,
-                    [data.busId, Boolean(data.checkIn), Boolean(data.checkOut), data.note || '', existing.id]
+                    `UPDATE "Transaction" SET "busId" = $1, "checkIn" = $2, "checkOut" = $3, "checkInNote" = $4, "checkOutNote" = $5 WHERE id = $6 RETURNING *`,
+                    [
+                        data.busId,
+                        Boolean(data.checkIn),
+                        Boolean(data.checkOut),
+                        resolvedNotes.checkInNote ?? existing.checkInNote ?? null,
+                        resolvedNotes.checkOutNote ?? existing.checkOutNote ?? null,
+                        existing.id,
+                    ]
                 );
                 result = updateRes.rows[0];
             } else {
                 const insertRes = await pool.query(
-                    `INSERT INTO "Transaction" ("passengerId", "roundId", "busId", "checkIn", "checkOut", "note") VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-                    [data.passengerId, data.roundId, data.busId, Boolean(data.checkIn), Boolean(data.checkOut), data.note || '']
+                    `INSERT INTO "Transaction" ("passengerId", "roundId", "busId", "checkIn", "checkOut", "checkInNote", "checkOutNote") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+                    [
+                        data.passengerId,
+                        data.roundId,
+                        data.busId,
+                        Boolean(data.checkIn),
+                        Boolean(data.checkOut),
+                        resolvedNotes.checkInNote ?? null,
+                        resolvedNotes.checkOutNote ?? null,
+                    ]
                 );
                 result = insertRes.rows[0];
             }
 
             if (!result) {
                 if (process.env.NODE_ENV === 'development') {
-                    console.log(`⏭️ [${prj}] Ignored stale attendance payload for Passenger ${data.passengerId} in Round ${data.roundId}`);
+                    console.log(` [${prj}] Ignored stale attendance payload for Passenger ${data.passengerId} in Round ${data.roundId}`);
                 }
                 return;
             }
@@ -163,22 +237,22 @@ async function init() {
             // create attendance events for newly enabled actions
             if (result.checkIn && !(existing?.checkIn)) {
                 const at = checkInAt ?? new Date();
-                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_IN_ON', checkInBy, eventCheckInBusId, data.note || '', at]);
+                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_IN_ON', checkInBy, eventCheckInBusId, resolvedNotes.checkInNote ?? incomingLegacyNote ?? '', at]);
             }
 
             if (!result.checkIn && existing?.checkIn) {
                 const at = checkInAt ?? new Date();
-                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_IN_OFF', checkInBy, eventCheckInBusId, data.note || '', at]);
+                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_IN_OFF', checkInBy, eventCheckInBusId, resolvedNotes.checkInNote ?? incomingLegacyNote ?? '', at]);
             }
 
             if (result.checkOut && !(existing?.checkOut)) {
                 const at = checkOutAt ?? new Date();
-                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_OUT_ON', checkOutBy, eventCheckOutBusId, data.note || '', at]);
+                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_OUT_ON', checkOutBy, eventCheckOutBusId, resolvedNotes.checkOutNote ?? incomingLegacyNote ?? '', at]);
             }
 
             if (!result.checkOut && existing?.checkOut) {
                 const at = checkOutAt ?? new Date();
-                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_OUT_OFF', checkOutBy, eventCheckOutBusId, data.note || '', at]);
+                await pool.query(`INSERT INTO "AttendanceEvent" ("transactionId", action, "actorId", "busId", note, "createdAt") VALUES ($1,$2,$3,$4,$5,$6)`, [result.id, 'CHECK_OUT_OFF', checkOutBy, eventCheckOutBusId, resolvedNotes.checkOutNote ?? incomingLegacyNote ?? '', at]);
             }
 
             const checkInEventRes = await pool.query(`SELECT "actorId", "createdAt", "busId" FROM "AttendanceEvent" WHERE "transactionId" = $1 AND action IN ('CHECK_IN_ON','CHECK_IN_OFF') ORDER BY "createdAt" DESC LIMIT 1`, [result.id]);
@@ -264,46 +338,10 @@ async function init() {
         }
     };
 
-    const handleUnlockMessage = async (_topic: string, data: any) => {
-        try {
-            const { action, requestId, approvedBy, rejectReason } = data;
-            if (!action) throw new Error('Missing action');
-
-            if (action === 'approve') {
-                const requestRes = await pool.query(`SELECT * FROM "UnlockRequest" WHERE id = $1`, [requestId]);
-                if (requestRes.rows.length === 0) throw new Error('Unlock request not found');
-                const request = requestRes.rows[0];
-                if (request.status !== 'PENDING') return;
-                await pool.query(`UPDATE "BusRoundStatus" SET "checkInLocked" = CASE WHEN $3 = 'check_in' THEN false ELSE "checkInLocked" END, "checkOutLocked" = CASE WHEN $3 = 'check_out' THEN false ELSE "checkOutLocked" END WHERE "busId" = $1 AND "roundId" = $2`, [request.busId, request.roundId, request.type]);
-                await pool.query(`UPDATE "UnlockRequest" SET status = 'APPROVED', "approvedBy" = $2, "respondedAt" = NOW() WHERE id = $1`, [requestId, approvedBy]);
-                const busRes = await pool.query(`SELECT b.*, t.id as "tripId" FROM "Bus" b JOIN "Trip" t ON b."tripId" = t.id WHERE b.id = $1`, [request.busId]);
-                const bus = busRes.rows[0];
-                client.publish(`${uiTopicPrefix}/${bus.tripId}`, JSON.stringify({ type: 'unlock.request.approved', requestId, busId: request.busId, roundId: request.roundId, lockType: request.type }), { qos: 1 });
-                parentPort?.postMessage(`✅ Approved request ${requestId}`);
-            } else if (action === 'reject') {
-                const requestRes = await pool.query(`SELECT * FROM "UnlockRequest" WHERE id = $1`, [requestId]);
-                if (requestRes.rows.length === 0) throw new Error('Unlock request not found');
-                const request = requestRes.rows[0];
-                if (request.status !== 'PENDING') return;
-                await pool.query(`UPDATE "UnlockRequest" SET status = 'REJECTED', "approvedBy" = $2, "respondedAt" = NOW() WHERE id = $1`, [requestId, approvedBy]);
-                const busRes = await pool.query(`SELECT b.*, t.id as "tripId" FROM "Bus" b JOIN "Trip" t ON b."tripId" = t.id WHERE b.id = $1`, [request.busId]);
-                const bus = busRes.rows[0];
-                client.publish(`${uiTopicPrefix}/${bus.tripId}`, JSON.stringify({ type: 'unlock.request.rejected', requestId, busId: request.busId, roundId: request.roundId, rejectReason: rejectReason || '' }), { qos: 1 });
-                parentPort?.postMessage(`❌ Rejected request ${requestId}`);
-            }
-        } catch (e: any) {
-            parentPort?.postMessage(`❌ Unlock error: ${e.message}`);
-        }
-    };
-
     client.on('message', async (topic, msg) => {
         try {
             const data = JSON.parse(msg.toString());
-            if (topic === unlockRequestTopic) {
-                await handleUnlockMessage(topic, data);
-            } else {
-                await handleAttendanceMessage(topic, data);
-            }
+            await handleAttendanceMessage(topic, data);
         } catch (e: any) {
             parentPort?.postMessage(`❌ Parse error: ${e.message}`);
         }

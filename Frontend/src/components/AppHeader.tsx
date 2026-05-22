@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect,  useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { type RootState } from '../redux/store';
 import { logout } from '../redux/slice/authSlice';
 import { 
-  LogOut, Building, Bell,ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
+  LogOut, Building, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 import { useTheme } from '../theme/ThemeContext';

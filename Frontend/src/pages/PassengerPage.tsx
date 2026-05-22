@@ -32,19 +32,24 @@ const PassengerPage: React.FC = () => {
   const initialRowsByIdRef = useRef<Record<number, PassengerRow>>({});
 
   
-
-  // --- DATA FETCHING (Giữ nguyên logic của bạn) ---
   const { data: trips = [] } = useQuery<PassengerTrip[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
   });
 
   
+  const tripIds = useMemo(
+    () => trips.map((t: any) => t.id),
+    [trips]
+  );
+
   const { data: allBuses = [] } = useQuery<PassengerBus[]>({
-    queryKey: ['buses-all-trips', trips.map((t: any) => t.id).join(',')],
-    enabled: trips.length > 0,
+    queryKey: ['buses-all-trips', tripIds],
+    enabled: tripIds.length > 0,
     queryFn: async () => {
-      const busesPerTrip = await Promise.all(trips.map((trip) => api.getBuses(String(trip.id))));
+      const busesPerTrip = await Promise.all(
+        tripIds.map((id) => api.getBuses(String(id)))
+      );
       return busesPerTrip.flat();
     },
   });
@@ -59,24 +64,35 @@ const PassengerPage: React.FC = () => {
     },
   });
 
-  // --- LOGIC XỬ LÝ DỮ LIỆU ---
   useEffect(() => {
-    if (!selectedTripId) { setSelectedBusId(null); return; }
-    const busesOfSelectedTrip = allBuses.filter((bus: any) => Number(bus.trip?.id ?? selectedTripId) === selectedTripId);
-    if (!busesOfSelectedTrip.length) { setSelectedBusId(null); return; }
-    if (selectedBusId !== null) {
-      const exists = busesOfSelectedTrip.some((bus) => Number(bus.id) === selectedBusId);
-      if (!exists) setSelectedBusId(null);
+    if (selectedTripId == null) {
+      if (selectedBusId !== null) {
+        setSelectedBusId(null);
+      }
+      return;
     }
-  }, [allBuses, selectedTripId, selectedBusId]);
 
-  useEffect(() => {
-    setRows([]);
-    setDeletedIds([]);
-  }, [selectedTripId, selectedBusId]);
+    const busesOfSelectedTrip = allBuses.filter(
+      (bus: any) => Number(bus.trip?.id) === selectedTripId
+    );
 
-  useEffect(() => {
+    const exists = busesOfSelectedTrip.some(
+      (bus) => Number(bus.id) === selectedBusId
+    );
+
+    if (!exists && selectedBusId !== null) {
+      setSelectedBusId(null);
+    }
+  }, [selectedTripId, allBuses]);
+
+  const passengersSignature = useMemo(() => {
+    if (!passengers) return '';
+    return passengers.map((p: any) => `${p.id}-${p.name}-${p.tel}-${p.bus?.id}`).join('|');
+  }, [passengers]);
+
+useEffect(() => {
     if (!passengers) return;
+
     const mapped: PassengerRow[] = passengers.map((p: any) => ({
       id: p.id,
       localId: `db_${p.id}`,
@@ -87,17 +103,29 @@ const PassengerPage: React.FC = () => {
       busId: p.bus?.id ? Number(p.bus.id) : null,
       busCode: p.bus?.busCode || p.bus?.registrationNumber || '',
     }));
+
     const initialById: Record<number, PassengerRow> = {};
     mapped.forEach((row) => {
       if (row.id) initialById[row.id] = row;
     });
     initialRowsByIdRef.current = initialById;
+
     const padded = [...mapped];
     while (padded.length < EMPTY_ROWS_COUNT) {
-      padded.push({ localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' });
+      padded.push({ 
+        localId: makeLocalId(), 
+        name: '', 
+        tel: '', 
+        note: '', 
+        tripId: selectedTripId, 
+        busId: selectedBusId, 
+        busCode: '' 
+      });
     }
+
     setRows(padded);
-  }, [passengers, selectedBusId, selectedTripId]);
+    setDeletedIds([]); // Đồng bộ làm sạch hàng đợi đã xóa khi dữ liệu gốc tải lại
+  }, [passengersSignature, selectedTripId, selectedBusId]);
 
   const busesByTrip = useMemo<BusesByTrip>(() => {
     const map: BusesByTrip = {};
@@ -108,7 +136,8 @@ const PassengerPage: React.FC = () => {
     });
     return map;
   }, [allBuses, selectedTripId]);
-    const busOptions = useMemo(() => {
+
+  const busOptions = useMemo(() => {
       const options = !selectedTripId ? [] : busesByTrip[selectedTripId] || [];
       return [...options].sort((a, b) => {
         return (a.busCode || "").localeCompare(b.busCode || "", undefined, {
@@ -137,7 +166,6 @@ const PassengerPage: React.FC = () => {
     return Boolean(row.name.trim() || row.tel.trim() || note || row.busId);
   };
 
-  // Remove empty newly-added rows on unmount and avoid adding duplicate empty rows
   useEffect(() => {
     return () => {
       setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));

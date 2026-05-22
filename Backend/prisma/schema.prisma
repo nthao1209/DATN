@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Status {
+  DOING
+  DONE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+
 model Tenant {
   id          Int          @id @default(autoincrement())
   name        String
@@ -140,8 +152,8 @@ model Transaction {
   passengerId  Int
   checkIn      Boolean   @default(false)
   checkOut     Boolean   @default(false)
-  note         String?
-  
+  checkInNote  String?
+  checkOutNote String?
   lastActionAt DateTime?
 
   bus          Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
@@ -188,8 +200,8 @@ model BusRoundStatus {
   checkInAt      DateTime?
   checkOutLocked Boolean   @default(false)
   checkOutAt     DateTime?
-  bus            Bus       @relation(fields: [busId], references: [id])
-  round          Round     @relation(fields: [roundId], references: [id])
+  bus            Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
+  round          Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@unique([busId, roundId])
 }
@@ -202,14 +214,15 @@ model UnlockRequest {
   reason      String?
   status      RequestStatus @default(PENDING)
   requestedBy Int
-  approvedBy  Int?
+  handledBy  Int?
   createdAt   DateTime      @default(now())
   respondedAt DateTime?
-  approver    User?         @relation("UnlockRequestApprover", fields: [approvedBy], references: [id])
+  rejectReason String?
+  handler    User?         @relation("UnlockRequestApprover", fields: [handledBy], references: [id])
   bus         Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
   requester   User          @relation("UnlockRequestCreator", fields: [requestedBy], references: [id])
   round       Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
-
+ 
   @@unique([busId, roundId, type])
   @@index([busId])
   @@index([roundId])
@@ -218,13 +231,4 @@ model UnlockRequest {
 
 
 
-enum Status {
-  DOING
-  DONE
-}
 
-enum RequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}

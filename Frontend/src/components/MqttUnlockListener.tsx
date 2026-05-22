@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useNotification } from '../contexts/NotificationContext';
-import { subscribeUnlockRequestEvents } from '../services/mqtt';
+import { subscribeAdminUnlockRequests, subscribeRequesterUnlockResponse, subscribeLockUpdates, type MqttSubscriptionHandle } from '../services/mqtt';
 import { useQueryClient } from '@tanstack/react-query';
 import { type RootState } from '../redux/store';
 
@@ -16,33 +16,49 @@ export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnloc
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useSelector((state: RootState) => state.auth);
 
-  const shouldNotify = (type: string) => {
-    if (roleId === 2) {
-      return type === 'unlock.request.created' || type === 'unlock.request.approved' || type === 'unlock.request.rejected' || type === 'round.lock.changed';
-    }
-
-    if (roleId === 3) {
-      return type === 'unlock.request.approved' || type === 'unlock.request.rejected' || type === 'round.lock.changed';
-    }
-
-    return true;
-  };
-
   useEffect(() => {
     if (!enabled || !tripId || authLoading || !user?.id) {
       return;
     }
 
-    const subscription = subscribeUnlockRequestEvents(tripId, (message) => {
-      console.log('[Unlock] Received MQTT message:', message);
+    const subscriptions: MqttSubscriptionHandle[] = [];
 
-      if (!shouldNotify(message.type)) {
+    // Admin listens to unlock requests
+    if (roleId === 2) {
+      const adminSub = subscribeAdminUnlockRequests(tripId, (message) => {
+        console.log('[Unlock] Admin received unlock request:', message);
+        addNotification(
+          `Xe ${message.busCode} yêu cầu mở khóa ${message.lockType === 'check_in' ? 'điểm danh vào' : 'điểm danh ra'} cho tuyến ${message.roundName}. Lý do: ${message.reason}`,
+          'info',
+          7000,
+          { showToast: true },
+        );
+        void refreshNotifications();
+        queryClient.invalidateQueries({ queryKey: ['unlock-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-unlock-requests', message.busId] });
+      });
+      subscriptions.push(adminSub);
+    }
+
+    // Requester listens to approval/rejection responses (personal)
+    const requesterSub = subscribeRequesterUnlockResponse(user.id, (message) => {
+      console.log('[Unlock] Requester received response:', message);
+      if (message.type === 'unlock.request.created.self') {
+        addNotification(
+          `Đã gửi yêu cầu mở khóa cho xe ${message.busCode} - ${message.roundName}`,
+          'info',
+          5000,
+          { showToast: true },
+        );
+        void refreshNotifications();
+        queryClient.invalidateQueries({ queryKey: ['unlock-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-unlock-requests', message.busId] });
         return;
       }
 
       if (message.type === 'unlock.request.approved') {
         addNotification(
-          `Yêu cầu mở khóa cho xe ${message.busCode} - ${message.roundName} đã được phê duyệt bởi ${message.approvedBy}`,
+          `Yêu cầu mở khóa cho xe ${message.busCode} - ${message.roundName} đã được phê duyệt`,
           'success',
           5000,
           { showToast: true },
@@ -65,23 +81,14 @@ export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnloc
         queryClient.invalidateQueries({ queryKey: ['pending-unlock-requests', message.busId] });
         queryClient.invalidateQueries({ queryKey: ['unlock-requests'] });
         queryClient.invalidateQueries({ queryKey: ['bus-round-locks', message.tripId] });
-        return;
       }
+    });
+    subscriptions.push(requesterSub);
 
-      if (message.type === 'unlock.request.created') {
-        addNotification(
-          `Xe ${message.busCode} yêu cầu mở khóa ${message.lockType === 'check_in' ? 'điểm danh vào' : 'điểm danh ra'} cho tuyến ${message.roundName}. Lý do: ${message.reason}`,
-          'info',
-          7000,
-          { showToast: true },
-        );
-        void refreshNotifications();
-        queryClient.invalidateQueries({ queryKey: ['unlock-requests'] });
-        queryClient.invalidateQueries({ queryKey: ['pending-unlock-requests', message.busId] });
-        return;
-      }
-
-      if (message.type === 'round.lock.changed') {
+    // All users listen to lock changes
+    const lockSub = subscribeLockUpdates(tripId, (message) => {
+      console.log('[Unlock] Lock update:', message);
+      if (message.type === 'round.lock.changed' || message.type === 'bus.round.lock.updated') {
         const lockLabel = message.checkInLocked || message.checkOutLocked ? 'đã khóa' : 'đã mở khóa';
         const detailLabel = message.checkInLocked !== undefined
           ? 'lượt đi'
@@ -99,11 +106,12 @@ export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnloc
         queryClient.invalidateQueries({ queryKey: ['bus-round-locks', message.tripId] });
       }
     });
+    subscriptions.push(lockSub);
 
     return () => {
-      subscription.end(true);
+      subscriptions.forEach((sub) => sub.end(true));
     };
-  }, [addNotification, authLoading, enabled, queryClient, refreshNotifications, tripId, user?.id, roleId]);
+  }, [tripId, roleId, enabled, authLoading, user?.id, addNotification, refreshNotifications, queryClient]);
 
   return null;
 };

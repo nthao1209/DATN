@@ -98,9 +98,10 @@ const handleSubmit = async () => {
   }
 
   try {
-    const statuses =await api.getBusRoundStatuses(
+    const response =await api.getBusRoundStatuses(
       String(selectedTripId)
     );
+    const statuses = response.data || [];
     console.log(statuses);
 
     const currentStatus = statuses.find(

@@ -42,31 +42,30 @@ export type AttendanceUpdateEvent = {
   requiresReview?: boolean;
 
   // ===== Khác =====
-  note?: string;
+  checkInNote?: string;
+  checkOutNote?: string;
   project?: string;
   updatedAt?: string;
 };
 
 export type UnlockMqttEvent = {
-  type: 'unlock.request.created' | 'unlock.request.approved' | 'unlock.request.rejected' | 'round.lock.changed' | 'bus.round.lock.updated';
+  type: 'unlock.request.created' | 'unlock.request.created.self' | 'unlock.request.approved' | 'unlock.request.rejected' | 'round.lock.changed' | 'bus.round.lock.updated';
   tripId: number;
+  requestId?: number;
   busId: number;
   busCode?: string;
   roundId: number;
   roundName?: string;
   lockType?: 'check_in' | 'check_out';
   reason?: string;
-  requestedBy?: string;
-  approvedBy?: string;
-  rejectedBy?: string;
+  requestedBy?: number | string;
+  handledBy?: number | string;
   rejectReason?: string;
   checkInLocked?: boolean;
   checkOutLocked?: boolean;
   lockedBy?: string;
-  createdAt?: string;
-  approvedAt?: string;
-  rejectedAt?: string;
-  updatedAt?: string;
+  scope?: 'ADMIN_ONLY' | 'TRIP_UI';
+  timestamp?: string;
 };
 
 export type MqttBrokerStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
@@ -77,6 +76,8 @@ export type MqttSubscriptionHandle = {
 const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084';
 const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || '';
 const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || '';
+const MQTT_ADMIN_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ADMIN_TOPIC_PREFIX || 'attendance/trips';
+const MQTT_LOCKS_TOPIC_PREFIX = import.meta.env.VITE_MQTT_LOCKS_TOPIC_PREFIX || 'attendance/trips';
 const MQTT_UI_TOPIC_PREFIX = import.meta.env.VITE_MQTT_UI_TOPIC_PREFIX || 'attendance/ui/trip';
 const MQTT_ATTENDANCE_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ATTENDANCE_TOPIC_PREFIX || 'attendance';
 
@@ -254,18 +255,64 @@ export const subscribeAttendanceUpdates = (
   });
 };
 
+export const subscribeAdminUnlockRequests = (
+  tripId: number,
+  onMessage: (event: UnlockMqttEvent) => void,
+): MqttSubscriptionHandle => {
+  return registerTopicHandlers([`${MQTT_ADMIN_TOPIC_PREFIX}/${tripId}/admin/unlock-requests`], (_topic, parsed) => {
+    if (parsed.type === 'unlock.request.created' && Number(parsed.tripId) === Number(tripId)) {
+      onMessage(parsed as UnlockMqttEvent);
+    }
+  });
+};
+
+export const subscribeRequesterUnlockResponse = (
+  userId: number,
+  onMessage: (event: UnlockMqttEvent) => void,
+): MqttSubscriptionHandle => {
+  return registerTopicHandlers([`attendance/requester/${userId}/unlock-response`], (_topic, parsed) => {
+    if (
+      (parsed.type === 'unlock.request.created.self' ||
+        parsed.type === 'unlock.request.approved' ||
+        parsed.type === 'unlock.request.rejected') &&
+      Number(parsed.requestId) > 0
+    ) {
+      onMessage(parsed as UnlockMqttEvent);
+    }
+  });
+};
+
+export const subscribeLockUpdates = (
+  tripId: number,
+  onMessage: (event: UnlockMqttEvent) => void,
+): MqttSubscriptionHandle => {
+  return registerTopicHandlers([`${MQTT_LOCKS_TOPIC_PREFIX}/${tripId}/locks`], (_topic, parsed) => {
+    if (
+      (parsed.type === 'round.lock.changed' || parsed.type === 'bus.round.lock.updated') &&
+      Number(parsed.tripId) === Number(tripId)
+    ) {
+      onMessage(parsed as UnlockMqttEvent);
+    }
+  });
+};
+
+/**
+ * @deprecated Use subscribeAdminUnlockRequests, subscribeRequesterUnlockResponse, subscribeLockUpdates instead
+ */
 export const subscribeUnlockRequestEvents = (
   tripId: number,
   onMessage: (event: UnlockMqttEvent) => void,
 ): MqttSubscriptionHandle => {
   return registerTopicHandlers(
-    [`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, `attendance/admin/unlock-requests/${tripId}`],
+    [`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, `${MQTT_ADMIN_TOPIC_PREFIX}/${tripId}/admin/unlock-requests`],
     (_topic, parsed) => {
       if (
         (parsed.type === 'unlock.request.created' ||
+          parsed.type === 'unlock.request.created.self' ||
           parsed.type === 'unlock.request.approved' ||
           parsed.type === 'unlock.request.rejected' ||
-          parsed.type === 'round.lock.changed') &&
+          parsed.type === 'round.lock.changed' ||
+          parsed.type === 'bus.round.lock.updated') &&
         Number(parsed.tripId) === Number(tripId)
       ) {
         onMessage(parsed as UnlockMqttEvent);
@@ -285,7 +332,8 @@ export const publishAttendanceUpdate = async (tripId: number, payload?: Partial<
     busId: payload?.busId || 0,
     checkIn: payload?.checkIn || false,
     checkOut: payload?.checkOut || false,
-    note: payload?.note,
+    checkInNote: payload?.checkInNote,
+    checkOutNote: payload?.checkOutNote,
     updatedAt: new Date().toISOString(),
     project: payload?.project,
   };
@@ -314,7 +362,8 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
     checkOut: action.checkOut,
     checkInBy: action.checkInBy,
     checkOutBy: action.checkOutBy,
-    note: action.note || '',
+    checkInNote: action.checkInNote || '',
+    checkOutNote: action.checkOutNote || '',
     timestamp: action.timestamp,
   };
 

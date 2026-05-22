@@ -33,14 +33,15 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
-  const { user, loading: authLoading } = useSelector((state: RootState) => state.auth);
+  const { user, currentTenant, loading: authLoading } = useSelector((state: RootState) => state.auth);
   const [notifications, setNotifications] = useState<StoredNotification[]>([]);
   const { enqueueSnackbar } = useSnackbar(); // Lấy hàm gọi Toast của notistack
   
   const userId = user?.id ?? null;
+  const tenantId = currentTenant?.id ?? null;
 
   const refreshNotifications = useCallback(async () => {
-    if (!userId || authLoading) {
+    if (!userId || !tenantId || authLoading) {
       return;
     }
 
@@ -50,19 +51,19 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Failed to load notifications:', error);
     }
-  }, [authLoading, userId]);
+  }, [authLoading, tenantId, userId]);
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !tenantId) {
       setNotifications([]);
     }
-  }, [userId]);
+  }, [tenantId, userId]);
 
   useEffect(() => {
-    if (userId) {
+    if (userId && tenantId) {
       refreshNotifications();
     }
-  }, [userId, refreshNotifications]);
+  }, [refreshNotifications, tenantId, userId]);
 
   const markNotificationAsRead = useCallback(async (id: number) => {
     try {
