@@ -395,7 +395,6 @@ const TransactionPage: React.FC = () => {
         await Promise.all(txToDelete.map((tx) => api.deleteTransaction(String(tx.id))));
       }
 
-      // Dọn draft local theo passenger để tránh tự sync lại dữ liệu vừa xóa.
       setDraftMap((prev) => {
         const next = { ...prev };
         Object.keys(next).forEach((key) => {
@@ -588,8 +587,8 @@ const TransactionPage: React.FC = () => {
             busId: passenger.busId!,
             checkIn: false,
             checkOut: false,
-            checkInNote: `Khách ở xe ${passenger.assignedBusName}`,
-            checkOutNote: `Khách ở xe ${passenger.assignedBusName}`,
+            checkInNote: null,
+            checkOutNote: null,
           })
         )
       );

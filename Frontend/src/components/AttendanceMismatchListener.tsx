@@ -49,8 +49,7 @@ export const AttendanceMismatchListener = () => {
         tripId,
         async (message) => {
           if (
-            message.type !==
-            'attendance.requires_review'
+            message.type !== 'attendance.wrong_bus'
           ) {
             return;
           }

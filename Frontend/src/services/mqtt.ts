@@ -5,7 +5,7 @@ export type AttendanceUpdateEvent = {
   type:
     | 'attendance.updated'
     | 'attendance.changed'
-    | 'attendance.requires_review';
+    | 'attendance.wrong_bus';
 
   tripId: number;
 
@@ -247,7 +247,8 @@ export const subscribeAttendanceUpdates = (
     if (
       (parsed.type === 'attendance.updated' ||
         parsed.type === 'attendance.changed' ||
-        parsed.type === 'attendance.requires_review') &&
+        parsed.type === 'attendance.requires_review' ||
+        parsed.type === 'attendance.wrong_bus') &&
       Number(parsed.tripId) === Number(tripId)
     ) {
       onMessage(parsed as AttendanceUpdateEvent);
