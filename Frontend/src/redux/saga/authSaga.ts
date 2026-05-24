@@ -24,7 +24,7 @@ function* handleLogin(action: any): any {
       return;
     }
    
-    const token = yield call([user, user.getIdToken]);
+    const token = yield call([user, user.getIdToken], true);
 
     // 2. Gọi API Status để lấy thông tin từ Postgres (Prisma) và kiểm tra Tenant
     const response = yield call(api.getMyStatus, token);
@@ -79,7 +79,7 @@ function* handleJoinTenant(action: any): any {
     // Gọi API join tenant
     const joinResponse = yield call(api.joinTenant, joinCode);
     const currentUser = fbAuth.currentUser;
-    const token = currentUser ? yield call([currentUser, currentUser.getIdToken]) : undefined;
+    const token = currentUser ? yield call([currentUser, currentUser.getIdToken], true) : undefined;
     const statusResponse = yield call(api.getMyStatus, token);
     const matchedTenant = statusResponse?.tenants?.find(
       (tenant: any) => tenant.id === joinResponse?.tenant?.id

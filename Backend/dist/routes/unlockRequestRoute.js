@@ -5,6 +5,7 @@ const unlockRequestController_1 = require("../controllers/unlockRequestControlle
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = (0, express_1.Router)();
 router.use(authMiddleware_1.verifyFirebaseToken);
+router.get('/pending', unlockRequestController_1.unlockRequestController.getPendingRequests);
 // POST create an unlock request
 router.post('/bus/:busId/round/:roundId', unlockRequestController_1.unlockRequestController.create);
 // POST approve an unlock request

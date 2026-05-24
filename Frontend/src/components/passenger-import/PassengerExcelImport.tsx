@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import api from '../../services/api';
-import type { PassengerImportPreviewResponse } from '../../pages/passenger/types';
+import type { PassengerImportPreviewResponse } from '../../pages/admin/passenger/types';
 import { useSnackbar } from 'notistack';
 import { useTheme } from  '../../theme/ThemeContext';
 

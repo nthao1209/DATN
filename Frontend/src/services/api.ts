@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth as fbAuth } from '../config/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import type { PassengerImportPreviewResponse } from '../pages/passenger/types';
+import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/types';
 
 
 const axiosClient = axios.create({
@@ -11,6 +11,17 @@ const axiosClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+const AUTH_ENDPOINT_HINTS = [
+  '/auth/sync',
+  '/auth/status',
+  '/auth/delete-account',
+  '/tenants/create',
+  '/tenants/join',
+];
+
+const isAuthRelatedEndpoint = (url?: string) =>
+  !!url && AUTH_ENDPOINT_HINTS.some((hint) => url.includes(hint));
 
 let authInitPromise: Promise<User | null> | null = null;
 
@@ -55,8 +66,10 @@ axiosClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as any;
     const isUnauthorized = error.response?.status === 401;
+    const requestUrl = String(originalRequest?.url || '');
+    const shouldSuppressLog = isUnauthorized && isAuthRelatedEndpoint(requestUrl);
 
-    if (isUnauthorized && !originalRequest?._retry) {
+    if (isUnauthorized && !originalRequest?._retry && originalRequest && !isAuthRelatedEndpoint(requestUrl)) {
       originalRequest._retry = true;
       const user = fbAuth.currentUser ?? (await waitForAuthInit());
       if (user) {
@@ -88,17 +101,28 @@ axiosClient.interceptors.response.use(
       message = `[${status}] ${method} ${endpoint} - ${backendMessage || 'Server không trả về chi tiết lỗi'}`;
     }
 
-    console.error('API Request Failed', {
-      method,
-      endpoint,
-      status,
-      code: error.code,
-      backendMessage,
-      responseData,
-      requestData: originalRequest?.data,
-    });
+    if (!shouldSuppressLog) {
+      console.error('API Request Failed', {
+        method,
+        endpoint,
+        status,
+        code: error.code,
+        backendMessage,
+        responseData,
+        requestData: originalRequest?.data,
+      });
+    }
 
-    return Promise.reject(new Error(message));
+    const apiError = new Error(message) as Error & {
+      status?: number;
+      endpoint?: string;
+      code?: string;
+    };
+    apiError.status = status;
+    apiError.endpoint = endpoint;
+    apiError.code = error.code;
+
+    return Promise.reject(apiError);
   }
 );
 
@@ -115,11 +139,20 @@ export const api = {
   syncUser: (data: { email: string; name: string; firebaseUid: string }, token?: string) => 
     axiosClient.post('/auth/sync', data, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined),
 
-  getMyStatus: (token?: string) => 
-    axiosClient.get(
-      '/auth/status',
-      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
-    ), // Trả về { user, tenants: [] }
+  getMyStatus: async (token?: string, options?: { silentOn401?: boolean }) => {
+    try {
+      return await axiosClient.get(
+        '/auth/status',
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+      );
+    } catch (error: any) {
+      if (options?.silentOn401 && error?.status === 401) {
+        return null;
+      }
+
+      throw error;
+    }
+  }, // Trả về { user, tenants: [] }
 
   joinTenant: (joinCode: string) => 
     axiosClient.post('/tenants/join', { joinCode }),

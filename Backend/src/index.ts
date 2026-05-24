@@ -1,17 +1,10 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
-import tenantRoutes from './routes/tenantRoute'
-import authRoutes from './routes/authRoute'
-import tripRoutes from './routes/tripRoute';
-import roundRoutes from './routes/roundRoute';
-import busRoutes from './routes/busRoute';
-import passengerRoutes from './routes/passengerRoute';
-import userRoutes from './routes/userRoute';
-import roleRoutes from './routes/roleRoute';
-import transactionRoutes from './routes/transactionRoute';
-import unlockRequestRoutes from './routes/unlockRequestRoute';
-import notificationRoutes from './routes/notificationRoute';
+import publicRoutes from './routes/public';
+import adminRoutes from './routes/admin';
+import systemAdminRoutes from './routes/system-admin';
+import busManagementRoutes from './routes/bus-management';
 dotenv.config()
 
 
@@ -20,17 +13,10 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-app.use('/api',tenantRoutes);
-app.use('/api',authRoutes);
-app.use('/api', tripRoutes);
-app.use('/api', roundRoutes);
-app.use('/api', busRoutes);
-app.use('/api', passengerRoutes);
-app.use('/api', userRoutes);
-app.use('/api', roleRoutes);
-app.use('/api', transactionRoutes);
-app.use('/api/unlock-requests', unlockRequestRoutes);
-app.use('/api', notificationRoutes);
+app.use('/api', publicRoutes);
+app.use('/api', adminRoutes);
+app.use('/api', systemAdminRoutes);
+app.use('/api', busManagementRoutes);
 
 app.get("/health", (req, res) => {
   res.status(200).send("ok");

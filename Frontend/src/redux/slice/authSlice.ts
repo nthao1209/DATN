@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { AuthState, Tenant, User } from '../../types/auth';
+import { resolveRoleId } from '../../auth/rbac';
 
 const initialState: AuthState = {
   user: null,
@@ -26,7 +27,11 @@ const authSlice = createSlice({
       state.tenants = action.payload.tenants || [];
       state.hasTenant = state.tenants.length > 0;
       state.currentTenant = state.tenants[0] || null;
-      state.roleId = action.payload.roleId || state.currentTenant?.roleId || state.currentTenant?.role?.id;
+      state.roleId = resolveRoleId(
+        action.payload.roleId,
+        state.currentTenant?.roleId,
+        state.currentTenant?.role?.id,
+      );
       state.needsEmailVerification = false;
       state.statusMessage = null;
       if (state.currentTenant?.id) {
@@ -72,7 +77,7 @@ const authSlice = createSlice({
     joinTenantSuccess: (state, action: PayloadAction<Tenant>) => {
       const tenant = action.payload;
       state.currentTenant = tenant;
-      state.roleId = tenant.roleId || tenant.role?.id;
+      state.roleId = resolveRoleId(tenant.roleId, tenant.role?.id);
       state.tenants = state.tenants.some((t) => t.id === tenant.id)
         ? state.tenants.map((t) => (t.id === tenant.id ? { ...t, ...tenant } : t))
         : [...state.tenants, tenant];
@@ -91,7 +96,7 @@ const authSlice = createSlice({
     setCurrentTenant: (state, action: PayloadAction<Tenant>) => {
       state.currentTenant = action.payload;
       state.hasTenant = true; // Chắc chắn là true khi đã chọn
-      state.roleId = action.payload.roleId || action.payload.role?.id;
+      state.roleId = resolveRoleId(action.payload.roleId, action.payload.role?.id);
       localStorage.setItem('currentTenantId', String(action.payload.id));
     },
     logout: (state) =>{

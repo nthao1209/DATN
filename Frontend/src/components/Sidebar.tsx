@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../redux/store';
 import { useTheme } from '../theme/ThemeContext';
+import { ROLE_IDS } from '../auth/rbac';
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -38,13 +39,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   };
 
   const menuConfig = {
-    dashboard: roleId === 2,
-    userManagement: roleId === 1,
-    roleManagement: roleId === 1,
-    trips: roleId === 2,
-    passengers:  roleId === 2,
-    transactions: roleId === 3,
-    unlockRequests: roleId === 3,
+    dashboard: roleId === ROLE_IDS.ADMIN,
+    userManagement: roleId === ROLE_IDS.SYSTEM_ADMIN,
+    roleManagement: roleId === ROLE_IDS.SYSTEM_ADMIN,
+    trips: roleId === ROLE_IDS.ADMIN,
+    passengers:  roleId === ROLE_IDS.ADMIN,
+    transactions: roleId === ROLE_IDS.BUS_MANAGEMENT,
+    unlockRequests: roleId === ROLE_IDS.BUS_MANAGEMENT,
     about: true,
   };
 

@@ -5,6 +5,7 @@ import { type RootState } from '../redux/store';
 import { useNotification } from '../contexts/NotificationContext';
 import { subscribeAttendanceUpdates } from '../services/mqtt';
 import { api } from '../services/api';
+import { ROLE_IDS } from '../auth/rbac';
 
 export const AttendanceMismatchListener = () => {
   const { addNotification, refreshNotifications } = useNotification();
@@ -20,7 +21,7 @@ export const AttendanceMismatchListener = () => {
       roleId,
     ],
     queryFn: api.getTrips,
-    enabled: Boolean(user?.id) && roleId === 3 && !authLoading,
+    enabled: Boolean(user?.id) && roleId === ROLE_IDS.BUS_MANAGEMENT && !authLoading,
   });
 
   const tripIds = useMemo(
@@ -38,7 +39,7 @@ export const AttendanceMismatchListener = () => {
     if (
       authLoading ||
       !user?.id ||
-      roleId !== 3 ||
+      roleId !== ROLE_IDS.BUS_MANAGEMENT ||
       !tripIds.length
     ) {
       return;

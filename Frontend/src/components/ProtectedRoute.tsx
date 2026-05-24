@@ -2,10 +2,11 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../redux/store';
+import { type RoleId, getFallbackPathForRole, hasRoleAccess } from '../auth/rbac';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: number[];
+  allowedRoles?: readonly RoleId[];
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles = [] }) => {
@@ -15,12 +16,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(roleId || 0)) {
-    const fallbackPath = roleId === 1
-      ? '/users'
-      : roleId === 3
-        ? '/transactions'
-        : '/dashboard';
+  if (allowedRoles.length > 0 && !hasRoleAccess(roleId, allowedRoles)) {
+    const fallbackPath = getFallbackPathForRole(roleId);
 
     return <Navigate to={fallbackPath} replace />;
   }

@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const unlockRequestController_1 = require("../../controllers/unlockRequestController");
+const authMiddleware_1 = require("../../middleware/authMiddleware");
+const router = (0, express_1.Router)();
+router.use(authMiddleware_1.verifyFirebaseToken);
+router.get('/pending', unlockRequestController_1.unlockRequestController.getPendingRequests);
+router.post('/bus/:busId/round/:roundId', unlockRequestController_1.unlockRequestController.create);
+router.post('/:requestId/approve', unlockRequestController_1.unlockRequestController.approve);
+router.post('/:requestId/reject', unlockRequestController_1.unlockRequestController.reject);
+exports.default = router;

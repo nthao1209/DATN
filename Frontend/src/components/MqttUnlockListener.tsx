@@ -4,6 +4,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { subscribeAdminUnlockRequests, subscribeRequesterUnlockResponse, subscribeLockUpdates, type MqttSubscriptionHandle } from '../services/mqtt';
 import { useQueryClient } from '@tanstack/react-query';
 import { type RootState } from '../redux/store';
+import { ROLE_IDS } from '../auth/rbac';
 
 interface MqttUnlockListenerProps {
   tripId?: number;
@@ -24,7 +25,7 @@ export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnloc
     const subscriptions: MqttSubscriptionHandle[] = [];
 
     // Admin listens to unlock requests
-    if (roleId === 2) {
+    if (roleId === ROLE_IDS.ADMIN) {
       const adminSub = subscribeAdminUnlockRequests(tripId, (message) => {
         console.log('[Unlock] Admin received unlock request:', message);
         addNotification(

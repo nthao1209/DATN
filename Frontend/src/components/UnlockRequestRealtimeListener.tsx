@@ -4,10 +4,11 @@ import { useSelector } from 'react-redux';
 import { type RootState } from '../redux/store';
 import api from '../services/api';
 import { MqttUnlockListener } from './MqttUnlockListener';
+import { ROLE_IDS } from '../auth/rbac';
 
 export const UnlockRequestRealtimeListener = () => {
   const { roleId } = useSelector((state: RootState) => state.auth);
-  const isTripAudience = roleId === 2 || roleId === 3;
+  const isTripAudience = roleId === ROLE_IDS.ADMIN || roleId === ROLE_IDS.BUS_MANAGEMENT;
 
   const { data: trips = [] } = useQuery<any[]>({
     queryKey: ['unlock-request-realtime-trips', roleId],

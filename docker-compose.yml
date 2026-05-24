@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:15
     container_name: postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -22,7 +22,7 @@ services:
   backend:
     build: ./Backend
     container_name: backend_service
-    restart: always
+    restart: unless-stopped
     env_file:
       - ./Backend/.env
     environment:
@@ -47,7 +47,7 @@ services:
   mqtt-worker:
     build: ./Mqtt-worker
     container_name: mqtt_worker
-    restart: always
+    restart: unless-stopped
     env_file:
       - ./Mqtt-worker/.env
     environment:
@@ -62,7 +62,7 @@ services:
   frontend:
     build: ./Frontend
     container_name: frontend_service
-    restart: always
+    restart: unless-stopped
     env_file:
       - ./Frontend/.env
     environment:

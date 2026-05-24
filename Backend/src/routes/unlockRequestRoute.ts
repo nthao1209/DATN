@@ -6,6 +6,8 @@ const router = Router();
 
 router.use(verifyFirebaseToken);
 
+router.get('/pending', unlockRequestController.getPendingRequests);
+
 // POST create an unlock request
 router.post('/bus/:busId/round/:roundId', unlockRequestController.create);
 

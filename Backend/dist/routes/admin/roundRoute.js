@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const authMiddleware_1 = require("../../middleware/authMiddleware");
+const roundController_1 = require("../../controllers/roundController");
+const router = (0, express_1.Router)();
+router.get('/trips/:tripId/rounds', authMiddleware_1.verifyFirebaseToken, roundController_1.roundController.getAll);
+router.post('/trips/:tripId/rounds', authMiddleware_1.verifyFirebaseToken, roundController_1.roundController.create);
+router.put('/rounds/:id', authMiddleware_1.verifyFirebaseToken, roundController_1.roundController.update);
+router.delete('/rounds/:id', authMiddleware_1.verifyFirebaseToken, roundController_1.roundController.delete);
+exports.default = router;
