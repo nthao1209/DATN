@@ -5,9 +5,7 @@ import { AuthRequest } from '../types/auth';
 
 const prisma = new PrismaClient();
 
-/**
- * Hàm bổ trợ: Xác thực Firebase Token và đảm bảo User tồn tại trong Prisma DB
- */
+
 const getOrCreatePrismaUser = async (token: string) => {
   const decodedToken = await admin.auth().verifyIdToken(token);
   
@@ -15,14 +13,12 @@ const getOrCreatePrismaUser = async (token: string) => {
     where: { firebaseUid: decodedToken.uid },
   });
   
-  // 2️⃣ Nếu không tìm được, thử tìm theo email (fallback lookup)
   if (!user && decodedToken.email) {
     user = await prisma.user.findUnique({
       where: { email: decodedToken.email },
     });
   }
   
-  // 3️⃣ Nếu vẫn không tìm được, tạo user mới
   if (!user) {
     user = await prisma.user.create({
       data: {

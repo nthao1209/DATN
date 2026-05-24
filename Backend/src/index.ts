@@ -22,10 +22,8 @@ app.get("/health", (req, res) => {
   res.status(200).send("ok");
 });
 
-// Debug: list registered routes (temporary)
 app.get('/api/_routes', (_req, res) => {
   try {
-    // @ts-ignore: access express internals for debugging
     const routes: string[] = (app as any)._router.stack
       .filter((layer: any) => layer.route)
       .map((layer: any) => {
