@@ -6,6 +6,8 @@ type BusRoundStatus = {
   roundId: number;
   checkInLocked?: boolean;
   checkOutLocked?: boolean;
+  driverConfirmedBy?: number | null;
+  adminApprovedBy?: number | null;
 };
 
 export const useRoundLocks = (

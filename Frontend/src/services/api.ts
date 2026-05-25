@@ -337,6 +337,9 @@ export const api = {
 
   confirmBusRoundChecks: (busId: number, roundId: number, data: { checkInLocked?: boolean; checkOutLocked?: boolean }) =>
     axiosClient.post(`/buses/${busId}/rounds/${roundId}/confirm-checks`, data),
+
+  confirmBusRoundCompletion: (busId: number, roundId: number) =>
+    axiosClient.post(`/buses/${busId}/rounds/${roundId}/confirm-completion`),
   
   getPendingUnlockRequests: (tripId?: string, roundId?: string) =>
   axiosClient.get('/unlock-requests/pending', {

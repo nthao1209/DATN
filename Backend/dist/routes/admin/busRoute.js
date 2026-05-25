@@ -11,4 +11,5 @@ router.put('/buses/:id', authMiddleware_1.verifyFirebaseToken, busController_1.b
 router.delete('/buses/:id', authMiddleware_1.verifyFirebaseToken, busController_1.busController.delete);
 router.get('/bus-round-status', authMiddleware_1.verifyFirebaseToken, busController_1.busController.getRoundStatuses);
 router.post('/buses/:busId/rounds/:roundId/confirm-checks', authMiddleware_1.verifyFirebaseToken, busController_1.busController.confirmChecks);
+router.post('/buses/:busId/rounds/:roundId/confirm-completion', authMiddleware_1.verifyFirebaseToken, busController_1.busController.confirmCompletion);
 exports.default = router;

@@ -1,8 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.roleController = void 0;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const db_1 = require("../config/db");
 const getSystemSuperAdminEmails = () => {
     const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
     const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
@@ -18,7 +17,7 @@ const isSuperAdmin = (req) => {
 exports.roleController = {
     getAll: async (_req, res) => {
         try {
-            const roles = await prisma.role.findMany({
+            const roles = await db_1.prisma.role.findMany({
                 orderBy: { id: 'asc' }
             });
             res.json(roles);
@@ -38,7 +37,7 @@ exports.roleController = {
             if (!name) {
                 return res.status(400).json({ message: 'Role name is required' });
             }
-            const role = await prisma.role.create({
+            const role = await db_1.prisma.role.create({
                 data: {
                     name,
                     description: description || null
@@ -62,7 +61,7 @@ exports.roleController = {
             }
             const name = req.body?.name;
             const description = req.body?.description;
-            const updated = await prisma.role.update({
+            const updated = await db_1.prisma.role.update({
                 where: { id: roleId },
                 data: {
                     ...(name !== undefined ? { name: String(name).trim() } : {}),
@@ -85,11 +84,11 @@ exports.roleController = {
             if (!roleId) {
                 return res.status(400).json({ message: 'Invalid role id' });
             }
-            const usageCount = await prisma.userTenant.count({ where: { roleId } });
+            const usageCount = await db_1.prisma.userTenant.count({ where: { roleId } });
             if (usageCount > 0) {
                 return res.status(400).json({ message: 'Role is in use and cannot be deleted' });
             }
-            await prisma.role.delete({ where: { id: roleId } });
+            await db_1.prisma.role.delete({ where: { id: roleId } });
             res.json({ message: 'Deleted successfully' });
         }
         catch (error) {

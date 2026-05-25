@@ -10,6 +10,7 @@ import { auth as fbAuth } from '../config/firebase';
 import api from '../services/api';
 import type { Tenant } from '../types/auth';
 import { useTheme } from '../theme/ThemeContext';
+import { getFallbackPathForRole } from '../auth/rbac';
 
 interface TenantSelectorProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
     dispatch(setCurrentTenant(tenant));
     sessionStorage.setItem(SETUP_ORG_COMPLETE_KEY, 'true');
     onClose();
-    navigate('/dashboard');
+    navigate(getFallbackPathForRole(tenant.roleId ?? tenant.role?.id));
   };
 
   if (!isOpen) return null;

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUnlockRequests, useApproveUnlockRequest, useRejectUnlockRequest } from '../hooks/useUnlockRequests';
-import { formatDistanceToNow } from 'date-fns';
-import { vi } from 'date-fns/locale';
+import { format } from 'date-fns';
 import { useTheme } from '../theme/ThemeContext';
 import { Check, X, Clock, Loader2 } from 'lucide-react';
 
@@ -102,7 +101,7 @@ export const AdminUnlockRequests = ({ tripId, refreshTrigger }: AdminUnlockReque
                       </div>
                     </td>
                     <td className="py-3 small text-muted">
-                      {formatDistanceToNow(new Date(request.createdAt), { addSuffix: true, locale: vi })}
+                      {format(new Date(request.createdAt), 'dd/MM/yyyy HH:mm')}
                     </td>
                     <td className="pe-4 py-3 text-end">
                       {request.status === 'PENDING' && (

@@ -4,9 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteUser = exports.getMyStatus = exports.syncUser = void 0;
-const client_1 = require("@prisma/client");
+const db_1 = require("../config/db");
 const firebaseAdmin_1 = __importDefault(require("../config/firebaseAdmin"));
-const prisma = new client_1.PrismaClient();
 const getSystemSuperAdminEmails = () => {
     const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
     const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
@@ -22,7 +21,7 @@ const syncUser = async (req, res) => {
     }
     const normalizedEmail = String(email).trim().toLowerCase();
     try {
-        const user = await prisma.user.upsert({
+        const user = await db_1.prisma.user.upsert({
             where: { firebaseUid: String(firebaseUid) },
             update: { email: normalizedEmail, name },
             create: { email: normalizedEmail, name, firebaseUid: String(firebaseUid) },
@@ -30,10 +29,10 @@ const syncUser = async (req, res) => {
         const isSystemSuperAdmin = getSystemSuperAdminEmails().includes(normalizedEmail) ||
             getSystemSuperAdminEmails().includes(String(firebaseUid));
         if (isSystemSuperAdmin) {
-            await prisma.userTenant.deleteMany({
+            await db_1.prisma.userTenant.deleteMany({
                 where: { userId: user.id, tenantId: null },
             });
-            await prisma.userTenant.create({
+            await db_1.prisma.userTenant.create({
                 data: { userId: user.id, tenantId: null, roleId: 1 },
             });
             await firebaseAdmin_1.default.auth().updateUser(String(firebaseUid), { emailVerified: true });
@@ -46,56 +45,83 @@ const syncUser = async (req, res) => {
 };
 exports.syncUser = syncUser;
 const getMyStatus = async (req, res) => {
-    const userId = req.user?.id;
-    if (!userId)
-        return res.status(401).json({ message: "Unauthorized" });
-    const isSystemSuperAdmin = (!!req.user?.email &&
-        getSystemSuperAdminEmails().includes(req.user.email.toLowerCase())) ||
-        (!!req.user?.firebaseUid &&
-            getSystemSuperAdminEmails().includes(req.user.firebaseUid));
-    const userTenants = await prisma.userTenant.findMany({
-        where: { userId },
-        include: { tenant: true, role: true },
-    });
-    return res.json({
-        user: req.user,
-        roleId: isSystemSuperAdmin ? 1 : undefined,
-        tenants: userTenants
-            .filter((ut) => ut.tenant) // tránh crash khi tenantId = null
-            .map((ut) => ({
-            ...ut.tenant,
-            roleId: ut.roleId,
-            role: {
-                id: ut.role.id,
-                name: ut.role.name,
-                description: ut.role.description ?? undefined,
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({
+                message: 'Unauthorized',
+            });
+        }
+        const isSystemSuperAdmin = (!!req.user?.email &&
+            getSystemSuperAdminEmails().includes(req.user.email.toLowerCase())) ||
+            (!!req.user?.firebaseUid &&
+                getSystemSuperAdminEmails().includes(req.user.firebaseUid));
+        const userTenants = await db_1.prisma.userTenant.findMany({
+            where: { userId },
+            include: {
+                tenant: true,
+                role: true,
             },
-        })),
-    });
+        });
+        return res.json({
+            user: req.user,
+            roleId: isSystemSuperAdmin ? 1 : undefined,
+            tenants: userTenants
+                .filter((ut) => ut.tenant)
+                .map((ut) => ({
+                ...ut.tenant,
+                roleId: ut.roleId,
+                role: {
+                    id: ut.role.id,
+                    name: ut.role.name,
+                    description: ut.role.description ?? undefined,
+                },
+            })),
+        });
+    }
+    catch (error) {
+        console.error('getMyStatus error:', error);
+        return res.status(500).json({
+            message: 'Internal server error',
+        });
+    }
 };
 exports.getMyStatus = getMyStatus;
 const deleteUser = async (req, res) => {
     const userId = req.user?.id;
     const firebaseUid = req.user?.firebaseUid;
     if (!userId || !firebaseUid) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({
+            message: 'Unauthorized',
+        });
     }
     try {
+        console.log('Deleting Firebase user:', firebaseUid);
+        // Xóa Firebase trước
         await firebaseAdmin_1.default.auth().deleteUser(firebaseUid);
-        console.log(`Đã xóa user Firebase: ${firebaseUid}`);
-        await prisma.userTenant.deleteMany({
-            where: { userId }
+        console.log('Firebase user deleted');
+        // Sau đó mới xóa DB
+        await db_1.prisma.userTenant.deleteMany({
+            where: {
+                userId,
+            },
         });
-        await prisma.user.delete({
-            where: { id: userId }
+        await db_1.prisma.user.delete({
+            where: {
+                id: userId,
+            },
         });
-        res.json({
-            message: "Tài khoản đã được xóa thành công"
+        console.log('Database user deleted');
+        return res.json({
+            message: 'Tài khoản đã được xóa thành công',
         });
     }
     catch (error) {
-        console.error("Lỗi xóa user:", error);
-        res.status(500).json({ message: "Lỗi server khi xóa tài khoản" });
+        console.error('Delete user error:', JSON.stringify(error, null, 2));
+        return res.status(500).json({
+            message: 'Lỗi server khi xóa tài khoản',
+            error: error.message,
+        });
     }
 };
 exports.deleteUser = deleteUser;

@@ -48,6 +48,27 @@ export const createNotificationsForUsers = async (
   );
 };
 
+export const getTenantAdminRecipient = async (
+  prisma: PrismaClient,
+  tenantId: number,
+  roleIds: number[] = [2],
+) => {
+  const recipient = await prisma.userTenant.findFirst({
+    where: {
+      tenantId,
+      roleId: {
+        in: roleIds,
+      },
+    },
+    orderBy: {
+      userId: 'asc',
+    },
+    select: { userId: true },
+  });
+
+  return recipient?.userId ?? null;
+};
+
 export const getTenantNotificationRecipients = async (
   prisma: PrismaClient,
   tenantId: number,

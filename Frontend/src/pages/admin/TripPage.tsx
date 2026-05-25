@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { buildTripColumns } from './trip/columns';
 import { useTheme } from '../../theme/ThemeContext';
+import './TripPage.css';
 import type { TripRow } from './trip/types';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
@@ -20,6 +21,8 @@ const TripPage: React.FC = () => {
   const [rows, setRows] = useState<TripRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [focusRowKey, setFocusRowKey] = useState<string | number | null>(null);
+  const [focusRowSignal, setFocusRowSignal] = useState(0);
   const initialRowsByIdRef = useRef<Record<number, TripRow>>({});
 
   // --- DATA FETCHING ---
@@ -36,6 +39,7 @@ const TripPage: React.FC = () => {
       status: t.status === 'DONE' ? 'DONE' : 'DOING',
       busCount: Number(t?._count?.buses || 0),
       roundCount: Number(t?._count?.rounds || 0),
+      completedRoundCount: Number(t?.completedRoundCount || 0),
     }));
 
     const initialById: Record<number, TripRow> = {};
@@ -46,7 +50,7 @@ const TripPage: React.FC = () => {
 
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
-      padded.push({ localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0 });
+      padded.push({ localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0, completedRoundCount: 0 });
     }
     setRows(padded);
   }, [trips]);
@@ -73,15 +77,46 @@ const TripPage: React.FC = () => {
     return !isSameRow(row, initial);
   };
 
+  const isRowValid = (row: TripRow) => Boolean(row.name.trim());
+
+  const hasValidationErrors = useMemo(
+    () => rows.some((row) => isRowDirty(row) && !isRowValid(row)),
+    [rows]
+  );
+
+  const saveValidationMessage = useMemo(() => {
+    if (!hasValidationErrors) return '';
+    const missing = new Set<string>();
+    rows.forEach((row) => {
+      if (!isRowDirty(row)) return;
+      if (!row.name.trim()) missing.add('Tên chuyến');
+    });
+    return missing.size ? `Thiếu: ${Array.from(missing).join(', ')}` : 'Vui lòng nhập đủ dữ liệu bắt buộc';
+  }, [hasValidationErrors, rows]);
+
   const dirtyCount = useMemo(() => {
     const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
     const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
 
+  const canSave = dirtyCount > 0 && !hasValidationErrors;
+  const pageThemeVars = {
+    '--page-primary': colors.primary,
+    '--page-primary-11': `${colors.primary}11`,
+    '--page-primary-22': `${colors.primary}22`,
+    '--page-primary-33': `${colors.primary}33`,
+    '--page-surface-light': colors.surfaceLight,
+    '--page-background': colors.background,
+    '--page-border': colors.border,
+    '--page-border-light': colors.borderLight,
+    '--page-text-secondary': colors.textSecondary,
+    '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
+    '--page-table-header-text': isDarkMode ? colors.textSecondary : '#64748b',
+  };
+
   useRegisterUnsavedChanges(dirtyCount > 0);
 
-  // --- ACTIONS ---
   const handleCellChange = <K extends keyof TripRow>(localId: string, key: K, value: TripRow[K]) => {
     setRows((prev) => prev.map((row) => {
       if (row.localId !== localId) return row;
@@ -96,8 +131,19 @@ const TripPage: React.FC = () => {
   const handleAddRow = () => {
     setRows((prev) => {
       const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
-      if (hasEmptyNew) return prev;
-      return [...prev, { localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0 }];
+      if (hasEmptyNew) {
+        const emptyRow = prev.find((r) => !r.id && !isNewRowDirty(r));
+        if (emptyRow) {
+          setFocusRowKey(emptyRow.localId);
+          setFocusRowSignal((value) => value + 1);
+        }
+        return prev;
+      }
+
+      const localId = makeLocalId();
+      setFocusRowKey(localId);
+      setFocusRowSignal((value) => value + 1);
+      return [...prev, { localId, name: '', status: 'DOING', busCount: 0, roundCount: 0, completedRoundCount: 0 }];
     });
   };
 
@@ -107,6 +153,11 @@ const TripPage: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (hasValidationErrors) {
+      enqueueSnackbar('Vui lòng nhập đủ tên chuyến trước khi lưu', { variant: 'warning' });
+      return;
+    }
+
     const rowsToCreate = rows.filter((r) => !r.id && r.name.trim());
     const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
     if (!rowsToCreate.length && !rowsToUpdate.length && !deletedIds.length) return;
@@ -118,8 +169,14 @@ const TripPage: React.FC = () => {
         ...rowsToUpdate.map((r) => api.updateTrip(String(r.id), { name: r.name.trim(), status: r.status })),
         ...deletedIds.map((id) => api.deleteTrip(String(id))),
       ]);
-      setDeletedIds([]); await refetch(); enqueueSnackbar('Đã lưu thành công', { variant: 'success' });
-    } catch (err: any) { enqueueSnackbar(err?.message || 'Lỗi khi lưu', { variant: 'error' }); } finally { setIsSaving(false); }
+      setDeletedIds([]);
+      await refetch();
+      enqueueSnackbar('Đã lưu thành công', { variant: 'success' });
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || 'Lỗi khi lưu', { variant: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const columns = buildTripColumns({
@@ -130,8 +187,7 @@ const TripPage: React.FC = () => {
   });
 
   return (
-    <div className="animate-fade-in p-0 p-md-3 trip-page">
-      {/* Header Section */}
+    <div className="animate-fade-in p-0 p-md-3 trip-page" style={pageThemeVars as React.CSSProperties}>
       <div className="d-flex align-items-center justify-content-between mb-4 px-2">
         <div className="d-flex align-items-center gap-3">
           <div 
@@ -146,41 +202,49 @@ const TripPage: React.FC = () => {
           </div>
           <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Quản lý Lộ trình</h1>
         </div>
-        
+
         <button 
           className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
+          onClick={() => { setDeletedIds([]); setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r))); refetch(); }}
           style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
         >
           <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
         </button>
       </div>
 
-      
-      {/* Table Card */}
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Danh sách lộ trình"
           titleActions={
-            <button
-              className="btn-custom-action-save shadow-sm"
-              onClick={handleSave}
-              disabled={isSaving || dirtyCount === 0}
-              style={{ 
-                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-                color: dirtyCount > 0 ? '#fff' : colors.textMuted
-              }}
-            >
-              <Save size={16} />
-              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-              <span className="d-inline d-sm-none">{dirtyCount}</span>
-            </button>
+            <div className="d-flex flex-column align-items-end gap-1">
+              <button
+                className="btn-custom-action-save shadow-sm"
+                onClick={handleSave}
+                disabled={isSaving || !canSave}
+                title={saveValidationMessage || undefined}
+                style={{ 
+                  backgroundColor: canSave ? colors.success : colors.surfaceLight, 
+                  color: canSave ? '#fff' : colors.textMuted
+                }}
+              >
+                <Save size={16} />
+                <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+                <span className="d-inline d-sm-none">{dirtyCount}</span>
+              </button>
+              {saveValidationMessage && (
+                <div className="small text-end" style={{ color: colors.warning, maxWidth: '280px', lineHeight: 1.2 }}>
+                  {saveValidationMessage}
+                </div>
+              )}
+            </div>
           }
           columns={columns}
           queryKey={['trips-local']}
           data={rows}
           isLoading={isLoading}
           isError={isError}
+          focusRowKey={focusRowKey}
+          focusRowSignal={focusRowSignal}
         />
         <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
           <button 
@@ -198,102 +262,6 @@ const TripPage: React.FC = () => {
           </button>
         </div>
       </div>
-
-      <style>{`
-        /* Ô nhập liệu sắc nét */
-        .trip-page .td-content input, 
-        .trip-page .td-content select {
-          min-height: 36px !important;
-          border: 1px solid ${isDarkMode ? colors.borderLight : '#cbd5e1'} !important;
-          background-color: ${isDarkMode ? colors.background : '#fff'} !important;
-          border-radius: 6px !important;
-          font-size: 13px !important;
-          transition: all 0.2s;
-        }
-        
-        .trip-page .td-content input:focus {
-          border-color: ${colors.primary} !important;
-          box-shadow: 0 0 0 3px ${colors.primary}22 !important;
-          outline: none;
-        }
-
-        /* Nút Action Gọn */
-        .btn-custom-action-small, .btn-custom-action-save {
-          display: flex; align-items: center; gap: 6px; padding: 6px 14px;
-          font-size: 13px; font-weight: 600; border-radius: 8px; border: none; transition: all 0.2s;
-          background: transparent; cursor: pointer;
-        }
-
-        .btn-custom-action-small:hover { background: ${colors.primary}11; transform: translateY(-1px); }
-        .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
-        .btn-custom-action-save:active { transform: scale(0.96); }
-
-        .btn-refresh-custom {
-          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-          border-radius: 8px; transition: all 0.2s; cursor: pointer; border: none;
-        }
-        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
-
-        /* Header Bảng nhẹ nhàng cho Light Mode */
-        .table thead th {
-          background-color: ${isDarkMode ? colors.surfaceLight : '#f8fafc'} !important;
-          color: ${isDarkMode ? colors.textSecondary : '#64748b'} !important;
-          font-size: 12px !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          padding: 12px !important;
-          border-bottom: 1px solid ${colors.border} !important;
-          font-weight: 700 !important;
-        }
-          .trip-page .btn-action-delete {
-          /* Ép kích thước và layout */
-          width: 36px !important;
-          height: 36px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;          
-          border-radius: 10px !important;
-          border: 1px solid rgba(220, 53, 69, 0.2) !important;
-          background-color: rgba(220, 53, 69, 0.05) !important;
-          color: #dc3545 !important;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-          cursor: pointer !important;
-          outline: none !important;
-          padding: 0 !important;
-          margin: 0 !important;
-        }
-
-        .trip-page .btn-action-delete:hover {
-          background-color: #dc3545 !important;
-          color: #ffffff !important;
-          border-color: #dc3545 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
-        }
-
-        .trip-page .btn-action-delete:active {
-          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
-          background-color: #a71d2a !important;
-          box-shadow: none !important;
-        }
-
-        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
-        .trip-page .btn-action-delete svg {
-          color: #ffffff !important; 
-          fill: none !important;
-        }
-
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        
-        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-        @media (max-width: 768px) {
-          .trip-page h1 { font-size: 1.15rem; }
-          .btn-custom-action-small, .btn-custom-action-save { padding: 6px 12px; }
-        }
-      `}</style>
     </div>
   );
 };

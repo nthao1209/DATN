@@ -1,8 +1,6 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/db';
 
 const getSystemSuperAdminEmails = () => {
   const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();

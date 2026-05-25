@@ -40,18 +40,31 @@ export const buildTripColumns = ({
   {
     header: 'Trạng thái',
     key: 'status',
-    render: (row) => (
-      <div className="td-content">
-        <select
-          className="form-select form-select-sm"
-          value={row.status}
-          onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as TripStatus)}
-        >
-          <option value="DOING">Đang diễn ra</option>
-          <option value="DONE">Hoàn thành</option>
-        </select>
-      </div>
-    ),
+    render: (row) => {
+      const isLocked = Boolean(row.id) && row.roundCount > 0 && row.completedRoundCount < row.roundCount;
+      const lockMessage = isLocked
+        ? `Chỉ được sửa trạng thái khi đủ ${row.completedRoundCount}/${row.roundCount} round hoàn thành`
+        : undefined;
+
+      return (
+        <div className="td-content">
+          <select
+            className="form-select form-select-sm"
+            value={row.status}
+            disabled={isLocked}
+            title={lockMessage}
+            onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as TripStatus)}
+            style={{
+              opacity: isLocked ? 0.55 : 1,
+              cursor: isLocked ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <option value="DOING">Đang diễn ra</option>
+            <option value="DONE">Hoàn thành</option>
+          </select>
+        </div>
+      );
+    },
   },
   {
     header: 'Số xe',
@@ -90,6 +103,11 @@ export const buildTripColumns = ({
       ) : (
         <span className="opacity-25">-</span>
       ),
+  },
+  {
+    header: 'Round hoàn thành',
+    key: 'completedRoundCount',
+    render: (row) => (row.id ? `${row.completedRoundCount ?? 0}/${row.roundCount ?? 0}` : '-'),
   },
   {
   header: 'Thao tác',

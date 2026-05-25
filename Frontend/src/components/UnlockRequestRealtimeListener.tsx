@@ -7,8 +7,8 @@ import { MqttUnlockListener } from './MqttUnlockListener';
 import { ROLE_IDS } from '../auth/rbac';
 
 export const UnlockRequestRealtimeListener = () => {
-  const { roleId } = useSelector((state: RootState) => state.auth);
-  const isTripAudience = roleId === ROLE_IDS.ADMIN || roleId === ROLE_IDS.BUS_MANAGEMENT;
+  const { roleId, user } = useSelector((state: RootState) => state.auth);
+  const isTripAudience = roleId === ROLE_IDS.BUS_MANAGEMENT;
 
   const { data: trips = [] } = useQuery<any[]>({
     queryKey: ['unlock-request-realtime-trips', roleId],
@@ -20,6 +20,10 @@ export const UnlockRequestRealtimeListener = () => {
     () => trips.map((trip) => Number(trip.id)).filter((tripId) => Number.isFinite(tripId) && tripId > 0),
     [trips],
   );
+
+  if (roleId === ROLE_IDS.ADMIN && user?.id) {
+    return <MqttUnlockListener adminUserId={user.id} roleId={roleId} enabled />;
+  }
 
   if (!isTripAudience || tripIds.length === 0) {
     return null;

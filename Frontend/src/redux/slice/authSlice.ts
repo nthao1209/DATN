@@ -2,6 +2,12 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { AuthState, Tenant, User } from '../../types/auth';
 import { resolveRoleId } from '../../auth/rbac';
 
+const getStoredCurrentTenantId = () => {
+  const value = localStorage.getItem('currentTenantId');
+  const parsed = value ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -26,7 +32,11 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.tenants = action.payload.tenants || [];
       state.hasTenant = state.tenants.length > 0;
-      state.currentTenant = state.tenants[0] || null;
+      const storedTenantId = getStoredCurrentTenantId();
+      const matchedTenant = storedTenantId
+        ? state.tenants.find((tenant) => tenant.id === storedTenantId) || null
+        : null;
+      state.currentTenant = matchedTenant ?? (state.tenants.length === 1 ? state.tenants[0] : null);
       state.roleId = resolveRoleId(
         action.payload.roleId,
         state.currentTenant?.roleId,
@@ -99,6 +109,20 @@ const authSlice = createSlice({
       state.roleId = resolveRoleId(action.payload.roleId, action.payload.role?.id);
       localStorage.setItem('currentTenantId', String(action.payload.id));
     },
+    resetAuthState: (state) => {
+      state.user = null;
+      state.token = null;
+      state.currentTenant = null;
+      state.tenants = [];
+      state.hasTenant = false;
+      state.roleId = undefined;
+      state.loading = true;
+      state.needsEmailVerification = false;
+      state.statusMessage = null;
+      state.error = null;
+      localStorage.removeItem('currentTenantId');
+      localStorage.removeItem('userId');
+    },
     logout: (state) =>{
       state.user = null;
       state.token = null;
@@ -119,5 +143,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { loginRequest, registerRequest, registerSuccess, emailVerificationRequired, authSuccess, authFailure, logout, forgotPasswordRequest, joinTenantSuccess, joinTenantRequest, setCurrentTenant } = authSlice.actions;
+export const { loginRequest, registerRequest, registerSuccess, emailVerificationRequired, authSuccess, authFailure, logout, forgotPasswordRequest, joinTenantSuccess, joinTenantRequest, setCurrentTenant, resetAuthState } = authSlice.actions;
 export default authSlice.reducer;

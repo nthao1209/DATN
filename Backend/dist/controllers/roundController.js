@@ -1,8 +1,39 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.roundController = void 0;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const db_1 = require("../config/db");
+var Status;
+(function (Status) {
+    Status["DOING"] = "DOING";
+    Status["DONE"] = "DONE";
+})(Status || (Status = {}));
+const getCompletedBusCounts = async (tripId, roundId, tenantId) => {
+    const [busCount, completedBusCount] = await Promise.all([
+        db_1.prisma.bus.count({
+            where: {
+                tripId,
+                trip: {
+                    tenantId,
+                },
+            },
+        }),
+        db_1.prisma.busRoundStatus.count({
+            where: {
+                roundId,
+                round: {
+                    tripId,
+                    trip: {
+                        tenantId,
+                    },
+                },
+                driverConfirmedBy: {
+                    not: null,
+                },
+            },
+        }),
+    ]);
+    return { busCount, completedBusCount };
+};
 exports.roundController = {
     getAll: async (req, res) => {
         try {
@@ -13,7 +44,7 @@ exports.roundController = {
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            const rounds = await prisma.round.findMany({
+            const rounds = await db_1.prisma.round.findMany({
                 where: {
                     tripId,
                     trip: {
@@ -31,19 +62,49 @@ exports.roundController = {
                     id: 'desc'
                 }
             });
-            const passengerCount = await prisma.passenger.count({
-                where: {
-                    bus: {
+            const [passengerCount, busCount] = await Promise.all([
+                db_1.prisma.passenger.count({
+                    where: {
+                        bus: {
+                            tripId,
+                            trip: {
+                                tenantId: req.tenantId,
+                            },
+                        },
+                    },
+                }),
+                db_1.prisma.bus.count({
+                    where: {
                         tripId,
                         trip: {
                             tenantId: req.tenantId,
                         },
                     },
+                }),
+            ]);
+            const completedBusCountByRound = await db_1.prisma.busRoundStatus.groupBy({
+                by: ['roundId'],
+                where: {
+                    round: {
+                        tripId,
+                        trip: {
+                            tenantId: req.tenantId,
+                        },
+                    },
+                    driverConfirmedBy: {
+                        not: null,
+                    },
+                },
+                _count: {
+                    _all: true,
                 },
             });
+            const completedCountMap = new Map(completedBusCountByRound.map((item) => [Number(item.roundId), Number(item._count._all)]));
             const roundsWithStats = rounds.map((round) => ({
                 ...round,
                 passengerCount,
+                busCount,
+                completedBusCount: completedCountMap.get(Number(round.id)) ?? 0,
             }));
             res.json(roundsWithStats);
         }
@@ -70,10 +131,10 @@ exports.roundController = {
             if (!name || !time || !statusRaw) {
                 return res.status(400).json({ message: 'Missing required fields: name, time, status' });
             }
-            if (statusRaw !== client_1.Status.DOING && statusRaw !== client_1.Status.DONE) {
+            if (statusRaw !== Status.DOING && statusRaw !== Status.DONE) {
                 return res.status(400).json({ message: 'Invalid status. Allowed values: DOING, DONE' });
             }
-            const trip = await prisma.trip.findFirst({
+            const trip = await db_1.prisma.trip.findFirst({
                 where: {
                     id: tripId,
                     tenantId: req.tenantId,
@@ -82,7 +143,7 @@ exports.roundController = {
             if (!trip) {
                 return res.status(404).json({ message: 'Trip not found' });
             }
-            const round = await prisma.round.create({
+            const round = await db_1.prisma.round.create({
                 data: {
                     name,
                     status: statusRaw,
@@ -90,7 +151,7 @@ exports.roundController = {
                     tripId
                 }
             });
-            const createdRound = await prisma.round.findUnique({
+            const createdRound = await db_1.prisma.round.findUnique({
                 where: { id: round.id },
                 include: {
                     _count: {
@@ -100,19 +161,42 @@ exports.roundController = {
                     }
                 }
             });
-            const passengerCount = await prisma.passenger.count({
-                where: {
-                    bus: {
+            const [passengerCount, busCount, completedBusCount] = await Promise.all([
+                db_1.prisma.passenger.count({
+                    where: {
+                        bus: {
+                            tripId,
+                            trip: {
+                                tenantId: req.tenantId,
+                            },
+                        },
+                    },
+                }),
+                db_1.prisma.bus.count({
+                    where: {
                         tripId,
                         trip: {
                             tenantId: req.tenantId,
                         },
                     },
-                },
-            });
+                }),
+                db_1.prisma.busRoundStatus.count({
+                    where: {
+                        round: {
+                            tripId,
+                            trip: {
+                                tenantId: req.tenantId,
+                            },
+                        },
+                        driverConfirmedBy: {
+                            not: null,
+                        },
+                    },
+                }),
+            ]);
             const createdRoundWithStats = createdRound
-                ? { ...createdRound, passengerCount }
-                : { ...round, _count: { transactions: 0 }, passengerCount };
+                ? { ...createdRound, passengerCount, busCount, completedBusCount }
+                : { ...round, _count: { transactions: 0 }, passengerCount, busCount, completedBusCount };
             res.status(201).json(createdRoundWithStats);
         }
         catch (error) {
@@ -135,7 +219,7 @@ exports.roundController = {
             }
             const { name, time, status } = req.body;
             // Check round exists and verify tenant access through trip
-            const existing = await prisma.round.findFirst({
+            const existing = await db_1.prisma.round.findFirst({
                 where: {
                     id: Number(id),
                     trip: {
@@ -146,7 +230,15 @@ exports.roundController = {
             if (!existing) {
                 return res.status(404).json({ message: 'Round not found' });
             }
-            const updated = await prisma.round.update({
+            if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
+                const { busCount, completedBusCount } = await getCompletedBusCounts(existing.tripId, Number(id), req.tenantId);
+                if (completedBusCount !== busCount) {
+                    return res.status(400).json({
+                        message: 'Chặng chỉ được hoàn thành khi tất cả xe đã hoàn thành chặng',
+                    });
+                }
+            }
+            const updated = await db_1.prisma.round.update({
                 where: { id: Number(id) },
                 data: {
                     ...(name !== undefined ? { name: String(name).trim() } : {}),
@@ -171,7 +263,7 @@ exports.roundController = {
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            const existing = await prisma.round.findFirst({
+            const existing = await db_1.prisma.round.findFirst({
                 where: {
                     id: Number(id),
                     trip: {
@@ -182,7 +274,7 @@ exports.roundController = {
             if (!existing) {
                 return res.status(404).json({ message: 'Round not found' });
             }
-            await prisma.round.delete({
+            await db_1.prisma.round.delete({
                 where: { id: Number(id) }
             });
             res.json({ message: 'Deleted successfully' });

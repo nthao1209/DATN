@@ -1,9 +1,8 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/db';
 import { AuthRequest } from '../types/auth';
 import mqtt from 'mqtt';
 
-const prisma = new PrismaClient();
 
 const mqttClient = mqtt.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
   username: process.env.MQTT_USERNAME,
@@ -26,6 +25,21 @@ const publishLockUpdate = (tripId: number, busId: number, roundId: number, check
 
   mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
   console.log(`[Bus] Published lock update to ${topic}:`, payload);
+};
+
+const resolveActorId = async (req: AuthRequest): Promise<number | null> => {
+  if (req.user?.id) return req.user.id;
+
+  if (req.firebaseUser?.uid) {
+    const user = await prisma.user.findUnique({
+      where: { firebaseUid: req.firebaseUser.uid },
+      select: { id: true },
+    });
+
+    return user?.id ?? null;
+  }
+
+  return null;
 };
 
 export const busController = {
@@ -85,24 +99,22 @@ export const busController = {
         managerId,
       } = req.body;
 
-      if (!registrationNumber || !busCode || !driverName || !driverTel || !tourGuideName || !tourGuideTel) {
+      if (!registrationNumber || !busCode || !managerId) {
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
       const data: any = {
         registrationNumber,
         busCode,
-        driverName,
-        driverTel,
-        tourGuideName,
-        tourGuideTel,
         description,
         tripId,
+        managerId: Number(managerId),
       };
 
-      if (managerId) {
-        data.managerId = Number(managerId);
-      }
+      if (driverName !== undefined) data.driverName = driverName;
+      if (driverTel !== undefined) data.driverTel = driverTel;
+      if (tourGuideName !== undefined) data.tourGuideName = tourGuideName;
+      if (tourGuideTel !== undefined) data.tourGuideTel = tourGuideTel;
 
       const bus = await prisma.bus.create({
         data,
@@ -143,6 +155,10 @@ export const busController = {
       managerId
     } = req.body;
 
+    if (!registrationNumber || !busCode || !managerId) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
 
     const existing = await prisma.bus.findFirst({
         where: {
@@ -167,7 +183,7 @@ export const busController = {
         tourGuideName,
         tourGuideTel,
         description,
-        ...(managerId !== undefined && managerId !== null ? { managerId: Number(managerId) } : {})
+        managerId: Number(managerId)
       }
     });
       res.json(updated);
@@ -269,6 +285,83 @@ export const busController = {
     }
   },
 
+  confirmCompletion: async (req: AuthRequest, res: Response) => {
+    try {
+      const busId = Number(req.params.busId);
+      const roundId = Number(req.params.roundId);
+
+      if (!busId || !roundId) {
+        return res.status(400).json({ message: 'Missing busId or roundId' });
+      }
+
+      if (!req.tenantId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const actorId = await resolveActorId(req);
+      if (!actorId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const bus = await prisma.bus.findFirst({
+        where: {
+          id: busId,
+          trip: {
+            tenantId: req.tenantId,
+          },
+        },
+        select: { id: true, tripId: true },
+      });
+
+      if (!bus) {
+        return res.status(404).json({ message: 'Bus not found' });
+      }
+
+      const round = await prisma.round.findFirst({
+        where: {
+          id: roundId,
+          trip: {
+            tenantId: req.tenantId,
+          },
+        },
+        select: { id: true, tripId: true },
+      });
+
+      if (!round) {
+        return res.status(404).json({ message: 'Round not found' });
+      }
+
+      const status = await prisma.busRoundStatus.findUnique({
+        where: { busId_roundId: { busId, roundId } },
+      });
+
+      if (!status?.checkInLocked || !status.checkOutLocked) {
+        return res.status(400).json({
+          message: 'Both check-in and check-out must be locked before completing the round',
+        });
+      }
+
+      const completed = await prisma.busRoundStatus.upsert({
+        where: { busId_roundId: { busId, roundId } },
+        create: {
+          busId,
+          roundId,
+          checkInLocked: true,
+          checkOutLocked: true,
+          driverConfirmedBy: actorId,
+        },
+        update: {
+          driverConfirmedBy: status.driverConfirmedBy ?? actorId,
+        },
+      });
+
+      res.json(completed);
+    } catch (error) {
+      console.error('confirmCompletion error:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  },
+
   confirmChecks: async (req: AuthRequest, res: Response) => {
     try {
       const busId = Number(req.params.busId);
@@ -290,6 +383,18 @@ export const busController = {
       const existingBus = await prisma.bus.findFirst({ where: { id: busId, trip: { tenantId: req.tenantId } } });
       if (!existingBus) {
         return res.status(404).json({ message: 'Bus not found' });
+      }
+
+      const existingStatus = await prisma.busRoundStatus.findUnique({
+        where: { busId_roundId: { busId, roundId } },
+      });
+
+      if (nextCheckInLocked === true && existingStatus?.checkInLocked) {
+        return res.status(409).json({ message: 'Lượt đi của xe này đã được khóa' });
+      }
+
+      if (nextCheckOutLocked === true && existingStatus?.checkOutLocked) {
+        return res.status(409).json({ message: 'Lượt về của xe này đã được khóa' });
       }
 
       const up = await prisma.busRoundStatus.upsert({

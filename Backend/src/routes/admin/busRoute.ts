@@ -11,5 +11,6 @@ router.put('/buses/:id', verifyFirebaseToken, busController.update);
 router.delete('/buses/:id', verifyFirebaseToken, busController.delete);
 router.get('/bus-round-status', verifyFirebaseToken, busController.getRoundStatuses);
 router.post('/buses/:busId/rounds/:roundId/confirm-checks', verifyFirebaseToken, busController.confirmChecks);
+router.post('/buses/:busId/rounds/:roundId/confirm-completion', verifyFirebaseToken, busController.confirmCompletion);
 
 export default router;

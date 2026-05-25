@@ -1,9 +1,7 @@
 import {Response} from 'express'
-import { PrismaClient } from '@prisma/client'
 import { AuthRequest } from '../types/auth'
 import { randomBytes } from 'crypto';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/db';
 
 export const generateJoinCode = () =>{
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

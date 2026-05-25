@@ -3,6 +3,7 @@ export type PassengerRow = {
   name: string;
   tel: string;
   busId: number | null;
+  assignedBusId?: number | null;
   busName: string;
   assignedBusName?: string;
 };
@@ -79,6 +80,27 @@ export type TransactionTableRow = PassengerRow & {
   isSummary?: boolean;
 };
 
-export type RoundSummary = Record<number, { checkIn: number; checkOut: number; total: number }>;
+export type BusRoundStatus = {
+  busId: number;
+  roundId: number;
+  checkInLocked?: boolean;
+  checkOutLocked?: boolean;
+  driverConfirmedBy?: number | null;
+  adminApprovedBy?: number | null;
+};
+
+
+export type RoundSummary = Record<
+  number,
+  {
+    checkIn: number;
+    checkOut: number;
+    total: number;
+    checkInMatched: number;
+    checkInMismatched: number;
+    checkOutMatched: number;
+    checkOutMismatched: number;
+  }
+>;
 
 export const keyOf = (passengerId: number, roundId: number) => `${passengerId}_${roundId}`;

@@ -28,6 +28,10 @@ import TransactionHeader from './transaction/TransactionHeader';
 import ConfirmRoundPanel from './transaction/ConfirmRoundPanel';
 import SyncStatusBanner from './transaction/SyncStatusBanner';
 import { useRoundLocks } from '../../hooks/useRoundLocks';
+import CompleteRoundPanel from './transaction/CompleteRoundPanel';
+import { type BusRoundStatus } from './transaction/types';
+import './TransactionPage.css';
+
 
 const TransactionPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
@@ -44,6 +48,17 @@ const TransactionPage: React.FC = () => {
   const [showAddPassengerPanel, setShowAddPassengerPanel] = useState(false);
   const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+  const pageThemeVars = {
+      '--page-primary': colors.primary,
+      '--page-primary-11': `${colors.primary}11`,
+      '--page-primary-22': `${colors.primary}22`,
+      '--page-surface-light': colors.surfaceLight,
+      '--page-background': colors.background,
+      '--page-border': colors.border,
+      '--page-border-light': colors.borderLight,
+      '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
+      '--page-table-header-text': isDarkMode ? colors.textSecondary : '#475569',
+    };
 
   const areNumberArraysEqual = (left: number[], right: number[]) => {
     if (left.length !== right.length) return false;
@@ -109,6 +124,24 @@ const TransactionPage: React.FC = () => {
     queryFn: () => api.getTransactions(),
     enabled: !!selectedTripId,
   });
+  const {
+      data: busRoundStatuses = [],
+      refetch: refetchBusRoundStatuses,
+    } = useQuery<BusRoundStatus[]>({
+      queryKey: ['transaction-bus-round-statuses', selectedTripId],
+      queryFn: async () => {
+        const response = await api.getBusRoundStatuses(String(selectedTripId));
+        const data = Array.isArray(response)
+          ? response
+          : Array.isArray((response as any)?.data)
+            ? (response as any).data
+            : [];
+
+        return data as BusRoundStatus[];
+      },
+      enabled: !!selectedTripId,
+    });
+
 
     const getActualBusId = (
       passengerId: number,
@@ -129,7 +162,7 @@ const TransactionPage: React.FC = () => {
       return null;
     };
     
-  const { isLocked, refetchLocks } = useRoundLocks(
+  const { isLocked, lockStatuses, refetchLocks } = useRoundLocks(
     selectedTripId,
     getActualBusId
   );
@@ -302,6 +335,7 @@ const TransactionPage: React.FC = () => {
         name: p.name || '',
         tel: p.tel || '',
         busId: p.bus?.id ? Number(p.bus.id) : null,
+        assignedBusId: p.bus?.id ? Number(p.bus.id) : null,
         busName: p.bus?.busCode || p.bus?.registrationNumber || '',
         assignedBusName: p.bus?.busCode || p.bus?.registrationNumber || '',
       }))
@@ -337,6 +371,9 @@ const TransactionPage: React.FC = () => {
         name: tx.passenger?.name || '',
         tel: tx.passenger?.tel || '',
         busId: actualBusId,
+        assignedBusId: assignedFromPassengerList?.bus?.id
+          ? Number(assignedFromPassengerList.bus.id)
+          : assignedBusId || null,
         busName: tx.bus?.busCode || tx.bus?.registrationNumber || '',
         assignedBusName,
       });
@@ -353,14 +390,6 @@ const TransactionPage: React.FC = () => {
       return [...prev, passenger];
     });
   };
-
-  const assignedBusByPassengerId = useMemo(() => {
-    const map = new Map<number, number | null>();
-    passengers.forEach((p: any) => {
-      map.set(Number(p.id), p.bus?.id ? Number(p.bus.id) : null);
-    });
-    return map;
-  }, [passengers]);
 
   const canRemovePassenger = (row: PassengerRow) => {
     const assignedBusId = assignedBusByPassengerId.get(Number(row.id));
@@ -424,16 +453,66 @@ const TransactionPage: React.FC = () => {
 
   const existingPassengerIds = useMemo(() => displayedPassengers.map((p) => p.id), [displayedPassengers]);
 
+  const assignedBusByPassengerId = useMemo(() => {
+    const map = new Map<number, number | null>();
+
+    displayedPassengers.forEach((p) => {
+      map.set(Number(p.id), p.assignedBusId ?? null);
+    });
+
+    return map;
+  }, [displayedPassengers]);
+
   
   const selectedRounds = useMemo(
     () => rounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
     [rounds, selectedRoundIds]
   );
 
+  const extraPassengerTargetBusId = selectedBusIds.length === 1 ? Number(selectedBusIds[0]) : selectedBusIds[0] ?? null;
+
+  const extraPassengerRoundLocked = useMemo(() => {
+    if (!extraPassengerTargetBusId || !selectedRounds.length) {
+      return false;
+    }
+
+    return selectedRounds.some((round) => {
+      const status = busRoundStatuses.find(
+        (item) =>
+          Number(item.busId) === Number(extraPassengerTargetBusId) &&
+          Number(item.roundId) === Number(round.id)
+      );
+
+      return Boolean(status?.driverConfirmedBy);
+    });
+  }, [busRoundStatuses, extraPassengerTargetBusId, selectedRounds]);
+
   const getCell = (passengerId: number, roundId: number): DraftCell | null => {
     const key = keyOf(passengerId, roundId);
     return draftMap[key] || txMap[key] || null;
   };
+
+  const buildLockedAttendanceMessage = (params: {
+    lockedIn: boolean;
+    lockedOut: boolean;
+    changingCheckIn: boolean;
+    changingCheckInNote: boolean;
+    changingCheckOut: boolean;
+    changingCheckOutNote: boolean;
+  }) => {
+    const messages: string[] = [];
+
+    if (params.lockedIn && (params.changingCheckIn || params.changingCheckInNote)) {
+      messages.push('Lượt đi đã khóa nên không sửa được check-in/ghi chú.');
+    }
+
+    if (params.lockedOut && (params.changingCheckOut || params.changingCheckOutNote)) {
+      messages.push('Lượt về đã khóa nên không sửa được check-out/ghi chú.');
+    }
+
+    return messages.length ? messages.join(' ') : 'Lượt đã bị khóa, không thể chỉnh sửa.';
+  };
+
 
   const setCell = (payload: DraftCell) => {
   const key = keyOf(payload.passengerId, payload.roundId);
@@ -454,25 +533,37 @@ const TransactionPage: React.FC = () => {
           Number(payload.roundId),
           'checkOut'
         );
-        const oldCell = getCell(payload.passengerId, payload.roundId);
 
         const changingCheckIn =
           payload.checkIn !== undefined &&
-          payload.checkIn !== oldCell?.checkIn;
+          payload.checkIn !== baseCell?.checkIn;
+        
+        const changingCheckInNote =
+          payload.checkInNote !== undefined &&
+          payload.checkInNote !== baseCell?.checkInNote;
 
         const changingCheckOut =
           payload.checkOut !== undefined &&
-          payload.checkOut !== oldCell?.checkOut;
+          payload.checkOut !== baseCell?.checkOut;
+
+        const changingCheckOutNote =
+          payload.checkOutNote !== undefined &&
+          payload.checkOutNote !== baseCell?.checkOutNote;
 
         if (
-          (changingCheckIn && lockedIn) ||
-          (changingCheckOut && lockedOut)
+          (lockedIn && (changingCheckIn || changingCheckInNote)) ||
+          (lockedOut && (changingCheckOut || changingCheckOutNote))
         ) {
           enqueueSnackbar(
-            'Lượt đã bị khóa, không thể chỉnh sửa điểm danh.',
-            {
-              variant: 'warning',
-            }
+            buildLockedAttendanceMessage({
+              lockedIn,
+              lockedOut,
+              changingCheckIn,
+              changingCheckInNote,
+              changingCheckOut,
+              changingCheckOutNote,
+            }),
+            { variant: 'warning' }
           );
           return;
         }
@@ -515,16 +606,63 @@ const TransactionPage: React.FC = () => {
   };
 
   const roundSummary = useMemo(() => {
-    const summary: Record<number, { checkIn: number; checkOut: number; total: number }> = {};
+    const summary: Record<
+      number,
+      {
+        checkIn: number;
+        checkOut: number;
+        total: number;
+        checkInMatched: number;
+        checkInMismatched: number;
+        checkOutMatched: number;
+        checkOutMismatched: number;
+      }
+    > = {};
     selectedRounds.forEach((round) => {
       const roundId = Number(round.id);
       const total = displayedPassengers.length;
-      const checkIn = displayedPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkIn)).length;
-      const checkOut = displayedPassengers.filter((p) => Boolean(getCell(p.id, roundId)?.checkOut)).length;
-      summary[roundId] = { checkIn, checkOut, total };
+      let checkIn = 0;
+      let checkOut = 0;
+      let checkInMatched = 0;
+      let checkInMismatched = 0;
+      let checkOutMatched = 0;
+      let checkOutMismatched = 0;
+
+      displayedPassengers.forEach((passenger) => {
+        const cell = getCell(passenger.id, roundId);
+        const assignedBusId = assignedBusByPassengerId.get(passenger.id);
+
+        if (cell?.checkIn) {
+          checkIn += 1;
+          if (assignedBusId && Number(cell.busId) !== Number(assignedBusId)) {
+            checkInMismatched += 1;
+          } else {
+            checkInMatched += 1;
+          }
+        }
+
+        if (cell?.checkOut) {
+          checkOut += 1;
+          if (assignedBusId && Number(cell.busId) !== Number(assignedBusId)) {
+            checkOutMismatched += 1;
+          } else {
+            checkOutMatched += 1;
+          }
+        }
+      });
+
+      summary[roundId] = {
+        checkIn,
+        checkOut,
+        total,
+        checkInMatched,
+        checkInMismatched,
+        checkOutMatched,
+        checkOutMismatched,
+      };
     });
     return summary;
-  }, [displayedPassengers, selectedRounds, txMap, draftMap]);
+  }, [assignedBusByPassengerId, displayedPassengers, selectedRounds, txMap, draftMap]);
 
   const visiblePassengers = useMemo(() => {
     return displayedPassengers.filter((p) => {
@@ -546,12 +684,26 @@ const TransactionPage: React.FC = () => {
       (sum, round) => sum + (roundSummary[Number(round.id)]?.checkIn ?? 0),
       0
     );
+    const totalCheckInMismatched = selectedRounds.reduce(
+      (sum, round) => sum + (roundSummary[Number(round.id)]?.checkInMismatched ?? 0),
+      0
+    );
     const totalCheckOut = selectedRounds.reduce(
       (sum, round) => sum + (roundSummary[Number(round.id)]?.checkOut ?? 0),
       0
     );
+    const totalCheckOutMismatched = selectedRounds.reduce(
+      (sum, round) => sum + (roundSummary[Number(round.id)]?.checkOutMismatched ?? 0),
+      0
+    );
 
-    return { totalPassengers, totalCheckIn, totalCheckOut };
+    return {
+      totalPassengers,
+      totalCheckIn,
+      totalCheckInMismatched,
+      totalCheckOut,
+      totalCheckOutMismatched,
+    };
   }, [displayedPassengers, selectedRounds, roundSummary]);
 
   const dirtyEntries = useMemo(
@@ -571,6 +723,11 @@ const TransactionPage: React.FC = () => {
 
   const handleConfirmAllExtraPassengers = async () => {
     if (extraPassengers.length === 0 || !selectedTripId) return;
+
+    if (extraPassengerRoundLocked) {
+      enqueueSnackbar('Chặng đã  khóa, không thể thêm khách ngoài biên chế.', { variant: 'warning' });
+      return;
+    }
     
     try {
     
@@ -597,7 +754,7 @@ const TransactionPage: React.FC = () => {
     } 
   };
   return (
-    <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5">
+    <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5" style={pageThemeVars as React.CSSProperties}>
       
           <TransactionHeader isOnline={isOnline} hasPendingSync={hasPendingSync}>
             <button 
@@ -612,6 +769,7 @@ const TransactionPage: React.FC = () => {
               selectedRounds={selectedRounds}
               trips={trips}
               selectedTripId={selectedTripId}
+              buses={buses}
               getCell={getCell}
             />
             
@@ -736,6 +894,8 @@ const TransactionPage: React.FC = () => {
               onAdd={addExtraPassenger}
               onRemove={removeExtraPassenger}
               onConfirmAll={handleConfirmAllExtraPassengers}
+              confirmDisabled={extraPassengerRoundLocked}
+              confirmDisabledReason="Chặng đã khóa nên không thể thêm khách ngoài biên chế."
               onClose={() => setShowAddPassengerPanel(false)}
             />
               
@@ -756,9 +916,15 @@ const TransactionPage: React.FC = () => {
               <span className="text-success text-nowrap">
                 {tableHeaderSummary.totalCheckIn} <span className="d-none d-sm-inline">CÓ MẶT</span> LƯỢT ĐI
               </span>
+              <span className="text-danger text-nowrap">
+                {tableHeaderSummary.totalCheckInMismatched} <span className="d-none d-sm-inline">SAI XE</span>
+              </span>
               <span style={{ opacity: 0.3 }}>|</span>
               <span className="text-warning text-nowrap">
                 {tableHeaderSummary.totalCheckOut} <span className="d-none d-sm-inline">KHÁCH</span> LƯỢT VỀ
+              </span>
+              <span className="text-danger text-nowrap">
+                {tableHeaderSummary.totalCheckOutMismatched} <span className="d-none d-sm-inline">SAI XE</span>
               </span>
             </div>
           </div>
@@ -777,67 +943,27 @@ const TransactionPage: React.FC = () => {
           isLoading={isLoading}
           onRefresh={() => { refetchTransactions(); refetchPassengers(); refetchLocks(); }}
         />
+      <div className="bento-action-hub shadow-sm" 
+           style={{ 
+            backgroundColor: isDarkMode ? 'rgba(20, 27, 49, 0.4)' : '#f8fafc',
+            border: `1px solid ${colors.border}`, 
+            borderRadius: effects.borderRadius.lg }}>
+        <div className="d-flex flex-column gap-2">
         <ConfirmRoundPanel 
             selectedRounds={selectedRounds} 
             selectedBusIds={selectedBusIds} 
+          lockStatuses={lockStatuses} 
             onSuccess={() => { refetchTransactions(); refetchLocks(); }} 
         />
+        <CompleteRoundPanel
+            selectedRounds={selectedRounds}
+            selectedBusIds={selectedBusIds}
+            busRoundStatuses={busRoundStatuses}
+            onSuccess={() => { refetchTransactions(); refetchLocks(); refetchBusRoundStatuses(); }}
+          />
+        </div>
       </div>
-      
-
-      <style>{`
-        .transaction-page .td-content input, 
-        .transaction-page .td-content select {
-          min-height: 36px !important;
-          border: 1px solid ${isDarkMode ? colors.borderLight : '#cbd5e1'} !important;
-          background-color: ${isDarkMode ? colors.background : '#fff'} !important;
-          border-radius: 6px !important;
-          font-size: 13px !important;
-          transition: all 0.2s;
-        }
-        
-        .transaction-page .td-content input:focus {
-          border-color: ${colors.primary} !important;
-          box-shadow: 0 0 0 3px ${colors.primary}22 !important;
-          outline: none;
-        }
-
-        .table thead th {
-          background-color: ${isDarkMode ? colors.surfaceLight : '#f8fafc'} !important;
-          color: ${isDarkMode ? colors.textSecondary : '#475569'} !important;
-          font-size: 12px !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          padding: 12px !important;
-          border-bottom: 1px solid ${colors.border} !important;
-          font-weight: 700 !important;
-        }
-
-        /* Nút bấm & Select Gọn */
-        .btn-custom-action-save, .btn-outline-custom {
-          display: flex; align-items: center; gap: 8px; padding: 0 16px;
-          height: 38px; font-size: 13px; font-weight: 600; border-radius: 8px; border: none; transition: all 0.2s;
-        }
-        .btn-outline-custom { background: transparent; }
-        .btn-outline-custom:hover { background: ${colors.primary}11; transform: translateY(-1px); }
-        .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
-        .btn-custom-action-save:active { transform: scale(0.96); }
-
-        .form-select-custom-toolbar {
-          height: 38px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; outline: none;
-        }
-
-        .btn-refresh-custom {
-          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-          border-radius: 8px; transition: all 0.2s; border: none; cursor: pointer;
-        }
-        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
-
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
+      </div>
     </div>
   );
 };

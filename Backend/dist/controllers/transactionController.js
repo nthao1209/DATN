@@ -1,9 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.transactionController = void 0;
-const client_1 = require("@prisma/client");
 const mqtt_1 = require("../services/mqtt");
-const prisma = new client_1.PrismaClient();
+const client_1 = require("@prisma/client");
+const db_1 = require("../config/db");
 const pickEarlierDate = (current, incoming) => {
     if (!incoming)
         return current ?? null;
@@ -14,7 +14,7 @@ const pickEarlierDate = (current, incoming) => {
 const syncBusRoundStatusTimes = async (busId, roundId, checkInAt, checkOutAt) => {
     if (!checkInAt && !checkOutAt)
         return;
-    const current = await prisma.busRoundStatus.findUnique({
+    const current = await db_1.prisma.busRoundStatus.findUnique({
         where: { busId_roundId: { busId, roundId } },
     });
     const nextCheckInAt = checkInAt
@@ -23,7 +23,7 @@ const syncBusRoundStatusTimes = async (busId, roundId, checkInAt, checkOutAt) =>
     const nextCheckOutAt = checkOutAt
         ? pickEarlierDate(current?.checkOutAt, checkOutAt)
         : null;
-    await prisma.busRoundStatus.upsert({
+    await db_1.prisma.busRoundStatus.upsert({
         where: { busId_roundId: { busId, roundId } },
         create: {
             busId,
@@ -50,6 +50,9 @@ const canAccessTransactions = (req) => req.roleId === 2 || req.roleId === 3 || r
 const hasLockedAttendanceChange = (locked, currentValue, incomingValue) => Boolean(locked) &&
     incomingValue !== undefined &&
     incomingValue !== Boolean(currentValue);
+const hasLockedAttendanceNoteChange = (locked, currentNote, incomingNote) => Boolean(locked) &&
+    incomingNote !== undefined &&
+    incomingNote !== (currentNote ?? null);
 const readTrimmedNote = (value) => {
     if (value === undefined)
         return undefined;
@@ -86,7 +89,7 @@ const resolveTransactionNotes = ({ checkIn, checkOut, checkInNote, checkOutNote,
 const resolveEventBusIdByActor = async (actorId, tripId, tenantId, fallbackBusId) => {
     if (!actorId)
         return fallbackBusId;
-    const actorBus = await prisma.bus.findFirst({
+    const actorBus = await db_1.prisma.bus.findFirst({
         where: {
             tripId,
             managerId: actorId,
@@ -97,7 +100,7 @@ const resolveEventBusIdByActor = async (actorId, tripId, tenantId, fallbackBusId
     return actorBus?.id ?? fallbackBusId;
 };
 const publishAttendanceUpdate = async (transactionId) => {
-    const transaction = await prisma.transaction.findUnique({
+    const transaction = await db_1.prisma.transaction.findUnique({
         where: { id: transactionId },
         include: {
             passenger: {
@@ -139,7 +142,7 @@ const publishAttendanceUpdate = async (transactionId) => {
     if (!transaction)
         return;
     // Lấy event mới nhất trước
-    const events = await prisma.attendanceEvent.findMany({
+    const events = await db_1.prisma.attendanceEvent.findMany({
         where: { transactionId },
         orderBy: { createdAt: "desc" },
     });
@@ -155,7 +158,7 @@ const publishAttendanceUpdate = async (transactionId) => {
         checkInEvent?.busId ??
         transaction.busId;
     // Query actual bus theo event mới nhất
-    const actualBus = await prisma.bus.findUnique({
+    const actualBus = await db_1.prisma.bus.findUnique({
         where: { id: latestEventBusId },
         select: {
             id: true,
@@ -269,7 +272,7 @@ exports.transactionController = {
                         },
                     },
                 };
-            const transactions = await prisma.transaction.findMany({
+            const transactions = await db_1.prisma.transaction.findMany({
                 where: managerCondition,
                 include: {
                     passenger: {
@@ -320,17 +323,17 @@ exports.transactionController = {
                     .status(400)
                     .json({ message: "busId, roundId, passengerId are required" });
             }
-            const bus = await prisma.bus.findFirst({
+            const bus = await db_1.prisma.bus.findFirst({
                 where: { id: busId, trip: { tenantId } },
             });
             if (!bus)
                 return res.status(404).json({ message: "Bus not found" });
-            const round = await prisma.round.findFirst({
+            const round = await db_1.prisma.round.findFirst({
                 where: { id: roundId, trip: { tenantId } },
             });
             if (!round)
                 return res.status(404).json({ message: "Round not found" });
-            const passenger = await prisma.passenger.findFirst({
+            const passenger = await db_1.prisma.passenger.findFirst({
                 where: {
                     id: passengerId,
                     bus: {
@@ -340,7 +343,7 @@ exports.transactionController = {
             });
             if (!passenger)
                 return res.status(404).json({ message: "Passenger not found" });
-            const existing = await prisma.transaction.findUnique({
+            const existing = await db_1.prisma.transaction.findUnique({
                 where: {
                     passengerId_roundId: {
                         passengerId,
@@ -363,12 +366,14 @@ exports.transactionController = {
             const incomingCheckInNote = readTrimmedNote(req.body?.checkInNote);
             const incomingCheckOutNote = readTrimmedNote(req.body?.checkOutNote);
             const incomingLegacyNote = readTrimmedNote(req.body?.note);
+            const currentCheckInNote = readTrimmedNote(existing?.checkInNote) ?? null;
+            const currentCheckOutNote = readTrimmedNote(existing?.checkOutNote) ?? null;
             let actorId = req.user?.id ?? null;
             console.log(req.user);
             console.log(req.firebaseUser);
             if (!actorId && req.firebaseUser?.uid) {
                 try {
-                    const possibleUser = await prisma.user.findUnique({
+                    const possibleUser = await db_1.prisma.user.findUnique({
                         where: { firebaseUid: req.firebaseUser.uid },
                     });
                     if (possibleUser) {
@@ -383,19 +388,34 @@ exports.transactionController = {
                 console.warn("transaction.create: actorId is null (request may be unauthenticated). req.user:", req.user?.id, "req.firebaseUser:", req.firebaseUser?.uid);
             }
             // Check BusRoundStatus locks
-            const brs = await prisma.busRoundStatus.findUnique({
+            const brs = await db_1.prisma.busRoundStatus.findUnique({
                 where: { busId_roundId: { busId, roundId } },
             });
+            if (brs?.driverConfirmedBy) {
+                return res
+                    .status(403)
+                    .json({ message: 'Round has been locked by driver; cannot add more passengers' });
+            }
             if (brs) {
                 if (hasLockedAttendanceChange(brs.checkInLocked, existing?.checkIn, incomingCheckIn)) {
                     return res
                         .status(403)
                         .json({ message: "Check-in for this bus/round is locked" });
                 }
+                if (hasLockedAttendanceNoteChange(brs.checkInLocked, currentCheckInNote, incomingCheckInNote)) {
+                    return res
+                        .status(403)
+                        .json({ message: "Check-in note for this bus/round is locked" });
+                }
                 if (hasLockedAttendanceChange(brs.checkOutLocked, existing?.checkOut, incomingCheckOut)) {
                     return res
                         .status(403)
                         .json({ message: "Check-out for this bus/round is locked" });
+                }
+                if (hasLockedAttendanceNoteChange(brs.checkOutLocked, currentCheckOutNote, incomingCheckOutNote)) {
+                    return res
+                        .status(403)
+                        .json({ message: "Check-out note for this bus/round is locked" });
                 }
             }
             const nextCheckIn = existing
@@ -413,7 +433,7 @@ exports.transactionController = {
                 checkOutNote: incomingCheckOutNote,
                 legacyNote: incomingLegacyNote,
             });
-            const created = await prisma.transaction.upsert({
+            const created = await db_1.prisma.transaction.upsert({
                 where: {
                     passengerId_roundId: {
                         passengerId,
@@ -444,7 +464,7 @@ exports.transactionController = {
             const createdEvents = [];
             if (nextCheckIn && !existing?.checkIn) {
                 const at = incomingCheckInAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: created.id,
                         action: client_1.AttendanceAction.CHECK_IN_ON,
@@ -459,7 +479,7 @@ exports.transactionController = {
             // create OFF event when action was previously enabled but now disabled
             if (existing?.checkIn && !nextCheckIn) {
                 const at = incomingCheckInAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: created.id,
                         action: client_1.AttendanceAction.CHECK_IN_OFF,
@@ -472,7 +492,7 @@ exports.transactionController = {
             }
             if (nextCheckOut && !existing?.checkOut) {
                 const at = incomingCheckOutAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: created.id,
                         action: client_1.AttendanceAction.CHECK_OUT_ON,
@@ -486,7 +506,7 @@ exports.transactionController = {
             }
             if (existing?.checkOut && !nextCheckOut) {
                 const at = incomingCheckOutAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: created.id,
                         action: client_1.AttendanceAction.CHECK_OUT_OFF,
@@ -523,7 +543,7 @@ exports.transactionController = {
             if (!id) {
                 return res.status(400).json({ message: "Invalid transaction id" });
             }
-            const existing = await prisma.transaction.findFirst({
+            const existing = await db_1.prisma.transaction.findFirst({
                 where: {
                     id,
                     bus: {
@@ -547,10 +567,12 @@ exports.transactionController = {
             const incomingCheckInNote = readTrimmedNote(req.body?.checkInNote);
             const incomingCheckOutNote = readTrimmedNote(req.body?.checkOutNote);
             const incomingLegacyNote = readTrimmedNote(req.body?.note);
+            const currentCheckInNote = readTrimmedNote(existing.checkInNote) ?? null;
+            const currentCheckOutNote = readTrimmedNote(existing.checkOutNote) ?? null;
             let actorId = req.user?.id ?? null;
             if (!actorId && req.firebaseUser?.uid) {
                 try {
-                    const possibleUser = await prisma.user.findUnique({
+                    const possibleUser = await db_1.prisma.user.findUnique({
                         where: { firebaseUid: req.firebaseUser.uid },
                     });
                     if (possibleUser)
@@ -561,7 +583,7 @@ exports.transactionController = {
                 }
             }
             // enforce BusRoundStatus locks
-            const brs = await prisma.busRoundStatus.findUnique({
+            const brs = await db_1.prisma.busRoundStatus.findUnique({
                 where: {
                     busId_roundId: { busId: existing.busId, roundId: existing.roundId },
                 },
@@ -572,10 +594,20 @@ exports.transactionController = {
                         .status(403)
                         .json({ message: "Check-in for this bus/round is locked" });
                 }
+                if (hasLockedAttendanceNoteChange(brs.checkInLocked, currentCheckInNote, incomingCheckInNote)) {
+                    return res
+                        .status(403)
+                        .json({ message: "Check-in note for this bus/round is locked" });
+                }
                 if (hasLockedAttendanceChange(brs.checkOutLocked, existing.checkOut, checkOutInput !== undefined ? Boolean(checkOutInput) : undefined)) {
                     return res
                         .status(403)
                         .json({ message: "Check-out for this bus/round is locked" });
+                }
+                if (hasLockedAttendanceNoteChange(brs.checkOutLocked, currentCheckOutNote, incomingCheckOutNote)) {
+                    return res
+                        .status(403)
+                        .json({ message: "Check-out note for this bus/round is locked" });
                 }
             }
             const nextCheckIn = checkInInput !== undefined ? Boolean(checkInInput) : existing.checkIn;
@@ -583,7 +615,7 @@ exports.transactionController = {
                 ? Boolean(checkOutInput)
                 : existing.checkOut;
             const now = new Date();
-            const roundOfExisting = await prisma.round.findFirst({
+            const roundOfExisting = await db_1.prisma.round.findFirst({
                 where: { id: existing.roundId, trip: { tenantId } },
                 select: { tripId: true },
             });
@@ -603,7 +635,7 @@ exports.transactionController = {
                 checkOutNote: incomingCheckOutNote,
                 legacyNote: incomingLegacyNote,
             });
-            const updated = await prisma.transaction.update({
+            const updated = await db_1.prisma.transaction.update({
                 where: { id },
                 data: {
                     ...(checkInInput !== undefined ? { checkIn: nextCheckIn } : {}),
@@ -620,7 +652,7 @@ exports.transactionController = {
             const createdEvents = [];
             if (checkInInput !== undefined && nextCheckIn && !existing.checkIn) {
                 const at = incomingCheckInAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: updated.id,
                         action: client_1.AttendanceAction.CHECK_IN_ON,
@@ -635,7 +667,7 @@ exports.transactionController = {
             // OFF event for check-in if it was previously true and now false
             if (checkInInput !== undefined && existing.checkIn && !nextCheckIn) {
                 const at = incomingCheckInAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: updated.id,
                         action: client_1.AttendanceAction.CHECK_IN_OFF,
@@ -648,7 +680,7 @@ exports.transactionController = {
             }
             if (checkOutInput !== undefined && nextCheckOut && !existing.checkOut) {
                 const at = incomingCheckOutAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: updated.id,
                         action: client_1.AttendanceAction.CHECK_OUT_ON,
@@ -663,7 +695,7 @@ exports.transactionController = {
             // OFF event for check-out if it was previously true and now false
             if (checkOutInput !== undefined && existing.checkOut && !nextCheckOut) {
                 const at = incomingCheckOutAt ?? now;
-                await prisma.attendanceEvent.create({
+                await db_1.prisma.attendanceEvent.create({
                     data: {
                         transactionId: updated.id,
                         action: client_1.AttendanceAction.CHECK_OUT_OFF,
@@ -699,7 +731,7 @@ exports.transactionController = {
             if (!id) {
                 return res.status(400).json({ message: "Invalid transaction id" });
             }
-            const existing = await prisma.transaction.findFirst({
+            const existing = await db_1.prisma.transaction.findFirst({
                 where: {
                     id,
                     bus: {
@@ -712,7 +744,7 @@ exports.transactionController = {
             if (!existing) {
                 return res.status(404).json({ message: "Transaction not found" });
             }
-            await prisma.transaction.delete({ where: { id } });
+            await db_1.prisma.transaction.delete({ where: { id } });
             res.json({ message: "Deleted successfully" });
         }
         catch (error) {

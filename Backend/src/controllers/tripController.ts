@@ -1,8 +1,35 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
+import { prisma } from '../config/db';
 
-const prisma = new PrismaClient();
+enum Status {
+  DOING = 'DOING',
+  DONE = 'DONE'
+}
+
+const getTripCompletionCounts = async (tripId: number, tenantId: number) => {
+  const [roundCount, completedRoundCount] = await Promise.all([
+    prisma.round.count({
+      where: {
+        tripId,
+        trip: {
+          tenantId,
+        },
+      },
+    }),
+    prisma.round.count({
+      where: {
+        tripId,
+        trip: {
+          tenantId,
+        },
+        status: Status.DONE,
+      },
+    }),
+  ]);
+
+  return { roundCount, completedRoundCount };
+};
 
 export const tripController = {
   getAll: async (req: AuthRequest, res: Response) => {
@@ -13,9 +40,19 @@ export const tripController = {
     }
     const trips = await prisma.trip.findMany({
       where: { tenantId },
-      include: { _count: { select: { buses: true, rounds: true } } }
+      include: {
+        _count: { select: { buses: true, rounds: true } },
+        rounds: {
+          select: { status: true },
+        },
+      }
     });
-    res.json(trips);
+    res.json(
+      trips.map((trip) => ({
+        ...trip,
+        completedRoundCount: trip.rounds.filter((round) => round.status === Status.DONE).length,
+      }))
+    );
   },
 
   create: async (req: AuthRequest, res: Response) => {
@@ -33,6 +70,32 @@ export const tripController = {
   update: async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { name, status } = req.body;
+
+    if (!req.tenantId) {
+      return res.status(401).json({ message: 'Missing tenantId' });
+    }
+
+    const existing = await prisma.trip.findFirst({
+      where: {
+        id: Number(id),
+        tenantId: req.tenantId,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Trip not found' });
+    }
+
+    if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
+      const { roundCount, completedRoundCount } = await getTripCompletionCounts(existing.id, req.tenantId);
+
+      if (completedRoundCount !== roundCount) {
+        return res.status(400).json({
+          message: 'Chuyến chỉ được hoàn thành khi tất cả chặng đều đã hoàn thành',
+        });
+      }
+    }
+
     const updated = await prisma.trip.update({
       where: { id: Number(id) },
       data: { name, status }

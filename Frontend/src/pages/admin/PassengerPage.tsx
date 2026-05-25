@@ -7,6 +7,7 @@ import api from '../../services/api';
 import { normalizePhoneNumber } from '../../utils/phone';
 import { buildPassengerColumns } from './passenger/columns';
 import { useTheme } from '../../theme/ThemeContext';
+import './PassengerPage.css';
 import type {
   BusesByTrip,
   PassengerBus,
@@ -29,6 +30,8 @@ const PassengerPage: React.FC = () => {
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [importResetToken, setImportResetToken] = useState(0);
+  const [focusRowKey, setFocusRowKey] = useState<string | number | null>(null);
+  const [focusRowSignal, setFocusRowSignal] = useState(0);
   const initialRowsByIdRef = useRef<Record<number, PassengerRow>>({});
 
   
@@ -179,11 +182,51 @@ useEffect(() => {
     return !isSameRow(row, initial);
   };
 
+  const isRowValid = (row: PassengerRow) => Boolean(row.name.trim() && row.busId);
+
+  const hasValidationErrors = useMemo(
+    () => rows.some((row) => isRowDirty(row) && !isRowValid(row)),
+    [rows]
+  );
+
+  const saveValidationMessage = useMemo(() => {
+    if (!hasValidationErrors) return '';
+    const missing = new Set<string>();
+    rows.forEach((row) => {
+      if (!isRowDirty(row)) return;
+      if (!row.name.trim()) missing.add('Tên khách');
+      if (!row.busId) missing.add('Xe');
+    });
+    return missing.size ? `Thiếu: ${Array.from(missing).join(', ')}` : 'Vui lòng nhập đủ dữ liệu bắt buộc';
+  }, [hasValidationErrors, rows]);
+
   const dirtyCount = useMemo(() => {
     const created = rows.filter((row) => !row.id && isNewRowDirty(row)).length;
     const edited = rows.filter((row) => row.id && isRowDirty(row)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
+
+  const canSave = dirtyCount > 0 && !hasValidationErrors && isTargetSelectionReady;
+  const pageThemeVars = {
+    '--page-primary': colors.primary,
+    '--page-primary-11': `${colors.primary}11`,
+    '--page-primary-15': `${colors.primary}15`,
+    '--page-primary-22': `${colors.primary}22`,
+    '--page-primary-33': `${colors.primary}33`,
+    '--page-primary-66': `${colors.primary}66`,
+    '--page-surface': colors.surface,
+    '--page-surface-light': colors.surfaceLight,
+    '--page-background': colors.background,
+    '--page-border': colors.border,
+    '--page-border-light': colors.borderLight,
+    '--page-text-primary': colors.textPrimary,
+    '--page-text-secondary': colors.textSecondary,
+    '--page-warning': colors.warning,
+    '--page-filter-bg': isDarkMode ? 'rgba(255,255,255,0.05)' : '#ffffff',
+    '--page-filter-hover-bg': isDarkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+    '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
+    '--page-table-header-text': isDarkMode ? colors.textSecondary : '#64748b',
+  };
 
   useRegisterUnsavedChanges(dirtyCount > 0);
 
@@ -201,11 +244,21 @@ useEffect(() => {
 
   const handleAddRow = () => {
     if (isAllTripsView) return;
-    setRows((prev) => {
-      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
-      if (hasEmptyNew) return prev;
-      return [...prev, { localId: makeLocalId(), name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' }];
-    });
+    const emptyRow = rows.find((row) => !row.id && !isNewRowDirty(row));
+
+    if (emptyRow) {
+      setFocusRowKey(emptyRow.localId);
+      setFocusRowSignal((value) => value + 1);
+      return;
+    }
+
+    const localId = makeLocalId();
+    setRows((prev) => [
+      ...prev,
+      { localId, name: '', tel: '', note: '', tripId: selectedTripId, busId: selectedBusId, busCode: '' },
+    ]);
+    setFocusRowKey(localId);
+    setFocusRowSignal((value) => value + 1);
   };
 
   const handleDeleteRow = (row: PassengerRow) => {
@@ -218,6 +271,11 @@ useEffect(() => {
     if (isAllTripsView) return;
     if (!selectedTripId || !selectedBusId) {
       enqueueSnackbar('Vui lòng chọn cả chuyến đi và xe trước khi lưu', { variant: 'warning' });
+      return;
+    }
+
+    if (hasValidationErrors) {
+      enqueueSnackbar('Vui lòng nhập đủ tên và gán xe cho các dòng cần lưu', { variant: 'warning' });
       return;
     }
 
@@ -368,7 +426,7 @@ useEffect(() => {
   }, [rows, isAllTripsView]);
 
   return (
-    <div className="animate-fade-in p-0 p-md-3 passenger-page">
+    <div className="animate-fade-in p-0 p-md-3 passenger-page" style={pageThemeVars as React.CSSProperties}>
       {/* Header Section */}
       <div className="d-flex align-items-center justify-content-between mb-4 px-2">
         <div className="d-flex align-items-center gap-3">
@@ -521,19 +579,27 @@ useEffect(() => {
         <DataTable
           title="Danh sách hành khách"
           titleActions={
-            <button
-              className="btn-custom-action-save shadow-sm"
-              onClick={handleSave}
-              disabled={isSaving || dirtyCount === 0 || !isTargetSelectionReady}
-              style={{ 
-                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-                color: dirtyCount > 0 ? '#fff' : colors.textMuted
-              }}
-            >
-              <Save size={16} />
-              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-              <span className="d-inline d-sm-none">{dirtyCount}</span>
-            </button>
+            <div className="d-flex flex-column align-items-end gap-1">
+              <button
+                className="btn-custom-action-save shadow-sm"
+                onClick={handleSave}
+                disabled={isSaving || !canSave}
+                title={saveValidationMessage || undefined}
+                style={{ 
+                  backgroundColor: canSave ? colors.success : colors.surfaceLight, 
+                  color: canSave ? '#fff' : colors.textMuted
+                }}
+              >
+                <Save size={16} />
+                <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+                <span className="d-inline d-sm-none">{dirtyCount}</span>
+              </button>
+              {saveValidationMessage && (
+                <div className="small text-end" style={{ color: colors.warning, maxWidth: '320px', lineHeight: 1.2 }}>
+                  {saveValidationMessage}
+                </div>
+              )}
+            </div>
           }         
           columns={columns}
           queryKey={['passengers-local', selectedTripId, selectedBusId]}
@@ -541,6 +607,8 @@ useEffect(() => {
           isLoading={isLoading}
           isError={isError}
           onRefresh={refetch}
+          focusRowKey={focusRowKey}
+          focusRowSignal={focusRowSignal}
         />
         {!isAllTripsView && (
           <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
@@ -561,138 +629,6 @@ useEffect(() => {
         )}
       </div>
 
-      <style>{`
-        /* Ô nhập liệu trong bảng sắc nét hơn */
-        .passenger-page .td-content input, 
-        .passenger-page .td-content select {
-          min-height: 36px !important;
-          border: 1px solid ${isDarkMode ? colors.borderLight : '#cbd5e1'} !important;
-          background-color: ${isDarkMode ? colors.background : '#fff'} !important;
-          border-radius: 6px !important;
-          font-size: 13px !important;
-          transition: all 0.2s;
-        }
-        
-        .passenger-page .td-content input:focus, 
-        .passenger-page .td-content select:focus {
-          border-color: ${colors.primary} !important;
-          box-shadow: 0 0 0 3px ${colors.primary}22 !important;
-          outline: none;
-        }
-
-        /* Select trên Toolbar gọn gàng */
-        .form-select-custom-toolbar {
-          height: 34px;
-          padding: 0 30px 0 10px;
-          border-radius: 8px;
-          font-size: 13px;
-          font-weight: 500;
-          outline: none;
-          cursor: pointer;
-        }
-        .custom-filter-input {
-    background-color: ${isDarkMode ? 'rgba(255,255,255,0.05)' : '#ffffff'};
-    border: 1px solid ${colors.border};
-    border-radius: 10px;
-    color: ${colors.textPrimary};
-    transition: all 0.2s ease;
-  }
-
-  .custom-filter-input.active {
-    border-color: ${colors.primary};
-    box-shadow: 0 0 0 3px ${colors.primary}22;
-  }
-
-  /* Hiệu ứng khi di chuột vào từng dòng chuyến đi */
-  .multi-item-custom:hover {
-    background-color: ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9'};
-    color: ${colors.primary};
-  }
-
-  /* Trạng thái chuyến đi đang được chọn */
-  .multi-item-custom.selected {
-    background-color: ${colors.primary}15;
-    color: ${colors.primary};
-    font-weight: 600;
-  }
-
-  .rotate-180 { transform: rotate(180deg); }
-  .transition-all { transition: all 0.3s ease; }
-  
-  .animate-fade-in {
-    animation: fadeIn 0.2s ease-out;
-  }
-
-        /* Nút bấm Gọn & Hiệu ứng lún */
-        .btn-custom-action-small, .btn-custom-action-save {
-          display: flex; align-items: center; gap: 6px; padding: 6px 14px;
-          font-size: 13px; font-weight: 600; border-radius: 8px; border: none; transition: all 0.2s;
-          background: transparent;
-        }
-        .btn-custom-action-small:hover { background: ${colors.primary}11; transform: translateY(-1px); }
-        .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
-        .btn-custom-action-save:active { transform: scale(0.96); }
-
-        .btn-refresh-custom {
-          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-          border-radius: 8px; transition: all 0.2s; cursor: pointer;
-        }
-        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
-
-        /* Làm mờ Header Bảng - Cực nhẹ cho bản Light */
-        .table thead th {
-          background-color: ${isDarkMode ? colors.surfaceLight : '#f8fafc'} !important;
-          color: ${isDarkMode ? colors.textSecondary : '#64748b'} !important;
-          font-size: 12px !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          padding: 12px !important;
-          border-bottom: 1px solid ${colors.border} !important;
-          font-weight: 700 !important;
-        }
-        .passenger-page .btn-action-delete {
-          /* Ép kích thước và layout */
-          width: 36px !important;
-          height: 36px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;          
-          border-radius: 10px !important;
-          border: 1px solid rgba(220, 53, 69, 0.2) !important;
-          background-color: rgba(220, 53, 69, 0.05) !important;
-          color: #dc3545 !important;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-          cursor: pointer !important;
-          outline: none !important;
-          padding: 0 !important;
-          margin: 0 !important;
-        }
-
-        .passenger-page .btn-action-delete:hover {
-          background-color: #dc3545 !important;
-          color: #ffffff !important;
-          border-color: #dc3545 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
-        }
-
-        .passenger-page .btn-action-delete:active {
-          transform: scale(0.9) !important; /* Nút thu nhỏ lại khi nhấn */
-          background-color: #a71d2a !important;
-          box-shadow: none !important;
-        }
-
-        /* 4. Đảm bảo icon Trash2 không bị dính màu đen của bảng */
-        .passenger-page .btn-action-delete svg {
-          color: #ffffff !important; 
-          fill: none !important;
-        }
-        
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
     </div>
   );
 };

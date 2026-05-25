@@ -1,9 +1,7 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
 import XLSX from 'xlsx';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/db';
 
 type ImportField = 'name' | 'tel' | 'note' | 'bus';
 type SheetCell = string | number | boolean | Date | null | undefined;

@@ -18,6 +18,8 @@ const RoleManagementPage: React.FC = () => {
   const [rows, setRows] = useState<RoleRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [focusRowKey, setFocusRowKey] = useState<string | number | null>(null);
+  const [focusRowSignal, setFocusRowSignal] = useState(0);
   const initialRowsByIdRef = useRef<Record<number, RoleRow>>({});
 
   const { data: roles = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
@@ -99,11 +101,22 @@ const RoleManagementPage: React.FC = () => {
   const handleAddRow = () => {
     setRows((prev) => {
       const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
-      if (hasEmptyNew) return prev;
+      if (hasEmptyNew) {
+        const emptyRow = prev.find((r) => !r.id && !isNewRowDirty(r));
+        if (emptyRow) {
+          setFocusRowKey(emptyRow.localId);
+          setFocusRowSignal((value) => value + 1);
+        }
+        return prev;
+      }
+
+      const localId = makeLocalId();
+      setFocusRowKey(localId);
+      setFocusRowSignal((value) => value + 1);
       return [
         ...prev,
         {
-          localId: makeLocalId(),
+          localId,
           name: '',
           description: '',
         },
@@ -223,6 +236,8 @@ const RoleManagementPage: React.FC = () => {
           data={rows}
           isLoading={isLoading}
           isError={isError}
+          focusRowKey={focusRowKey}
+          focusRowSignal={focusRowSignal}
           onRefresh={() => {
             setDeletedIds([]);
             refetch();

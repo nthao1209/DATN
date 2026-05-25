@@ -10,6 +10,8 @@ export type RoundRow = {
   checkInCount?: number;
   checkOutCount?: number;
   passengerCount: number;
+  busCount: number;
+  completedBusCount: number;
   lockedInCount?: number;
   lockedOutCount?: number;
   isEdited?: boolean;

@@ -1,9 +1,8 @@
 import { Response } from "express";
-import { PrismaClient, AttendanceAction } from "@prisma/client";
 import { AuthRequest } from "../types/auth";
 import { publishToTripTopic } from "../services/mqtt";
-
-const prisma = new PrismaClient();
+import { AttendanceAction } from "@prisma/client";
+import { prisma } from "../config/db";
 
 const pickEarlierDate = (
   current?: Date | null,
@@ -69,6 +68,15 @@ const hasLockedAttendanceChange = (
   Boolean(locked) &&
   incomingValue !== undefined &&
   incomingValue !== Boolean(currentValue);
+
+const hasLockedAttendanceNoteChange = (
+  locked: boolean | undefined,
+  currentNote: string | null | undefined,
+  incomingNote: string | null | undefined,
+) =>
+  Boolean(locked) &&
+  incomingNote !== undefined &&
+  incomingNote !== (currentNote ?? null);
 
 const readTrimmedNote = (value: unknown): string | null | undefined => {
   if (value === undefined) return undefined;
@@ -460,6 +468,8 @@ export const transactionController = {
       const incomingCheckInNote = readTrimmedNote(req.body?.checkInNote);
       const incomingCheckOutNote = readTrimmedNote(req.body?.checkOutNote);
       const incomingLegacyNote = readTrimmedNote(req.body?.note);
+      const currentCheckInNote = readTrimmedNote(existing?.checkInNote) ?? null;
+      const currentCheckOutNote = readTrimmedNote(existing?.checkOutNote) ?? null;
 
       let actorId = req.user?.id ?? null;
       console.log(req.user);
@@ -490,6 +500,13 @@ export const transactionController = {
       const brs = await prisma.busRoundStatus.findUnique({
         where: { busId_roundId: { busId, roundId } },
       });
+
+      if (brs?.driverConfirmedBy) {
+        return res
+          .status(403)
+          .json({ message: 'Round has been locked by driver; cannot add more passengers' });
+      }
+
       if (brs) {
         if (
           hasLockedAttendanceChange(
@@ -503,6 +520,17 @@ export const transactionController = {
             .json({ message: "Check-in for this bus/round is locked" });
         }
         if (
+          hasLockedAttendanceNoteChange(
+            brs.checkInLocked,
+            currentCheckInNote,
+            incomingCheckInNote,
+          )
+        ) {
+          return res
+            .status(403)
+            .json({ message: "Check-in note for this bus/round is locked" });
+        }
+        if (
           hasLockedAttendanceChange(
             brs.checkOutLocked,
             existing?.checkOut,
@@ -512,6 +540,17 @@ export const transactionController = {
           return res
             .status(403)
             .json({ message: "Check-out for this bus/round is locked" });
+        }
+        if (
+          hasLockedAttendanceNoteChange(
+            brs.checkOutLocked,
+            currentCheckOutNote,
+            incomingCheckOutNote,
+          )
+        ) {
+          return res
+            .status(403)
+            .json({ message: "Check-out note for this bus/round is locked" });
         }
       }
 
@@ -692,6 +731,8 @@ export const transactionController = {
       const incomingCheckInNote = readTrimmedNote(req.body?.checkInNote);
       const incomingCheckOutNote = readTrimmedNote(req.body?.checkOutNote);
       const incomingLegacyNote = readTrimmedNote(req.body?.note);
+      const currentCheckInNote = readTrimmedNote(existing.checkInNote) ?? null;
+      const currentCheckOutNote = readTrimmedNote(existing.checkOutNote) ?? null;
 
       let actorId = req.user?.id ?? null;
       if (!actorId && req.firebaseUser?.uid) {
@@ -724,6 +765,17 @@ export const transactionController = {
             .json({ message: "Check-in for this bus/round is locked" });
         }
         if (
+          hasLockedAttendanceNoteChange(
+            brs.checkInLocked,
+            currentCheckInNote,
+            incomingCheckInNote,
+          )
+        ) {
+          return res
+            .status(403)
+            .json({ message: "Check-in note for this bus/round is locked" });
+        }
+        if (
           hasLockedAttendanceChange(
             brs.checkOutLocked,
             existing.checkOut,
@@ -733,6 +785,17 @@ export const transactionController = {
           return res
             .status(403)
             .json({ message: "Check-out for this bus/round is locked" });
+        }
+        if (
+          hasLockedAttendanceNoteChange(
+            brs.checkOutLocked,
+            currentCheckOutNote,
+            incomingCheckOutNote,
+          )
+        ) {
+          return res
+            .status(403)
+            .json({ message: "Check-out note for this bus/round is locked" });
         }
       }
 

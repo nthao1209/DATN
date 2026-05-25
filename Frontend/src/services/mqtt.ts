@@ -257,11 +257,11 @@ export const subscribeAttendanceUpdates = (
 };
 
 export const subscribeAdminUnlockRequests = (
-  tripId: number,
+  userId: number,
   onMessage: (event: UnlockMqttEvent) => void,
 ): MqttSubscriptionHandle => {
-  return registerTopicHandlers([`${MQTT_ADMIN_TOPIC_PREFIX}/${tripId}/admin/unlock-requests`], (_topic, parsed) => {
-    if (parsed.type === 'unlock.request.created' && Number(parsed.tripId) === Number(tripId)) {
+  return registerTopicHandlers([`attendance/admin/${userId}/unlock-requests`], (_topic, parsed) => {
+    if (parsed.type === 'unlock.request.created' && Number(parsed.tripId) > 0) {
       onMessage(parsed as UnlockMqttEvent);
     }
   });

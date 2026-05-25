@@ -1,9 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.joinTenant = exports.createTenant = exports.generateUniqueJoinCode = exports.generateJoinCode = void 0;
-const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
-const prisma = new client_1.PrismaClient();
+const db_1 = require("../config/db");
 const generateJoinCode = () => {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const bytes = (0, crypto_1.randomBytes)(6);
@@ -19,7 +18,7 @@ const generateUniqueJoinCode = async () => {
     let exists = true;
     while (exists) {
         code = (0, exports.generateJoinCode)();
-        const tenant = await prisma.tenant.findUnique({
+        const tenant = await db_1.prisma.tenant.findUnique({
             where: { joinCode: code },
         });
         if (!tenant)
@@ -39,13 +38,13 @@ const createTenant = async (req, res) => {
     }
     try {
         const joinCode = await (0, exports.generateUniqueJoinCode)();
-        const tenant = await prisma.tenant.create({
+        const tenant = await db_1.prisma.tenant.create({
             data: {
                 name,
                 joinCode,
             },
         });
-        await prisma.userTenant.create({
+        await db_1.prisma.userTenant.create({
             data: {
                 userId: user.id,
                 tenantId: tenant.id,
@@ -73,12 +72,12 @@ const joinTenant = async (req, res) => {
     if (!user)
         return res.status(401).json({ message: "User not identified" });
     try {
-        const tenant = await prisma.tenant.findUnique({
+        const tenant = await db_1.prisma.tenant.findUnique({
             where: { joinCode }
         });
         if (!tenant)
             return res.status(400).json({ message: "Not information" });
-        const membership = await prisma.userTenant.create({
+        const membership = await db_1.prisma.userTenant.create({
             data: {
                 userId: user.id,
                 tenantId: tenant.id,

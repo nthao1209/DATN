@@ -9,24 +9,25 @@ import { ROLE_IDS } from '../auth/rbac';
 interface MqttUnlockListenerProps {
   tripId?: number;
   roleId?: number | null;
+  adminUserId?: number | null;
   enabled?: boolean;
 }
 
-export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnlockListenerProps) => {
+export const MqttUnlockListener = ({ tripId, roleId, adminUserId, enabled = true }: MqttUnlockListenerProps) => {
   const { addNotification, refreshNotifications } = useNotification();
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
-    if (!enabled || !tripId || authLoading || !user?.id) {
+    if (!enabled || authLoading || !user?.id) {
       return;
     }
 
     const subscriptions: MqttSubscriptionHandle[] = [];
 
     // Admin listens to unlock requests
-    if (roleId === ROLE_IDS.ADMIN) {
-      const adminSub = subscribeAdminUnlockRequests(tripId, (message) => {
+    if (roleId === ROLE_IDS.ADMIN && adminUserId) {
+      const adminSub = subscribeAdminUnlockRequests(adminUserId, (message) => {
         console.log('[Unlock] Admin received unlock request:', message);
         addNotification(
           `Xe ${message.busCode} yêu cầu mở khóa ${message.lockType === 'check_in' ? 'điểm danh vào' : 'điểm danh ra'} cho tuyến ${message.roundName}. Lý do: ${message.reason}`,
@@ -39,6 +40,12 @@ export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnloc
         queryClient.invalidateQueries({ queryKey: ['pending-unlock-requests', message.busId] });
       });
       subscriptions.push(adminSub);
+    }
+
+    if (!tripId) {
+      return () => {
+        subscriptions.forEach((sub) => sub.end(true));
+      };
     }
 
     // Requester listens to approval/rejection responses (personal)
@@ -112,7 +119,7 @@ export const MqttUnlockListener = ({ tripId, roleId, enabled = true }: MqttUnloc
     return () => {
       subscriptions.forEach((sub) => sub.end(true));
     };
-  }, [tripId, roleId, enabled, authLoading, user?.id, addNotification, refreshNotifications, queryClient]);
+  }, [tripId, roleId, adminUserId, enabled, authLoading, user?.id, addNotification, refreshNotifications, queryClient]);
 
   return null;
 };

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getTenantNotificationRecipients = exports.createNotificationsForUsers = exports.createNotification = void 0;
+exports.getTenantNotificationRecipients = exports.getTenantAdminRecipient = exports.createNotificationsForUsers = exports.createNotification = void 0;
 const createNotification = (prisma, input) => {
     return prisma.notification.create({
         data: {
@@ -29,6 +29,22 @@ const createNotificationsForUsers = async (prisma, userIds, input) => {
     })));
 };
 exports.createNotificationsForUsers = createNotificationsForUsers;
+const getTenantAdminRecipient = async (prisma, tenantId, roleIds = [2]) => {
+    const recipient = await prisma.userTenant.findFirst({
+        where: {
+            tenantId,
+            roleId: {
+                in: roleIds,
+            },
+        },
+        orderBy: {
+            userId: 'asc',
+        },
+        select: { userId: true },
+    });
+    return recipient?.userId ?? null;
+};
+exports.getTenantAdminRecipient = getTenantAdminRecipient;
 const getTenantNotificationRecipients = async (prisma, tenantId, roleIds = [1, 2, 3]) => {
     const rows = await prisma.userTenant.findMany({
         where: {

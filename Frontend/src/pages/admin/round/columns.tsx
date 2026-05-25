@@ -48,16 +48,31 @@ export const buildRoundColumns = ({
   {
     header: 'Tình trạng',
     key: 'status',
-    render: (row) => (
-      <select
-        className="form-select form-select-sm"
-        value={row.status}
-        onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as RoundStatus)}
-      >
-        <option value="DOING">Đang diễn ra</option>
-        <option value="DONE">Hoàn thành</option>
-      </select>
-    ),
+    render: (row) => {
+      const isLocked = Boolean(row.id) && row.busCount > 0 && row.completedBusCount < row.busCount;
+      const lockMessage = isLocked
+        ? `Chỉ được sửa trạng thái khi đủ ${row.completedBusCount}/${row.busCount} xe hoàn thành chặng`
+        : undefined;
+
+      return (
+        <div className="td-content">
+          <select
+            className="form-select form-select-sm"
+            value={row.status}
+            disabled={isLocked}
+            title={lockMessage}
+            onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as RoundStatus)}
+            style={{
+              opacity: isLocked ? 0.55 : 1,
+              cursor: isLocked ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <option value="DOING">Đang diễn ra</option>
+            <option value="DONE">Hoàn thành</option>
+          </select>
+        </div>
+      );
+    },
   },
   {
     header: 'Số khách check-in',
@@ -68,6 +83,12 @@ export const buildRoundColumns = ({
     header: 'Số khách check-out',
     key: 'checkOutCount',
     render: (row) => (row.id ? `${row.checkOutCount ?? 0}/${row.passengerCount}` : '-'),
+  },
+  {
+    header: 'Xe hoàn thành chặng',
+    key: 'completedBusCount',
+    render: (row) => (row.id ? `${row.completedBusCount ?? 0}/${row.busCount ?? 0}` : '-'),
+    width: '180px',
   },
  // ===== KHÓA LƯỢT ĐI =====
   {

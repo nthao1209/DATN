@@ -17,6 +17,7 @@ type TransactionFiltersProps = {
   setTripDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setBusDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setRoundDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  
   toggleBus: (busId: number) => void;
   toggleRound: (roundId: number) => void;
   onTripChange?: () => void;
@@ -113,10 +114,18 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           className={`custom-filter-input d-flex align-items-center justify-content-between w-100 ${busDropdownOpen ? 'active' : ''}`}
           onClick={() => setBusDropdownOpen((v) => !v)}
         >
-          <span className="text-truncate">
-            {selectedBusIds.length === buses.length ? 'Tất cả xe' : 
-             selectedBusIds.length === 0 ? 'Chưa chọn xe' : `${selectedBusIds.length} xe đã chọn`}
-          </span>
+        <span className="text-truncate">
+          {selectedBusIds.length === 0 ? (
+            'Chưa chọn xe'
+          ) : selectedBusIds.length === 1 ? (
+            buses.find(b => Number(b.id) === selectedBusIds[0])?.busCode || 
+            buses.find(b => Number(b.id) === selectedBusIds[0])?.registrationNumber || '1 xe đã chọn'
+          ) : selectedBusIds.length === buses.length ? (
+            'Tất cả xe'
+          ) : (
+            `${selectedBusIds.length} xe đã chọn`
+          )}
+        </span>
           <ChevronDown size={16} className={`transition-all ${busDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
 
@@ -152,10 +161,17 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           className={`custom-filter-input d-flex align-items-center justify-content-between w-100 ${roundDropdownOpen ? 'active' : ''}`}
           onClick={() => setRoundDropdownOpen((v) => !v)}
         >
-          <span className="text-truncate">
-            {selectedRoundIds.length === rounds.length ? 'Tất cả lượt' : 
-             selectedRoundIds.length === 0 ? 'Chưa chọn lượt' : `${selectedRoundIds.length} lượt đã chọn`}
-          </span>
+        <span className="text-truncate">
+          {selectedRoundIds.length === 0 ? (
+            'Chưa chọn lượt'
+          ) : selectedRoundIds.length === 1 ? (
+            rounds.find(r => Number(r.id) === selectedRoundIds[0])?.name || `Lượt ${selectedRoundIds[0]}`
+          ) : selectedRoundIds.length === rounds.length ? (
+            'Tất cả lượt'
+          ) : (
+            `${selectedRoundIds.length} lượt đã chọn`
+          )}
+        </span>
           <ChevronDown size={16} className={`transition-all ${roundDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
 
@@ -273,6 +289,8 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           color: ${colors.primary};
           font-weight: 600;
         }
+
+
 
         .checkbox-custom {
           width: 18px;

@@ -13,6 +13,8 @@ interface ExtraPassengerPanelProps {
   onAdd: (passenger: PassengerRow) => void;
   onRemove: (passengerId: number) => void;
   onConfirmAll: () => Promise<void>;
+  confirmDisabled?: boolean;
+  confirmDisabledReason?: string;
   onClose: () => void;
 }
 
@@ -35,6 +37,8 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
   onAdd,
   onRemove,
   onConfirmAll,
+  confirmDisabled = false,
+  confirmDisabledReason,
   onClose
 }) => {
   const { isDarkMode, colors } = useTheme();
@@ -55,6 +59,7 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
   }, [show, onClose]);
 
   const handleConfirmAll = async () => {
+    if (confirmDisabled) return;
     setConfirming(true);
     await onConfirmAll();
     setConfirming(false);
@@ -233,7 +238,7 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
 
           <button
             className="btn btn-primary w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2"
-            disabled={confirming || extraPassengers.length === 0}
+            disabled={confirming || extraPassengers.length === 0 || confirmDisabled}
             style={{ borderRadius: '12px', fontWeight: 'bold', fontSize: '14px' }}
             onClick={handleConfirmAll}
           >
@@ -243,6 +248,12 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
               <><UserPlus size={18} /> Xác nhận thêm vào bảng</>
             )}
           </button>
+
+          {confirmDisabled && confirmDisabledReason ? (
+            <div className="small text-warning mt-2 text-center" style={{ lineHeight: 1.3 }}>
+              {confirmDisabledReason}
+            </div>
+          ) : null}
         </div>
       )}
 

@@ -1,8 +1,40 @@
 import { Response } from 'express';
-import { PrismaClient, Status } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
+import { prisma } from '../config/db';
 
-const prisma = new PrismaClient();
+enum Status {
+  DOING = 'DOING',
+  DONE = 'DONE'
+}
+
+const getCompletedBusCounts = async (tripId: number, roundId: number, tenantId: number) => {
+  const [busCount, completedBusCount] = await Promise.all([
+    prisma.bus.count({
+      where: {
+        tripId,
+        trip: {
+          tenantId,
+        },
+      },
+    }),
+    prisma.busRoundStatus.count({
+      where: {
+        roundId,
+        round: {
+          tripId,
+          trip: {
+            tenantId,
+          },
+        },
+        driverConfirmedBy: {
+          not: null,
+        },
+      },
+    }),
+  ]);
+
+  return { busCount, completedBusCount };
+};
 
 export const roundController = {
   getAll: async (req: AuthRequest, res: Response) => {
@@ -35,20 +67,54 @@ export const roundController = {
           }          
         });
 
-      const passengerCount = await prisma.passenger.count({
-        where: {
-          bus: {
+      const [passengerCount, busCount] = await Promise.all([
+        prisma.passenger.count({
+          where: {
+            bus: {
+              tripId,
+              trip: {
+                tenantId: req.tenantId,
+              },
+            },
+          },
+        }),
+        prisma.bus.count({
+          where: {
             tripId,
             trip: {
               tenantId: req.tenantId,
             },
           },
+        }),
+      ]);
+
+      const completedBusCountByRound = await prisma.busRoundStatus.groupBy({
+        by: ['roundId'],
+        where: {
+          round: {
+            tripId,
+            trip: {
+              tenantId: req.tenantId,
+            },
+          },
+          driverConfirmedBy: {
+            not: null,
+          },
+        },
+        _count: {
+          _all: true,
         },
       });
+
+      const completedCountMap = new Map<number, number>(
+        completedBusCountByRound.map((item) => [Number(item.roundId), Number(item._count._all)])
+      );
 
       const roundsWithStats = rounds.map((round) => ({
         ...round,
         passengerCount,
+        busCount,
+        completedBusCount: completedCountMap.get(Number(round.id)) ?? 0,
       }));
 
       res.json(roundsWithStats);
@@ -116,20 +182,43 @@ export const roundController = {
         }
       });
 
-      const passengerCount = await prisma.passenger.count({
-        where: {
-          bus: {
+      const [passengerCount, busCount, completedBusCount] = await Promise.all([
+        prisma.passenger.count({
+          where: {
+            bus: {
+              tripId,
+              trip: {
+                tenantId: req.tenantId,
+              },
+            },
+          },
+        }),
+        prisma.bus.count({
+          where: {
             tripId,
             trip: {
               tenantId: req.tenantId,
             },
           },
-        },
-      });
+        }),
+        prisma.busRoundStatus.count({
+          where: {
+            round: {
+              tripId,
+              trip: {
+                tenantId: req.tenantId,
+              },
+            },
+            driverConfirmedBy: {
+              not: null,
+            },
+          },
+        }),
+      ]);
 
       const createdRoundWithStats = createdRound
-        ? { ...createdRound, passengerCount }
-        : { ...round, _count: { transactions: 0 }, passengerCount };
+        ? { ...createdRound, passengerCount, busCount, completedBusCount }
+        : { ...round, _count: { transactions: 0 }, passengerCount, busCount, completedBusCount };
 
       res.status(201).json(createdRoundWithStats);
     } catch (error: any) {
@@ -169,6 +258,20 @@ export const roundController = {
 
       if (!existing) {
         return res.status(404).json({ message: 'Round not found' });
+      }
+
+      if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
+        const { busCount, completedBusCount } = await getCompletedBusCounts(
+          existing.tripId,
+          Number(id),
+          req.tenantId,
+        );
+
+        if (completedBusCount !== busCount) {
+          return res.status(400).json({
+            message: 'Chặng chỉ được hoàn thành khi tất cả xe đã hoàn thành chặng',
+          });
+        }
       }
 
       const updated = await prisma.round.update({

@@ -44,11 +44,16 @@ export const buildTransactionColumns = ({
             checkIn: 0,
             checkOut: 0,
             total: 0,
+            checkInMatched: 0,
+            checkInMismatched: 0,
+            checkOutMatched: 0,
+            checkOutMismatched: 0,
           };
 
           return (
-            <div className="fw-bold text-primary text-center">
-              {stats.checkIn}/{stats.total}
+            <div className="d-flex flex-column align-items-center text-center small lh-sm">
+              <span className="fw-bold text-success">Đúng xe: {stats.checkInMatched}</span>
+              <span className="fw-bold text-danger">Sai xe: {stats.checkInMismatched}</span>
             </div>
           );
         }
@@ -124,11 +129,16 @@ export const buildTransactionColumns = ({
             checkIn: 0,
             checkOut: 0,
             total: 0,
+            checkInMatched: 0,
+            checkInMismatched: 0,
+            checkOutMatched: 0,
+            checkOutMismatched: 0,
           };
 
           return (
-            <div className="fw-bold text-primary text-center">
-              {stats.checkOut}/{stats.total}
+            <div className="d-flex flex-column align-items-center text-center small lh-sm">
+              <span className="fw-bold text-success">Đúng xe: {stats.checkOutMatched}</span>
+              <span className="fw-bold text-danger">Sai xe: {stats.checkOutMismatched}</span>
             </div>
           );
         }

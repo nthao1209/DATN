@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, AlertCircle, Loader2, ListFilter, Search } from 'lucide-react';
 import TableActionBar, { type FilterConfig } from './TableActionBar';
@@ -28,6 +28,8 @@ interface DataTableProps<T> {
   initialPageSize?: number;
   showActionBar?: boolean;
   showPagination?: boolean;
+  focusRowKey?: string | number | null;
+  focusRowSignal?: number;
 }
 
 function DataTable<T extends object>({
@@ -45,7 +47,9 @@ function DataTable<T extends object>({
   pageSizeOptions = [5, 10, 20, 30, 40, 50],
   initialPageSize = 10,
   showActionBar = true,
-  showPagination = true
+  showPagination = true,
+  focusRowKey = null,
+  focusRowSignal = 0
 }: DataTableProps<T>) {
   
   const { colors, effects, isDarkMode } = useTheme();
@@ -102,6 +106,19 @@ function DataTable<T extends object>({
     const start = (currentPage - 1) * pageSize;
     return filteredData.slice(start, start + pageSize);
   }, [filteredData, currentPage, pageSize]);
+
+  useEffect(() => {
+    if (focusRowKey == null) return;
+
+    const targetIndex = filteredData.findIndex((item, index) => {
+      const rowKey = (item as any)?.localId ?? (item as any)?.id ?? index;
+      return String(rowKey) === String(focusRowKey);
+    });
+
+    if (targetIndex >= 0) {
+      setCurrentPage(Math.floor(targetIndex / pageSize) + 1);
+    }
+  }, [focusRowSignal, focusRowKey, filteredData, pageSize]);
 
   const handleFilterChange = (key: string, value: string) => {
     setColumnFilters(prev => ({ ...prev, [key]: value }));

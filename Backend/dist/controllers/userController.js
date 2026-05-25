@@ -1,8 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userController = void 0;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const db_1 = require("../config/db");
 const getSystemSuperAdminEmails = () => {
     const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
     const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
@@ -31,7 +30,7 @@ exports.userController = {
         try {
             if (!requireSystemSuperAdmin(req, res))
                 return;
-            const users = await prisma.user.findMany({
+            const users = await db_1.prisma.user.findMany({
                 include: {
                     userTenants: {
                         include: {
@@ -66,7 +65,7 @@ exports.userController = {
                 return res.status(400).json({ message: 'Invalid user id' });
             }
             const { name, description, roleId } = req.body;
-            const updatedUser = await prisma.user.update({
+            const updatedUser = await db_1.prisma.user.update({
                 where: { id: userId },
                 data: {
                     ...(name !== undefined ? { name: String(name).trim() } : {}),
@@ -82,7 +81,7 @@ exports.userController = {
                 if (!tenantIdFromBody) {
                     return res.status(400).json({ message: 'tenantId is required when updating roleId' });
                 }
-                const membership = await prisma.userTenant.findUnique({
+                const membership = await db_1.prisma.userTenant.findUnique({
                     where: {
                         userId_tenantId: {
                             userId,
@@ -93,7 +92,7 @@ exports.userController = {
                 if (!membership) {
                     return res.status(404).json({ message: 'User membership not found for tenant' });
                 }
-                await prisma.userTenant.update({ where: { id: membership.id }, data: { roleId: nextRoleId } });
+                await db_1.prisma.userTenant.update({ where: { id: membership.id }, data: { roleId: nextRoleId } });
             }
             res.json(updatedUser);
         }
@@ -110,10 +109,10 @@ exports.userController = {
             if (!userId) {
                 return res.status(400).json({ message: 'Invalid user id' });
             }
-            await prisma.userTenant.deleteMany({ where: { userId } });
-            const memberships = await prisma.userTenant.count({ where: { userId } });
+            await db_1.prisma.userTenant.deleteMany({ where: { userId } });
+            const memberships = await db_1.prisma.userTenant.count({ where: { userId } });
             if (memberships === 0) {
-                await prisma.user.delete({ where: { id: userId } });
+                await db_1.prisma.user.delete({ where: { id: userId } });
             }
             res.json({ message: 'User removed from tenant successfully' });
         }

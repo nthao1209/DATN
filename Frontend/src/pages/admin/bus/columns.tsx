@@ -1,7 +1,7 @@
 import { Trash2 } from 'lucide-react';
-import type { Column } from '../../components/DataTable';
+import type { Column } from '../../../components/DataTable';
 import type { BusManager, BusRow } from './types';
-import { AutoResizeTextarea } from '../../hooks/useAutoResize';
+import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
 
 type BuildBusColumnsParams = {
   managers: BusManager[];
@@ -20,7 +20,7 @@ export const buildBusColumns = ({
 }: BuildBusColumnsParams): Column<BusRow>[] => [
   { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
   {
-    header: 'Mã xe',
+    header: 'Mã xe *',
     key: 'busCode',
     render: (row) => (
       <input
@@ -31,7 +31,7 @@ export const buildBusColumns = ({
     ),
   },
   {
-    header: 'Biển số xe',
+    header: 'Biển số xe *',
     key: 'registrationNumber',
     render: (row) => (
       <input
@@ -104,7 +104,7 @@ export const buildBusColumns = ({
     ),
   },
   {
-    header: 'Trưởng xe',
+    header: 'Trưởng xe *',
     key: 'managerId',
     render: (row) => (
       <select

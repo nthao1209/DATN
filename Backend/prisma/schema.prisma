@@ -12,6 +12,19 @@ enum Status {
   DONE
 }
 
+enum BusRoundCompletionStatus {
+  PENDING
+  DRIVER_CONFIRMED
+  ADMIN_APPROVED
+}
+
+enum AttendanceAction {
+  CHECK_IN_ON
+  CHECK_IN_OFF
+  CHECK_OUT_ON
+  CHECK_OUT_OFF
+}
+
 enum RequestStatus {
   PENDING
   APPROVED
@@ -38,6 +51,8 @@ model User {
   name                   String
   buses                  Bus[]           @relation("BusManager")
   
+  driverConfirmedRounds BusRoundStatus[] @relation("DriverConfirmedBy")
+  adminApprovedRounds   BusRoundStatus[] @relation("AdminApprovedBy")
   attendanceEvents AttendanceEvent[] @relation("AttendanceEventActor")
   approvedUnlockRequests UnlockRequest[] @relation("UnlockRequestApprover")
   createdUnlockRequests  UnlockRequest[] @relation("UnlockRequestCreator")
@@ -60,7 +75,7 @@ model UserTenant {
   role     Role    @relation(fields: [roleId], references: [id])
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+ 
   @@unique([userId, tenantId])
   @@index([userId])
   @@index([tenantId])
@@ -168,12 +183,7 @@ model Transaction {
   @@index([passengerId])
 }
  
-enum AttendanceAction {
-  CHECK_IN_ON
-  CHECK_IN_OFF
-  CHECK_OUT_ON
-  CHECK_OUT_OFF
-}
+
 
 model AttendanceEvent {
   id            Int              @id @default(autoincrement())
@@ -200,6 +210,10 @@ model BusRoundStatus {
   checkInAt      DateTime?
   checkOutLocked Boolean   @default(false)
   checkOutAt     DateTime?
+  driverConfirmedBy Int?
+  adminApprovedBy   Int?
+  driverConfirmer User? @relation("DriverConfirmedBy", fields: [driverConfirmedBy],references: [id])
+  adminApprover User? @relation("AdminApprovedBy",fields: [adminApprovedBy],references: [id])
   bus            Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
   round          Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
 

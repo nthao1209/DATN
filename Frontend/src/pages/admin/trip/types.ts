@@ -7,5 +7,6 @@ export type TripRow = {
   status: TripStatus;
   busCount: number;
   roundCount: number;
+  completedRoundCount: number;
   isEdited?: boolean;
 };

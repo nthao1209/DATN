@@ -40,6 +40,33 @@ const UnlockRequestPage: React.FC = () => {
     enabled: !!selectedTripId,
   });
 
+  const { data: busRoundStatuses = [] } = useQuery<any[]>({
+    queryKey: ['unlock-request-bus-round-statuses', selectedTripId],
+    queryFn: async () => {
+      if (!selectedTripId) return [];
+
+      const response = await api.getBusRoundStatuses(String(selectedTripId));
+      const data = Array.isArray(response)
+        ? response
+        : Array.isArray((response as any)?.data)
+          ? (response as any).data
+          : [];
+
+      return data;
+    },
+    enabled: !!selectedTripId,
+  });
+
+  const selectedTrip = trips.find((trip: any) => Number(trip.id) === Number(selectedTripId)) as any | undefined;
+  const selectedRound = rounds.find((round: any) => Number(round.id) === Number(selectedRoundId)) as any | undefined;
+  const currentStatus = busRoundStatuses.find(
+    (status: any) =>
+      Number(status.busId) === Number(selectedBusId) &&
+      Number(status.roundId) === Number(selectedRoundId)
+  ) as any | undefined;
+
+  const requestLocked = Boolean(currentStatus?.driverConfirmedBy);
+
 
   const createRequest = useCreateUnlockRequest();
 
@@ -105,20 +132,12 @@ const handleSubmit = async () => {
     return;
   }
 
+  if (requestLocked) {
+    enqueueSnackbar('Chặng này đã được bạn xác nhận hoàn thành nên không thể gửi yêu cầu mở khóa nữa.', { variant: 'warning' });
+    return;
+  }
+
   try {
-    const statusResponse = await api.getBusRoundStatuses(String(selectedTripId));
-    const statuses = Array.isArray(statusResponse)
-      ? statusResponse
-      : Array.isArray((statusResponse as any)?.data)
-        ? (statusResponse as any).data
-        : [];
-
-    const currentStatus = statuses.find(
-      (s: any) =>
-        Number(s.busId) === Number(selectedBusId) &&
-        Number(s.roundId) === Number(selectedRoundId)
-    );
-
     if (!currentStatus) {
       enqueueSnackbar('Không tìm thấy trạng thái khóa.', {
         variant: 'warning',
@@ -187,6 +206,11 @@ const handleSubmit = async () => {
             <div className="small" style={{ color: colors.textMuted }}>
               Gửi yêu cầu cho admin khi chặng đang bị khóa.
             </div>
+            {requestLocked ? (
+              <div className="small mt-1 fw-semibold text-danger">
+                Chặng này đã được xác nhận hoàn thành, không thể gửi yêu cầu mở khóa.
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -226,7 +250,7 @@ const handleSubmit = async () => {
                     className="form-select"
                     value={selectedTripId ?? ''}
                     onChange={(event) => setSelectedTripId(Number(event.target.value) || null)}
-                    disabled={isLoading || createRequest.isPending}
+                    disabled={isLoading || createRequest.isPending || requestLocked}
                     style={{
                       backgroundColor: isDarkMode ? colors.background : '#fff',
                       color: colors.textPrimary,
@@ -249,7 +273,7 @@ const handleSubmit = async () => {
                     className="form-select"
                     value={selectedBusId ?? ''}
                     onChange={(event) => setSelectedBusId(Number(event.target.value) || null)}
-                    disabled={isLoading || createRequest.isPending}
+                    disabled={isLoading || createRequest.isPending || requestLocked}
                     style={{
                       backgroundColor: isDarkMode ? colors.background : '#fff',
                       color: colors.textPrimary,
@@ -272,7 +296,7 @@ const handleSubmit = async () => {
                     className="form-select"
                     value={selectedRoundId ?? ''}
                     onChange={(event) => setSelectedRoundId(Number(event.target.value) || null)}
-                    disabled={isLoading || createRequest.isPending}
+                    disabled={isLoading || createRequest.isPending || requestLocked}
                     style={{
                       backgroundColor: isDarkMode ? colors.background : '#fff',
                       color: colors.textPrimary,
@@ -295,7 +319,7 @@ const handleSubmit = async () => {
                     className="form-select"
                     value={requestType}
                     onChange={(event) => setRequestType(event.target.value as RequestType)}
-                    disabled={createRequest.isPending}
+                    disabled={createRequest.isPending || requestLocked}
                     style={{
                       backgroundColor: isDarkMode ? colors.background : '#fff',
                       color: colors.textPrimary,
@@ -316,7 +340,7 @@ const handleSubmit = async () => {
                     rows={4}
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
-                    disabled={createRequest.isPending}
+                    disabled={createRequest.isPending || requestLocked}
                     style={{
                       backgroundColor: isDarkMode ? colors.background : '#fff',
                       color: colors.textPrimary,
@@ -331,7 +355,7 @@ const handleSubmit = async () => {
                   type="button"
                   className="btn btn-outline-secondary"
                   onClick={() => setReason('')}
-                  disabled={createRequest.isPending}
+                  disabled={createRequest.isPending || requestLocked}
                 >
                   Xóa nội dung
                 </button>
@@ -339,7 +363,7 @@ const handleSubmit = async () => {
                   type="button"
                   className="btn btn-primary d-inline-flex align-items-center gap-2"
                   onClick={handleSubmit}
-                  disabled={createRequest.isPending || !selectedTripId || !selectedBusId || !selectedRoundId}
+                  disabled={createRequest.isPending || !selectedTripId || !selectedBusId || !selectedRoundId || requestLocked}
                 >
                   <Send size={16} />
                   {createRequest.isPending ? 'Đang gửi...' : 'Gửi yêu cầu'}

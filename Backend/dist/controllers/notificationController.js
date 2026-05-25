@@ -1,9 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.notificationController = void 0;
-const client_1 = require("@prisma/client");
 const notificationService_1 = require("../services/notificationService");
-const prisma = new client_1.PrismaClient();
+const db_1 = require("../config/db");
 const ensureUser = (req, res) => {
     if (!req.user?.id) {
         res.status(401).json({ message: 'Unauthorized' });
@@ -39,7 +38,7 @@ const list = async (req, res) => {
         if (Number.isFinite(roundId)) {
             andConditions.push({ payload: { path: ['roundId'], equals: roundId } });
         }
-        const notifications = await prisma.notification.findMany({
+        const notifications = await db_1.prisma.notification.findMany({
             where: {
                 userId,
                 ...(andConditions.length ? { AND: andConditions } : {}),
@@ -67,7 +66,7 @@ const create = async (req, res) => {
         if (!type || !title || !content) {
             return res.status(400).json({ message: 'type, title and content are required' });
         }
-        const notification = await (0, notificationService_1.createNotification)(prisma, {
+        const notification = await (0, notificationService_1.createNotification)(db_1.prisma, {
             userId,
             type,
             title,
@@ -90,11 +89,11 @@ const markRead = async (req, res) => {
         if (!id) {
             return res.status(400).json({ message: 'Missing notification id' });
         }
-        const notification = await prisma.notification.findFirst({ where: { id, userId } });
+        const notification = await db_1.prisma.notification.findFirst({ where: { id, userId } });
         if (!notification) {
             return res.status(404).json({ message: 'Notification not found' });
         }
-        const updated = await prisma.notification.update({
+        const updated = await db_1.prisma.notification.update({
             where: { id },
             data: { isRead: true },
         });
@@ -110,7 +109,7 @@ const markAllRead = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
-        const result = await prisma.notification.updateMany({
+        const result = await db_1.prisma.notification.updateMany({
             where: { userId, isRead: false },
             data: { isRead: true },
         });
@@ -130,11 +129,11 @@ const remove = async (req, res) => {
         if (!id) {
             return res.status(400).json({ message: 'Missing notification id' });
         }
-        const notification = await prisma.notification.findFirst({ where: { id, userId } });
+        const notification = await db_1.prisma.notification.findFirst({ where: { id, userId } });
         if (!notification) {
             return res.status(404).json({ message: 'Notification not found' });
         }
-        await prisma.notification.delete({
+        await db_1.prisma.notification.delete({
             where: { id },
         });
         res.json({ message: 'Deleted successfully' });
@@ -149,7 +148,7 @@ const removeAll = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
-        const result = await prisma.notification.deleteMany({
+        const result = await db_1.prisma.notification.deleteMany({
             where: { userId },
         });
         res.json({ message: 'All notifications deleted', count: result.count });

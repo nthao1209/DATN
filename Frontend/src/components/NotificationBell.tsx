@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Bell, Trash2, X } from 'lucide-react';
+import { format } from 'date-fns';
 import { type RootState } from '../redux/store';
 import { useTheme } from '../theme/ThemeContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -125,10 +126,7 @@ const NotificationBell: React.FC = () => {
                         {shortenMessage(item.content)}
                       </div>
                       <div className="tiny text-uppercase mt-1" style={{ color: colors.textMuted, fontSize: '0.7rem' }}>
-                        {new Date(item.createdAt).toLocaleTimeString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {format(new Date(item.createdAt), 'dd/MM/yyyy HH:mm')}
                       </div>
                     </div>
                   </div>

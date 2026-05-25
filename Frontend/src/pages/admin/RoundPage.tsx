@@ -7,6 +7,7 @@ import api from '../../services/api';
 import { buildRoundColumns } from './round/columns';
 import { useRoundLocks } from '../../hooks/useRoundLocks';
 import { useTheme } from '../../theme/ThemeContext'; 
+import './RoundPage.css';
 import type { RoundRow } from './round/types';
 import LockRoundModal from './round/LockRoundModal';
 import { useSnackbar } from 'notistack';
@@ -24,6 +25,8 @@ const RoundPage: React.FC = () => {
   const [rows, setRows] = useState<RoundRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [focusRowKey, setFocusRowKey] = useState<string | number | null>(null);
+  const [focusRowSignal, setFocusRowSignal] = useState(0);
   const initialRowsByIdRef = useRef<Record<number, RoundRow>>({});
   const [openLockModal, setOpenLockModal] = useState<{
     roundId: number;
@@ -106,6 +109,8 @@ const RoundPage: React.FC = () => {
 
       const lockedInCount = (lockStatuses || []).filter((s: any) => Number(s.roundId) === roundId && Boolean(s.checkInLocked)).length;
       const lockedOutCount = (lockStatuses || []).filter((s: any) => Number(s.roundId) === roundId && Boolean(s.checkOutLocked)).length;
+      const busCount = Number(r?.busCount ?? buses.length ?? 0);
+      const completedBusCount = Number(r?.completedBusCount ?? 0);
 
       return {
         id: roundId,
@@ -117,6 +122,8 @@ const RoundPage: React.FC = () => {
         checkInCount: Number(checkInTxCount),
         checkOutCount: Number(checkOutTxCount),
         passengerCount: Number(r?.passengerCount || 0),
+        busCount,
+        completedBusCount,
         lockedInCount,
         lockedOutCount,
       } as RoundRow;
@@ -137,10 +144,12 @@ const RoundPage: React.FC = () => {
         status: 'DOING',
         transactionCount: 0,
         passengerCount: 0,
+        busCount: buses.length,
+        completedBusCount: 0,
       });
     }
     setRows(padded);
-  }, [rounds, transactions, lockStatuses]);
+  }, [rounds, transactions, lockStatuses, buses]);
 
   const isSameRow = (current: RoundRow, initial: RoundRow) => {
     return (
@@ -167,11 +176,43 @@ const RoundPage: React.FC = () => {
     return !isSameRow(row, initial);
   };
 
+  const isRowValid = (row: RoundRow) => Boolean(row.name.trim() && row.time.trim());
+
+  const hasValidationErrors = useMemo(
+    () => rows.some((row) => isRowDirty(row) && !isRowValid(row)),
+    [rows]
+  );
+
+  const saveValidationMessage = useMemo(() => {
+    if (!hasValidationErrors) return '';
+    const missing = new Set<string>();
+    rows.forEach((row) => {
+      if (!isRowDirty(row)) return;
+      if (!row.name.trim()) missing.add('Tên chặng');
+      if (!row.time.trim()) missing.add('Thời gian');
+    });
+    return missing.size ? `Thiếu: ${Array.from(missing).join(', ')}` : 'Vui lòng nhập đủ dữ liệu bắt buộc';
+  }, [hasValidationErrors, rows]);
+
   const dirtyCount = useMemo(() => {
     const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
     const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
     return created + edited + deletedIds.length;
   }, [rows, deletedIds]);
+
+  const canSave = dirtyCount > 0 && !hasValidationErrors;
+  const pageThemeVars = {
+    '--page-primary': colors.primary,
+    '--page-primary-11': `${colors.primary}11`,
+    '--page-primary-15': `${colors.primary}15`,
+    '--page-primary-33': `${colors.primary}33`,
+    '--page-surface-light': colors.surfaceLight,
+    '--page-background': colors.background,
+    '--page-border': colors.border,
+    '--page-border-light': colors.borderLight,
+    '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
+    '--page-table-header-text': isDarkMode ? colors.textSecondary : '#475569',
+  };
 
   useRegisterUnsavedChanges(dirtyCount > 0);
 
@@ -192,16 +233,29 @@ const RoundPage: React.FC = () => {
   const handleAddRow = () => {
     setRows((prev) => {
       const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
-      if (hasEmptyNew) return prev;
+      if (hasEmptyNew) {
+        const emptyRow = prev.find((r) => !r.id && !isNewRowDirty(r));
+        if (emptyRow) {
+          setFocusRowKey(emptyRow.localId);
+          setFocusRowSignal((value) => value + 1);
+        }
+        return prev;
+      }
+
+      const localId = makeLocalId();
+      setFocusRowKey(localId);
+      setFocusRowSignal((value) => value + 1);
       return [
         ...prev,
         {
-          localId: makeLocalId(),
+          localId,
           name: '',
           time: '',
           status: 'DOING',
           transactionCount: 0,
           passengerCount: 0,
+          busCount: 0,
+          completedBusCount: 0,
         },
       ];
     });
@@ -214,6 +268,10 @@ const RoundPage: React.FC = () => {
 
   const handleSave = async () => {
     if (!tripId) return;
+    if (hasValidationErrors) {
+      enqueueSnackbar('Vui lòng nhập đủ tên chặng và thời gian trước khi lưu', { variant: 'warning' });
+      return;
+    }
     const rowsToCreate = rows.filter((r) => !r.id && r.name.trim() && r.time.trim());
     const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
 
@@ -311,7 +369,7 @@ const RoundPage: React.FC = () => {
   }
 };
   return (
-    <div className="animate-fade-in p-0 p-md-3 round-page">
+    <div className="animate-fade-in p-0 p-md-3 round-page" style={pageThemeVars as React.CSSProperties}>
       {/* Header Section */}
       <div className="d-flex align-items-center justify-content-between mb-4 px-2">
         <div className="d-flex align-items-center gap-3">
@@ -346,25 +404,35 @@ const RoundPage: React.FC = () => {
         <DataTable
           title="Danh sách các chặng"
           titleActions={
-            <button
-              className="btn-custom-action-save shadow-sm"
-              onClick={handleSave}
-              disabled={isSaving || dirtyCount === 0}
-              style={{ 
-                backgroundColor: dirtyCount > 0 ? colors.success : colors.surfaceLight, 
-                color: dirtyCount > 0 ? '#fff' : colors.textMuted
-              }}
-            >
-              <Save size={16} />
-              <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-              <span className="d-inline d-sm-none">{dirtyCount}</span>
-            </button>
+            <div className="d-flex flex-column align-items-end gap-1">
+              <button
+                className="btn-custom-action-save shadow-sm"
+                onClick={handleSave}
+                disabled={isSaving || !canSave}
+                title={saveValidationMessage || undefined}
+                style={{ 
+                  backgroundColor: canSave ? colors.success : colors.surfaceLight, 
+                  color: canSave ? '#fff' : colors.textMuted
+                }}
+              >
+                <Save size={16} />
+                <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
+                <span className="d-inline d-sm-none">{dirtyCount}</span>
+              </button>
+              {saveValidationMessage && (
+                <div className="small text-end" style={{ color: colors.warning, maxWidth: '280px', lineHeight: 1.2 }}>
+                  {saveValidationMessage}
+                </div>
+              )}
+            </div>
           }
           columns={columns}
           queryKey={['rounds-local', tripId]}
           data={rows}
           isLoading={isLoading}
           isError={isError}
+          focusRowKey={focusRowKey}
+          focusRowSignal={focusRowSignal}
         />
         
         {openLockModal !== null && (
@@ -400,90 +468,6 @@ const RoundPage: React.FC = () => {
           </button>
         </div>
       </div>
-      <style>{`
-        .icon-header-box {
-          width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
-          border-radius: 50%; border: 1px solid ${colors.primary}33; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .btn-custom-action-save {
-          display: flex; align-items: center; gap: 8px; padding: 6px 16px;
-          font-size: 13px; font-weight: 700; border-radius: 8px; border: none;
-          transition: all 0.2s ease;
-        }
-        .btn-custom-action-save:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); }
-
-        .btn-add-row-bottom {
-          display: flex; align-items: center; justify-content: center;
-          background: transparent; transition: all 0.2s;
-        }
-        .btn-add-row-bottom:hover {
-          background-color: ${colors.primary}15 !important;
-          border-style: solid !important;
-          transform: scale(1.005);
-        }
-        
-        .round-page .td-content input, .round-page .td-content select {
-          min-height: 36px !important;
-          border: 1px solid ${isDarkMode ? colors.borderLight : '#cbd5e1'} !important;
-          background-color: ${isDarkMode ? colors.background : '#fff'} !important;
-          border-radius: 6px !important; font-size: 13px !important;
-        }
-
-        .btn-refresh-custom {
-          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-          border-radius: 8px; transition: 0.2s; cursor: pointer; border: none;
-        }
-        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
-
-        .table thead th {
-          background-color: ${isDarkMode ? colors.surfaceLight : '#f8fafc'} !important;
-          color: ${isDarkMode ? colors.textSecondary : '#475569'} !important;
-          font-size: 12px !important; text-transform: uppercase !important;
-          padding: 12px !important; font-weight: 700 !important;
-          border-bottom: 1px solid ${colors.border} !important;
-        }
-          
-        .round-page .btn-action-delete {
-          width: 36px !important;
-          height: 36px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;          
-          border-radius: 10px !important;
-          border: 1px solid rgba(220, 53, 69, 0.2) !important;
-          background-color: rgba(220, 53, 69, 0.05) !important;
-          color: #dc3545 !important;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-          cursor: pointer !important;
-          outline: none !important;
-          padding: 0 !important;
-          margin: 0 !important;
-        }
-
-        .round-page .btn-action-delete:hover {
-          background-color: #dc3545 !important;
-          color: #ffffff !important;
-          border-color: #dc3545 !important;
-          transform: translateY(-2px) !important;
-          box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
-        }
-
-        .round-page .btn-action-delete:active {
-          transform: scale(0.9) !important;
-          background-color: #a71d2a !important;
-          box-shadow: none !important;
-        }
-
-        .round-page .btn-action-delete svg {
-          color: #ffffff !important; 
-          fill: none !important;
-        }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
     </div>
   );
 };

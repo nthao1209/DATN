@@ -1,9 +1,7 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
 import { createNotification } from '../services/notificationService';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/db';
 
 const ensureUser = (req: AuthRequest, res: Response) => {
   if (!req.user?.id) {

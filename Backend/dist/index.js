@@ -21,10 +21,8 @@ app.use('/api', bus_management_1.default);
 app.get("/health", (req, res) => {
     res.status(200).send("ok");
 });
-// Debug: list registered routes (temporary)
 app.get('/api/_routes', (_req, res) => {
     try {
-        // @ts-ignore: access express internals for debugging
         const routes = app._router.stack
             .filter((layer) => layer.route)
             .map((layer) => {

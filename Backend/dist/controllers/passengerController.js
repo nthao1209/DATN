@@ -4,9 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.passengerController = void 0;
-const client_1 = require("@prisma/client");
 const xlsx_1 = __importDefault(require("xlsx"));
-const prisma = new client_1.PrismaClient();
+const db_1 = require("../config/db");
 const HEADER_ALIASES = {
     name: ['name', 'hoten', 'ten', 'fullname', 'full name', 'ho va ten', 'hova ten', 'Họ và tên'],
     tel: ['tel', 'phone', 'phonenumber', 'sodienthoai', 'sdt', 'mobile', 'dien thoai', 'Số điện thoại'],
@@ -142,7 +141,7 @@ exports.passengerController = {
                 : req.roleId === 3 && req.user?.id
                     ? { managerId: req.user.id }
                     : {};
-            const passengers = await prisma.passenger.findMany({
+            const passengers = await db_1.prisma.passenger.findMany({
                 where: {
                     ...(keyword
                         ? {
@@ -206,7 +205,7 @@ exports.passengerController = {
             if (!busIdNumber) {
                 return res.status(400).json({ message: 'Missing busId' });
             }
-            const bus = await prisma.bus.findFirst({
+            const bus = await db_1.prisma.bus.findFirst({
                 where: {
                     id: busIdNumber,
                     tripId,
@@ -218,7 +217,7 @@ exports.passengerController = {
             if (!bus) {
                 return res.status(404).json({ message: 'Bus not found' });
             }
-            const passenger = await prisma.passenger.create({
+            const passenger = await db_1.prisma.passenger.create({
                 data: {
                     name: String(name).trim(),
                     tel,
@@ -288,7 +287,7 @@ exports.passengerController = {
             }
             const headers = Object.keys(rawRows[0] ?? {});
             const headerMap = buildHeaderMap(headers);
-            const buses = await prisma.bus.findMany({
+            const buses = await db_1.prisma.bus.findMany({
                 where: {
                     tripId,
                     trip: {
@@ -358,7 +357,7 @@ exports.passengerController = {
             }
             const { name, note, busId } = req.body;
             const tel = req.body?.tel;
-            const existing = await prisma.passenger.findFirst({
+            const existing = await db_1.prisma.passenger.findFirst({
                 where: {
                     id: Number(id),
                     bus: {
@@ -377,7 +376,7 @@ exports.passengerController = {
                 if (!busIdNumber) {
                     return res.status(400).json({ message: 'Invalid busId' });
                 }
-                const bus = await prisma.bus.findFirst({
+                const bus = await db_1.prisma.bus.findFirst({
                     where: {
                         id: busIdNumber,
                         trip: {
@@ -390,7 +389,7 @@ exports.passengerController = {
                 }
                 nextBusId = busIdNumber;
             }
-            const updated = await prisma.passenger.update({
+            const updated = await db_1.prisma.passenger.update({
                 where: { id: Number(id) },
                 data: {
                     ...(name !== undefined ? { name: String(name).trim() } : {}),
@@ -412,7 +411,7 @@ exports.passengerController = {
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            const existing = await prisma.passenger.findFirst({
+            const existing = await db_1.prisma.passenger.findFirst({
                 where: {
                     id: Number(id),
                     bus: {
@@ -425,7 +424,7 @@ exports.passengerController = {
             if (!existing) {
                 return res.status(404).json({ message: 'Passenger not found' });
             }
-            await prisma.passenger.delete({
+            await db_1.prisma.passenger.delete({
                 where: { id: Number(id) }
             });
             res.json({ message: 'Deleted successfully' });
