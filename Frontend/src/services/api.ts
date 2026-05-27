@@ -3,10 +3,9 @@ import { auth as fbAuth } from '../config/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/types';
 
-
-
+const rawApiBaseUrl = import.meta.env.VITE_API_URL || 'https://backend-datn-3leo.onrender.com';
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL + '/api',
+  baseURL: `${rawApiBaseUrl.replace(/\/$/, '')}/api`,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
