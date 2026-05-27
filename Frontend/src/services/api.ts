@@ -67,7 +67,6 @@ axiosClient.interceptors.response.use(
     const originalRequest = error.config as any;
     const isUnauthorized = error.response?.status === 401;
     const requestUrl = String(originalRequest?.url || '');
-    const shouldSuppressLog = isUnauthorized && isAuthRelatedEndpoint(requestUrl);
 
     if (isUnauthorized && !originalRequest?._retry && originalRequest && !isAuthRelatedEndpoint(requestUrl)) {
       originalRequest._retry = true;

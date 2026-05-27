@@ -16,10 +16,10 @@ const ImportExcel: React.FC = () => {
     formData.append('file', file);
 
     api.post('/import', formData)
-      .then((response) => {
+      .then(() => {
         enqueueSnackbar('File uploaded successfully', { variant: 'success' });
       })
-      .catch((error) => {
+      .catch(() => {
         enqueueSnackbar('Error uploading file', { variant: 'error' });
       });
   };
