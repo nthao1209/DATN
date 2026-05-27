@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import { prisma } from '../config/db';
+import { publishDashboardRefresh } from '../services/mqtt';
 
 enum Status {
   DOING = 'DOING',
@@ -220,6 +221,15 @@ export const roundController = {
         ? { ...createdRound, passengerCount, busCount, completedBusCount }
         : { ...round, _count: { transactions: 0 }, passengerCount, busCount, completedBusCount };
 
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'round',
+        action: 'create',
+        tripId,
+        roundId: round.id,
+        updatedAt: new Date().toISOString(),
+      });
+
       res.status(201).json(createdRoundWithStats);
     } catch (error: any) {
       console.error(' create round error:', error);
@@ -283,6 +293,15 @@ export const roundController = {
         }
       });
 
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'round',
+        action: 'update',
+        tripId: existing.tripId,
+        roundId: updated.id,
+        updatedAt: new Date().toISOString(),
+      });
+
       res.json(updated);
     } catch (error) {
       console.error('update round error:', error);
@@ -317,6 +336,15 @@ export const roundController = {
 
       await prisma.round.delete({
         where: { id: Number(id) }
+      });
+
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'round',
+        action: 'delete',
+        tripId: existing.tripId,
+        roundId: Number(id),
+        updatedAt: new Date().toISOString(),
       });
 
       res.json({ message: 'Deleted successfully' });

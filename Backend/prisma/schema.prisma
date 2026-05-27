@@ -47,6 +47,8 @@ model User {
   description            String?
   createdDate            DateTime        @default(now())
   latestData             DateTime?
+  isDisabled             Boolean         @default(false)
+  disabledAt             DateTime?
   firebaseUid            String          @unique
   name                   String
   buses                  Bus[]           @relation("BusManager")

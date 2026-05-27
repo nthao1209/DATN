@@ -13,7 +13,9 @@ import Layout from '../components/Layout';
 const Login = React.lazy(() => import('../pages/Register-Login/LoginPage'));
 const Register = React.lazy(() => import('../pages/Register-Login/RegisterPage'));
 const ForgotPasswordPage = React.lazy(() => import('../pages/Register-Login/ForgotPasswordPage'));
+const AccountDisabledPage = React.lazy(() => import('../pages/Register-Login/AccountDisabledPage'));
 const SetupOrg = React.lazy(() => import('../pages/Register-Login/SetupOrgPage'));
+const SelectTenantPage = React.lazy(() => import('../pages/pulic/SelectTenantPage'));
 const Dashboard = React.lazy(() => import('../pages/admin/DashboardPage'));
 const TripPage = React.lazy(() => import('../pages/admin/TripPage'));
 const RoundPage = React.lazy(() => import('../pages/admin/RoundPage'));
@@ -41,10 +43,25 @@ export const createAppRouter = (
   currentTenant: RootState['auth']['currentTenant'] = null,
 ) => {
   const needsTenantSelection = Boolean(user && roleId !== ROLE_IDS.SYSTEM_ADMIN && tenants.length > 1 && !currentTenant);
+  const authenticatedFallbackPath = needsTenantSelection
+    ? '/setup-org'
+    : getFallbackPathForRole(roleId) === '/login'
+      ? '/setup-org'
+      : getFallbackPathForRole(roleId);
+
+  console.debug('[appRouter] createAppRouter', {
+    hasUser: Boolean(user),
+    roleId,
+    tenantCount: tenants.length,
+    hasCurrentTenant: Boolean(currentTenant),
+    needsTenantSelection,
+    authenticatedFallbackPath,
+  });
 
   const publicRoutes = createRoutesFromElements(
     <>
       <Route path="/login" element={<Login />} />
+      <Route path="/account-disabled" element={<AccountDisabledPage />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
@@ -82,6 +99,7 @@ export const createAppRouter = (
   const tenantRoutes = createRoutesFromElements(
     <>
       <Route path="/setup-org" element={<SetupOrg />} />
+      <Route path="/select-tenant" element={<SelectTenantPage />} />
 
       <Route element={<SetupOrgGate roleId={roleId ?? undefined}><Layout /></SetupOrgGate>}>
         <Route
@@ -142,8 +160,8 @@ export const createAppRouter = (
         />
       </Route>
 
-      <Route path="/" element={<Navigate to={needsTenantSelection ? '/setup-org' : getFallbackPathForRole(roleId)} replace />} />
-      <Route path="*" element={<Navigate to={needsTenantSelection ? '/setup-org' : getFallbackPathForRole(roleId)} replace />} />
+      <Route path="/" element={<Navigate to={authenticatedFallbackPath} replace />} />
+      <Route path="*" element={<Navigate to={authenticatedFallbackPath} replace />} />
     </>
   );
 

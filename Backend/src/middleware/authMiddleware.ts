@@ -3,12 +3,29 @@ import admin from '../config/firebaseAdmin';
 import { AuthRequest } from '../types/auth';
 import { prisma } from '../config/db';
 
+const logVerifyAttempt = (label: string, req: AuthRequest) => {
+  const rawAuth = req.headers.authorization;
+  const hasBearer = Boolean(rawAuth?.startsWith('Bearer '));
+  const token = hasBearer ? rawAuth?.slice(7) : '';
+
+  console.log(`[authMiddleware] ${label} verifyToken start`, {
+    method: req.method,
+    path: req.originalUrl,
+    hasAuthorizationHeader: Boolean(rawAuth),
+    hasBearer,
+    tokenProvided: Boolean(token),
+    tokenLength: token?.length || 0,
+  });
+
+  return token;
+};
+
 const getOrCreatePrismaUser = async (token: string) => {
   console.time('verifyIdToken');
 
   const decodedToken = await admin
     .auth()
-    .verifyIdToken(token, false);
+    .verifyIdToken(token, true);
 
   console.timeEnd('verifyIdToken');
 
@@ -52,6 +69,22 @@ const getOrCreatePrismaUser = async (token: string) => {
   };
 };
 
+const rejectDisabledUser = (
+  res: Response,
+  user: NonNullable<Awaited<ReturnType<typeof getOrCreatePrismaUser>>['user']>
+) => {
+  if (user.isDisabled) {
+    res.status(403).json({
+      message: 'Tài khoản đã bị vô hiệu hóa',
+      code: 'ACCOUNT_DISABLED',
+    });
+
+    return true;
+  }
+
+  return false;
+};
+
 const rejectUnverifiedEmail = (
   res: Response,
   decodedToken: any
@@ -73,10 +106,14 @@ export const verifyFirebaseTokenOnly = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token =
-    req.headers.authorization?.split('Bearer ')[1];
+  const token = logVerifyAttempt('verifyFirebaseTokenOnly', req);
 
   if (!token) {
+    console.warn('[authMiddleware] verifyFirebaseTokenOnly no token provided', {
+      method: req.method,
+      path: req.originalUrl,
+    });
+
     return res.status(401).json({
       message: 'No token provided',
     });
@@ -86,13 +123,25 @@ export const verifyFirebaseTokenOnly = async (
     const { user, decodedToken } =
       await getOrCreatePrismaUser(token);
 
+    console.log('[authMiddleware] verifyFirebaseTokenOnly success', {
+      method: req.method,
+      path: req.originalUrl,
+      userId: user.id,
+      firebaseUid: decodedToken.uid,
+      email: decodedToken.email,
+    });
+
+    if (rejectDisabledUser(res, user)) {
+      return;
+    }
+
     req.user = user;
     req.firebaseUser = decodedToken;
 
     return next();
   } catch (error: any) {
     console.error(
-      'verifyFirebaseTokenOnly error:',
+      '[authMiddleware] verifyFirebaseTokenOnly failed:',
       error
     );
 
@@ -107,10 +156,14 @@ export const verifyVerifiedFirebaseTokenOnly = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token =
-    req.headers.authorization?.split('Bearer ')[1];
+  const token = logVerifyAttempt('verifyVerifiedFirebaseTokenOnly', req);
 
   if (!token) {
+    console.warn('[authMiddleware] verifyVerifiedFirebaseTokenOnly no token provided', {
+      method: req.method,
+      path: req.originalUrl,
+    });
+
     return res.status(401).json({
       message: 'No token provided',
     });
@@ -119,6 +172,19 @@ export const verifyVerifiedFirebaseTokenOnly = async (
   try {
     const { user, decodedToken } =
       await getOrCreatePrismaUser(token);
+
+    console.log('[authMiddleware] verifyVerifiedFirebaseTokenOnly success', {
+      method: req.method,
+      path: req.originalUrl,
+      userId: user.id,
+      firebaseUid: decodedToken.uid,
+      email: decodedToken.email,
+      emailVerified: decodedToken.email_verified,
+    });
+
+    if (rejectDisabledUser(res, user)) {
+      return;
+    }
 
     if (rejectUnverifiedEmail(res, decodedToken)) {
       return;
@@ -130,7 +196,7 @@ export const verifyVerifiedFirebaseTokenOnly = async (
     return next();
   } catch (error: any) {
     console.error(
-      'verifyVerifiedFirebaseTokenOnly error:',
+      '[authMiddleware] verifyVerifiedFirebaseTokenOnly failed:',
       error
     );
 
@@ -145,10 +211,14 @@ export const verifyFirebaseToken = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token =
-    req.headers.authorization?.split('Bearer ')[1];
+  const token = logVerifyAttempt('verifyFirebaseToken', req);
 
   if (!token) {
+    console.warn('[authMiddleware] verifyFirebaseToken no token provided', {
+      method: req.method,
+      path: req.originalUrl,
+    });
+
     return res.status(401).json({
       message: 'No token provided',
     });
@@ -157,6 +227,19 @@ export const verifyFirebaseToken = async (
   try {
     const { user, decodedToken } =
       await getOrCreatePrismaUser(token);
+
+    console.log('[authMiddleware] verifyFirebaseToken success', {
+      method: req.method,
+      path: req.originalUrl,
+      userId: user.id,
+      firebaseUid: decodedToken.uid,
+      email: decodedToken.email,
+      emailVerified: decodedToken.email_verified,
+    });
+
+    if (rejectDisabledUser(res, user)) {
+      return;
+    }
 
     if (rejectUnverifiedEmail(res, decodedToken)) {
       return;
@@ -189,7 +272,7 @@ export const verifyFirebaseToken = async (
     return next();
   } catch (error: any) {
     console.error(
-      'verifyFirebaseToken error:',
+      '[authMiddleware] verifyFirebaseToken failed:',
       error
     );
 

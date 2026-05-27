@@ -10,7 +10,7 @@ const getOrCreatePrismaUser = async (token) => {
     console.time('verifyIdToken');
     const decodedToken = await firebaseAdmin_1.default
         .auth()
-        .verifyIdToken(token, false);
+        .verifyIdToken(token, true);
     console.timeEnd('verifyIdToken');
     if (!decodedToken.uid) {
         throw new Error('Invalid Firebase token');
@@ -44,6 +44,16 @@ const getOrCreatePrismaUser = async (token) => {
         decodedToken,
     };
 };
+const rejectDisabledUser = (res, user) => {
+    if (user.isDisabled) {
+        res.status(403).json({
+            message: 'Tài khoản đã bị vô hiệu hóa',
+            code: 'ACCOUNT_DISABLED',
+        });
+        return true;
+    }
+    return false;
+};
 const rejectUnverifiedEmail = (res, decodedToken) => {
     if (decodedToken.email_verified !== true) {
         res.status(403).json({
@@ -63,6 +73,9 @@ const verifyFirebaseTokenOnly = async (req, res, next) => {
     }
     try {
         const { user, decodedToken } = await getOrCreatePrismaUser(token);
+        if (rejectDisabledUser(res, user)) {
+            return;
+        }
         req.user = user;
         req.firebaseUser = decodedToken;
         return next();
@@ -84,6 +97,9 @@ const verifyVerifiedFirebaseTokenOnly = async (req, res, next) => {
     }
     try {
         const { user, decodedToken } = await getOrCreatePrismaUser(token);
+        if (rejectDisabledUser(res, user)) {
+            return;
+        }
         if (rejectUnverifiedEmail(res, decodedToken)) {
             return;
         }
@@ -108,6 +124,9 @@ const verifyFirebaseToken = async (req, res, next) => {
     }
     try {
         const { user, decodedToken } = await getOrCreatePrismaUser(token);
+        if (rejectDisabledUser(res, user)) {
+            return;
+        }
         if (rejectUnverifiedEmail(res, decodedToken)) {
             return;
         }

@@ -7,4 +7,5 @@ const router = (0, express_1.Router)();
 router.get('/users', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, userController_1.userController.getAll);
 router.put('/users/:id', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, userController_1.userController.update);
 router.delete('/users/:id', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, userController_1.userController.removeFromTenant);
+router.patch('/users/:id/status', authMiddleware_1.verifyVerifiedFirebaseTokenOnly, userController_1.userController.setStatus);
 exports.default = router;

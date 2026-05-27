@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.busController = void 0;
 const db_1 = require("../config/db");
 const mqtt_1 = __importDefault(require("mqtt"));
+const mqtt_2 = require("../services/mqtt");
 const mqttClient = mqtt_1.default.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
@@ -102,6 +103,14 @@ exports.busController = {
                     manager: true,
                 }
             });
+            (0, mqtt_2.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'bus',
+                action: 'create',
+                tripId,
+                busId: bus.id,
+                updatedAt: new Date().toISOString(),
+            });
             res.status(201).json(bus);
         }
         catch (error) {
@@ -150,6 +159,14 @@ exports.busController = {
                     managerId: Number(managerId)
                 }
             });
+            (0, mqtt_2.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'bus',
+                action: 'update',
+                tripId: existing.tripId,
+                busId: updated.id,
+                updatedAt: new Date().toISOString(),
+            });
             res.json(updated);
         }
         catch (error) {
@@ -179,6 +196,14 @@ exports.busController = {
             }
             await db_1.prisma.bus.delete({
                 where: { id: Number(id) }
+            });
+            (0, mqtt_2.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'bus',
+                action: 'delete',
+                tripId: existing.tripId,
+                busId: Number(id),
+                updatedAt: new Date().toISOString(),
             });
             res.json({ message: "Deleted" });
         }

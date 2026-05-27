@@ -50,6 +50,8 @@ const UserManagementPage: React.FC = () => {
       roleId: user.userTenants?.[0]?.role?.id ?? null,
       tenantId: user.userTenants?.[0]?.tenant?.id ?? null,
       isEdited: false,
+      isDisabled: !!user.isDisabled,
+      disabledAt: user.disabledAt ?? null,
     }));
 
     const initialById: Record<number, UserRow> = {};
@@ -178,6 +180,20 @@ const UserManagementPage: React.FC = () => {
     handleCellChange,
     handleDeleteRow,
     roles: roles || [],
+    handleToggleDisabled: async (userId: number, currentIsDisabled: boolean) => {
+      try {
+        const next = !currentIsDisabled;
+        setIsSaving(true);
+        await api.setUserStatus(String(userId), next);
+        enqueueSnackbar(next ? 'Đã vô hiệu hóa tài khoản' : 'Đã bật lại tài khoản', { variant: 'success' });
+        initializedRef.current = false;
+        await refetch();
+      } catch (err: any) {
+        enqueueSnackbar(err?.message || 'Lỗi khi thay đổi trạng thái', { variant: 'error' });
+      } finally {
+        setIsSaving(false);
+      }
+    },
   });
 
   return (

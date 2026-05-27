@@ -16,6 +16,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <Navigate to="/login" replace />;
   }
 
+  if (user.isDisabled) {
+    return <Navigate to="/account-disabled" replace />;
+  }
+
   if (allowedRoles.length > 0 && !hasRoleAccess(roleId, allowedRoles)) {
     const fallbackPath = getFallbackPathForRole(roleId);
 

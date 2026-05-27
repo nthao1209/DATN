@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.passengerController = void 0;
 const xlsx_1 = __importDefault(require("xlsx"));
 const db_1 = require("../config/db");
+const mqtt_1 = require("../services/mqtt");
 const HEADER_ALIASES = {
     name: ['name', 'hoten', 'ten', 'fullname', 'full name', 'ho va ten', 'hova ten', 'Họ và tên'],
     tel: ['tel', 'phone', 'phonenumber', 'sodienthoai', 'sdt', 'mobile', 'dien thoai', 'Số điện thoại'],
@@ -225,6 +226,14 @@ exports.passengerController = {
                     busId: busIdNumber
                 }
             });
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'passenger',
+                action: 'create',
+                tripId,
+                passengerId: passenger.id,
+                updatedAt: new Date().toISOString(),
+            });
             res.status(201).json(passenger);
         }
         catch (error) {
@@ -365,6 +374,18 @@ exports.passengerController = {
                             tenantId: req.tenantId
                         }
                     }
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    busId: true,
+                    tel: true,
+                    note: true,
+                    bus: {
+                        select: {
+                            tripId: true
+                        }
+                    }
                 }
             });
             if (!existing) {
@@ -398,6 +419,14 @@ exports.passengerController = {
                     ...(nextBusId ? { busId: nextBusId } : {})
                 }
             });
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'passenger',
+                action: 'update',
+                tripId: existing.bus.tripId,
+                passengerId: updated.id,
+                updatedAt: new Date().toISOString(),
+            });
             res.json(updated);
         }
         catch (error) {
@@ -419,6 +448,18 @@ exports.passengerController = {
                             tenantId: req.tenantId
                         }
                     }
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    busId: true,
+                    tel: true,
+                    note: true,
+                    bus: {
+                        select: {
+                            tripId: true
+                        }
+                    }
                 }
             });
             if (!existing) {
@@ -426,6 +467,14 @@ exports.passengerController = {
             }
             await db_1.prisma.passenger.delete({
                 where: { id: Number(id) }
+            });
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'passenger',
+                action: 'delete',
+                tripId: existing.bus.tripId,
+                passengerId: Number(id),
+                updatedAt: new Date().toISOString(),
             });
             res.json({ message: 'Deleted successfully' });
         }

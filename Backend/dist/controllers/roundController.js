@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.roundController = void 0;
 const db_1 = require("../config/db");
+const mqtt_1 = require("../services/mqtt");
 var Status;
 (function (Status) {
     Status["DOING"] = "DOING";
@@ -197,6 +198,14 @@ exports.roundController = {
             const createdRoundWithStats = createdRound
                 ? { ...createdRound, passengerCount, busCount, completedBusCount }
                 : { ...round, _count: { transactions: 0 }, passengerCount, busCount, completedBusCount };
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'round',
+                action: 'create',
+                tripId,
+                roundId: round.id,
+                updatedAt: new Date().toISOString(),
+            });
             res.status(201).json(createdRoundWithStats);
         }
         catch (error) {
@@ -246,6 +255,14 @@ exports.roundController = {
                     ...(time !== undefined ? { time: String(time).trim() } : {}),
                 }
             });
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'round',
+                action: 'update',
+                tripId: existing.tripId,
+                roundId: updated.id,
+                updatedAt: new Date().toISOString(),
+            });
             res.json(updated);
         }
         catch (error) {
@@ -276,6 +293,14 @@ exports.roundController = {
             }
             await db_1.prisma.round.delete({
                 where: { id: Number(id) }
+            });
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'round',
+                action: 'delete',
+                tripId: existing.tripId,
+                roundId: Number(id),
+                updatedAt: new Date().toISOString(),
             });
             res.json({ message: 'Deleted successfully' });
         }

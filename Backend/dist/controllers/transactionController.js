@@ -112,6 +112,9 @@ const publishAttendanceUpdate = async (transactionId) => {
                             registrationNumber: true,
                             tripId: true,
                             managerId: true,
+                            trip: {
+                                select: { tenantId: true },
+                            },
                             manager: {
                                 select: { id: true, name: true, email: true },
                             },
@@ -126,6 +129,9 @@ const publishAttendanceUpdate = async (transactionId) => {
                     registrationNumber: true,
                     tripId: true,
                     managerId: true,
+                    trip: {
+                        select: { tenantId: true },
+                    },
                     manager: {
                         select: { id: true, name: true, email: true },
                     },
@@ -165,6 +171,11 @@ const publishAttendanceUpdate = async (transactionId) => {
             busCode: true,
             registrationNumber: true,
             tripId: true,
+            trip: {
+                select: {
+                    tenantId: true,
+                },
+            },
             managerId: true,
             manager: {
                 select: {
@@ -221,6 +232,19 @@ const publishAttendanceUpdate = async (transactionId) => {
         updatedAt: new Date().toISOString(),
         requiresReview,
     };
+    const tenantId = actualBus?.trip?.tenantId ??
+        transaction.bus.trip.tenantId ??
+        transaction.passenger.bus.trip.tenantId;
+    if (tenantId) {
+        (0, mqtt_1.publishDashboardRefresh)(tenantId, {
+            type: 'dashboard.refresh',
+            entity: 'transaction',
+            action: 'update',
+            tripId: payload.tripId,
+            requiresReview,
+            updatedAt: payload.updatedAt,
+        });
+    }
     if (requiresReview) {
         (0, mqtt_1.publishToTripTopic)(payload.tripId, {
             type: "attendance.requires_review",

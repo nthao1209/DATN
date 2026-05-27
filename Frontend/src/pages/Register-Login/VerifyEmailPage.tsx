@@ -50,6 +50,10 @@ const VerifyEmailPage: React.FC = () => {
       await fbAuth.currentUser.reload();
       const token = await fbAuth.currentUser.getIdToken(true);
       const response = await api.getMyStatus(token);
+      if (!response) {
+        setMessage('Không tìm thấy phiên đăng nhập hợp lệ. Vui lòng đăng nhập lại.');
+        return;
+      }
       const status = (response as any)?.data ?? response;
 
       dispatch(

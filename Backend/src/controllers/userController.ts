@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import { prisma } from '../config/db';
+import admin from '../config/firebaseAdmin';
 
 const getSystemSuperAdminEmails = () => {
   const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
@@ -136,6 +137,46 @@ export const userController = {
       res.json({ message: 'User removed from tenant successfully' });
     } catch (error: any) {
       console.error('delete user error:', error);
+      res.status(500).json({ message: 'Server error', detail: error?.message });
+    }
+  },
+
+  setStatus: async (req: AuthRequest, res: Response) => {
+    try {
+      if (!requireSystemSuperAdmin(req, res)) return;
+
+      const userId = Number(req.params.id);
+      if (!userId) {
+        return res.status(400).json({ message: 'Invalid user id' });
+      }
+
+      const { isDisabled } = req.body as { isDisabled?: boolean };
+      if (typeof isDisabled !== 'boolean') {
+        return res.status(400).json({ message: 'isDisabled (boolean) is required' });
+      }
+
+      const updateData: any = {
+        isDisabled,
+        disabledAt: isDisabled ? new Date() : null,
+      };
+
+      const updated = await prisma.user.update({ where: { id: userId }, data: updateData });
+
+      // Try to sync with Firebase Auth (best-effort)
+      try {
+        if (updated.firebaseUid) {
+          await admin.auth().updateUser(updated.firebaseUid, { disabled: !!isDisabled });
+          if (isDisabled) {
+            await admin.auth().revokeRefreshTokens(updated.firebaseUid);
+          }
+        }
+      } catch (fbErr) {
+        console.warn('Failed to sync user disabled state to Firebase:', fbErr);
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('set user status error:', error);
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   }

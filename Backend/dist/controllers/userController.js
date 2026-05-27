@@ -1,7 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userController = void 0;
 const db_1 = require("../config/db");
+const firebaseAdmin_1 = __importDefault(require("../config/firebaseAdmin"));
 const getSystemSuperAdminEmails = () => {
     const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
     const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
@@ -118,6 +122,42 @@ exports.userController = {
         }
         catch (error) {
             console.error('delete user error:', error);
+            res.status(500).json({ message: 'Server error', detail: error?.message });
+        }
+    },
+    setStatus: async (req, res) => {
+        try {
+            if (!requireSystemSuperAdmin(req, res))
+                return;
+            const userId = Number(req.params.id);
+            if (!userId) {
+                return res.status(400).json({ message: 'Invalid user id' });
+            }
+            const { isDisabled } = req.body;
+            if (typeof isDisabled !== 'boolean') {
+                return res.status(400).json({ message: 'isDisabled (boolean) is required' });
+            }
+            const updateData = {
+                isDisabled,
+                disabledAt: isDisabled ? new Date() : null,
+            };
+            const updated = await db_1.prisma.user.update({ where: { id: userId }, data: updateData });
+            // Try to sync with Firebase Auth (best-effort)
+            try {
+                if (updated.firebaseUid) {
+                    await firebaseAdmin_1.default.auth().updateUser(updated.firebaseUid, { disabled: !!isDisabled });
+                    if (isDisabled) {
+                        await firebaseAdmin_1.default.auth().revokeRefreshTokens(updated.firebaseUid);
+                    }
+                }
+            }
+            catch (fbErr) {
+                console.warn('Failed to sync user disabled state to Firebase:', fbErr);
+            }
+            res.json(updated);
+        }
+        catch (error) {
+            console.error('set user status error:', error);
             res.status(500).json({ message: 'Server error', detail: error?.message });
         }
     }

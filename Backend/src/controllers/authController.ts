@@ -117,42 +117,50 @@ export const deleteUser = async (
   }
 
   try {
-    console.log(
-      'Deleting Firebase user:',
-      firebaseUid
-    );
-
-    // Xóa Firebase trước
-    await admin.auth().deleteUser(firebaseUid);
-
-    console.log('Firebase user deleted');
-
-    // Sau đó mới xóa DB
-    await prisma.userTenant.deleteMany({
-      where: {
-        userId,
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firebaseUid: true,
+        isDisabled: true,
       },
     });
 
-    await prisma.user.delete({
-      where: {
-        id: userId,
-      },
-    });
+    if (!existingUser) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản',
+      });
+    }
 
-    console.log('Database user deleted');
+    if (!existingUser.isDisabled) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          isDisabled: true,
+          disabledAt: new Date(),
+        },
+      });
+    }
 
-    return res.json({
-      message: 'Tài khoản đã được xóa thành công',
-    });
+    console.log('Database user disabled');
+
+    // Vô hiệu hóa và revoke Firebase để chặn token cũ ở phía Firebase
+    try {
+      await admin.auth().updateUser(firebaseUid, {
+        disabled: true,
+      });
+      await admin.auth().revokeRefreshTokens(firebaseUid);
+      console.log('Firebase user disabled and tokens revoked');
+    } catch (fbErr: any) {
+      console.error('Firebase disable sync failed after DB update:', fbErr);
+    }
+
+    return res.json({ message: 'Tài khoản đã bị vô hiệu hóa thành công' });
   } catch (error: any) {
-    console.error(
-      'Delete user error:',
-      JSON.stringify(error, null, 2)
-    );
+    console.error('Disable user error:', JSON.stringify(error, null, 2));
 
     return res.status(500).json({
-      message: 'Lỗi server khi xóa tài khoản',
+      message: 'Lỗi server khi vô hiệu hóa tài khoản',
       error: error.message,
     });
   }

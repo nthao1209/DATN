@@ -11,12 +11,14 @@ type BuildUserColumnsParams = {
   ) => void;
   handleDeleteRow: (row: UserRow) => void;
   roles: { id: number; name: string }[];
+  handleToggleDisabled: (userId: number, isDisabled: boolean) => void;
 };
 
 export const buildUserColumns = ({
   handleCellChange,
   handleDeleteRow,
   roles,
+  handleToggleDisabled,
 }: BuildUserColumnsParams): Column<UserRow>[] => [
   { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
   {
@@ -90,7 +92,19 @@ export const buildUserColumns = ({
   key: 'actions',
   width: '100px', 
   render: (row) => (
-    <div className="d-flex justify-content-center align-items-center">
+    <div className="d-flex justify-content-center align-items-center gap-2">
+      {row.isDisabled ? (
+        <span className="badge bg-warning text-dark">Đã vô hiệu</span>
+      ) : null}
+
+      <button
+        className="btn-action-toggle"
+        onClick={() => row.id && handleToggleDisabled(row.id, !!row.isDisabled)}
+        title={row.isDisabled ? 'Bật lại tài khoản' : 'Vô hiệu hoá tài khoản'}
+      >
+        {row.isDisabled ? 'Bật' : 'Vô hiệu'}
+      </button>
+
       <button 
         className="btn-action-delete" 
         onClick={() => handleDeleteRow(row)} 

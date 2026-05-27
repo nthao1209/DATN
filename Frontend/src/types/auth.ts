@@ -3,6 +3,8 @@ export interface User {
   email: string;
   name: string;
   firebaseUid: string;
+  isDisabled?: boolean;
+  disabledAt?: string | null;
 }
 
 export interface Role {

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.tripController = void 0;
+const mqtt_1 = require("../services/mqtt");
 const db_1 = require("../config/db");
 var Status;
 (function (Status) {
@@ -58,6 +59,13 @@ exports.tripController = {
         const trip = await db_1.prisma.trip.create({
             data: { name, status, tenantId }
         });
+        (0, mqtt_1.publishDashboardRefresh)(tenantId, {
+            type: 'dashboard.refresh',
+            entity: 'trip',
+            action: 'create',
+            tripId: trip.id,
+            updatedAt: new Date().toISOString(),
+        });
         res.status(201).json(trip);
     },
     update: async (req, res) => {
@@ -87,11 +95,28 @@ exports.tripController = {
             where: { id: Number(id) },
             data: { name, status }
         });
+        (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
+            type: 'dashboard.refresh',
+            entity: 'trip',
+            action: 'update',
+            tripId: updated.id,
+            updatedAt: new Date().toISOString(),
+        });
         res.json(updated);
     },
     delete: async (req, res) => {
         const { id } = req.params;
+        const tenantId = req.tenantId;
         await db_1.prisma.trip.delete({ where: { id: Number(id) } });
+        if (tenantId) {
+            (0, mqtt_1.publishDashboardRefresh)(tenantId, {
+                type: 'dashboard.refresh',
+                entity: 'trip',
+                action: 'delete',
+                tripId: Number(id),
+                updatedAt: new Date().toISOString(),
+            });
+        }
         res.json({ message: "Deleted" });
     }
 };

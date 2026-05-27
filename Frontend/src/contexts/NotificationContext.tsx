@@ -33,7 +33,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
-  const { user, currentTenant, loading: authLoading } = useSelector((state: RootState) => state.auth);
+  const { user, currentTenant, token, loading: authLoading } = useSelector((state: RootState) => state.auth);
   const [notifications, setNotifications] = useState<StoredNotification[]>([]);
   const { enqueueSnackbar } = useSnackbar(); // Lấy hàm gọi Toast của notistack
   
@@ -41,7 +41,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const tenantId = currentTenant?.id ?? null;
 
   const refreshNotifications = useCallback(async () => {
-    if (!userId || !tenantId || authLoading) {
+    if (!userId || !tenantId || !token || authLoading) {
       return;
     }
 
@@ -51,7 +51,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Failed to load notifications:', error);
     }
-  }, [authLoading, tenantId, userId]);
+  }, [authLoading, tenantId, token, userId]);
 
   useEffect(() => {
     if (!userId || !tenantId) {

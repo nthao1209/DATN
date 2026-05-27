@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../config/db';
 import { AuthRequest } from '../types/auth';
 import mqtt from 'mqtt';
+import { publishDashboardRefresh } from '../services/mqtt';
 
 
 const mqttClient = mqtt.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
@@ -123,6 +124,15 @@ export const busController = {
         }
       });
 
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'bus',
+        action: 'create',
+        tripId,
+        busId: bus.id,
+        updatedAt: new Date().toISOString(),
+      });
+
       res.status(201).json(bus);
     } catch (error: any) {
       console.error('create bus error:', {
@@ -186,6 +196,15 @@ export const busController = {
         managerId: Number(managerId)
       }
     });
+
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'bus',
+        action: 'update',
+        tripId: existing.tripId,
+        busId: updated.id,
+        updatedAt: new Date().toISOString(),
+      });
       res.json(updated);
     } catch (error) {
       console.error('update bus error:', error);
@@ -218,6 +237,15 @@ export const busController = {
     await prisma.bus.delete({
       where: { id: Number(id) }
     });
+
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'bus',
+        action: 'delete',
+        tripId: existing.tripId,
+        busId: Number(id),
+        updatedAt: new Date().toISOString(),
+      });
       res.json({ message: "Deleted" });
     } catch (error) {
       console.error('delete bus error:', error);

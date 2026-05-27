@@ -39,8 +39,8 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
         });
       }));
 
-      const token = currentUser ? await currentUser.getIdToken() : undefined;
-      return (await api.getMyStatus(token)) as unknown as { tenants: Tenant[] };
+      const token = currentUser ? await currentUser.getIdToken(true) : undefined;
+      return ((await api.getMyStatus(token)) || { tenants: [] }) as unknown as { tenants: Tenant[] };
     },
     enabled: isOpen,
     staleTime: 30000,

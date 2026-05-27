@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/auth";
-import { publishToTripTopic } from "../services/mqtt";
+import { publishDashboardRefresh, publishToTripTopic } from "../services/mqtt";
 import { AttendanceAction } from "@prisma/client";
 import { prisma } from "../config/db";
 
@@ -162,6 +162,9 @@ const publishAttendanceUpdate = async (transactionId: number) => {
               registrationNumber: true,
               tripId: true,
               managerId: true,
+              trip: {
+                select: { tenantId: true },
+              },
               manager: {
                 select: { id: true, name: true, email: true },
               },
@@ -176,6 +179,9 @@ const publishAttendanceUpdate = async (transactionId: number) => {
           registrationNumber: true,
           tripId: true,
           managerId: true,
+          trip: {
+            select: { tenantId: true },
+          },
           manager: {
             select: { id: true, name: true, email: true },
           },
@@ -228,6 +234,11 @@ const publishAttendanceUpdate = async (transactionId: number) => {
       busCode: true,
       registrationNumber: true,
       tripId: true,
+      trip: {
+        select: {
+          tenantId: true,
+        },
+      },
       managerId: true,
       manager: {
         select: {
@@ -310,6 +321,22 @@ const publishAttendanceUpdate = async (transactionId: number) => {
 
     requiresReview,
   };
+
+  const tenantId =
+    actualBus?.trip?.tenantId ??
+    transaction.bus.trip.tenantId ??
+    transaction.passenger.bus.trip.tenantId;
+
+  if (tenantId) {
+    publishDashboardRefresh(tenantId, {
+      type: 'dashboard.refresh',
+      entity: 'transaction',
+      action: 'update',
+      tripId: payload.tripId,
+      requiresReview,
+      updatedAt: payload.updatedAt,
+    });
+  }
 
   if (requiresReview) {
     publishToTripTopic(payload.tripId, {

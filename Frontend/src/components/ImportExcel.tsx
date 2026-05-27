@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useSnackbar } from 'notistack';
+import { api } from '../services/api';
 
 const ImportExcel: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -15,9 +15,9 @@ const ImportExcel: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
 
-    axios.post('http://localhost:3000/api/import', formData)
+    api.post('/import', formData)
       .then((response) => {
-        console.log('File uploaded successfully:', response.data);
+        console.log('File uploaded successfully:', response);
         enqueueSnackbar('File uploaded successfully', { variant: 'success' });
       })
       .catch((error) => {

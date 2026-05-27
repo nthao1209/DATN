@@ -7,5 +7,6 @@ const router = Router();
 router.get('/users', verifyVerifiedFirebaseTokenOnly, userController.getAll);
 router.put('/users/:id', verifyVerifiedFirebaseTokenOnly, userController.update);
 router.delete('/users/:id', verifyVerifiedFirebaseTokenOnly, userController.removeFromTenant);
+router.patch('/users/:id/status', verifyVerifiedFirebaseTokenOnly, userController.setStatus);
 
 export default router;

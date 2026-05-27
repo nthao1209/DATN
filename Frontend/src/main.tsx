@@ -11,7 +11,13 @@ import { SnackbarProvider } from 'notistack';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
+      retry: (failureCount, error: any) => {
+        if (error?.status === 401 || error?.status === 403) {
+          return false;
+        }
+
+        return failureCount < 2;
+      },
       refetchOnMount: 'always',
       refetchOnReconnect: true,
       refetchOnWindowFocus: false,

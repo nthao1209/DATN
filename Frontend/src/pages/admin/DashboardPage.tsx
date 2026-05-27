@@ -11,7 +11,7 @@ import TenantSelector from '../../components/TenantSelector';
 import { useTheme } from '../../theme/ThemeContext';
 import { useSnackbar } from 'notistack';
 import api from '../../services/api';
-import { subscribeAttendanceUpdates } from '../../services/mqtt';
+import { subscribeMqttTopics } from '../../services/mqtt';
 import { canViewJoinCode } from '../../auth/rbac';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -27,9 +27,11 @@ const Dashboard: React.FC = () => {
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   const { currentTenant, roleId } = useSelector((state: RootState) => state.auth);
   const canSeeJoinCode = canViewJoinCode(roleId);
+  const tenantKey = currentTenant?.id ? String(currentTenant.id) : 'no-tenant';
+  const tenantDashboardTopic = currentTenant?.id ? `dashboard/tenant/${currentTenant.id}` : null;
 
   const { data: trips = [], isLoading: tripsLoading, refetch: refetchTrips } = useQuery<any[]>({
-    queryKey: ['dashboard-trips'],
+    queryKey: ['dashboard-trips', tenantKey],
     queryFn: api.getTrips,
   });
 
@@ -37,10 +39,9 @@ const Dashboard: React.FC = () => {
     () => trips.map((trip: any) => Number(trip.id)).filter((id: number) => Number.isFinite(id) && id > 0),
     [trips]
   );
-  const tripIdsKey = useMemo(() => tripIds.join(','), [tripIds]);
 
   const { data: buses = [], isLoading: busesLoading, refetch: refetchBuses } = useQuery<any[]>({
-    queryKey: ['dashboard-buses', tripIds.join(',')],
+    queryKey: ['dashboard-buses', tenantKey, tripIds.join(',')],
     enabled: tripIds.length > 0,
     queryFn: async () => {
       const busesByTrip = await Promise.all(tripIds.map((tripId) => api.getBuses(String(tripId))));
@@ -49,7 +50,7 @@ const Dashboard: React.FC = () => {
   });
 
   const { data: rounds = [], isLoading: roundsLoading, refetch: refetchRounds } = useQuery<any[]>({
-    queryKey: ['dashboard-rounds', tripIds.join(',')],
+    queryKey: ['dashboard-rounds', tenantKey, tripIds.join(',')],
     enabled: tripIds.length > 0,
     queryFn: async () => {
       const roundsByTrip = await Promise.all(tripIds.map((tripId) => api.getRounds(String(tripId))));
@@ -58,7 +59,7 @@ const Dashboard: React.FC = () => {
   });
 
   const { data: passengers = [], isLoading: passengersLoading, refetch: refetchPassengers } = useQuery<any[]>({
-    queryKey: ['dashboard-passengers', tripIds.join(',')],
+    queryKey: ['dashboard-passengers', tenantKey, tripIds.join(',')],
     enabled: tripIds.length > 0,
     queryFn: async () => {
       const passengersByTrip = await Promise.all(tripIds.map((tripId) => api.getPassengers(String(tripId))));
@@ -67,7 +68,7 @@ const Dashboard: React.FC = () => {
   });
 
   const { data: transactions = [], isLoading: transactionsLoading, refetch: refetchTransactions } = useQuery<any[]>({
-    queryKey: ['dashboard-transactions'],
+    queryKey: ['dashboard-transactions', tenantKey],
     queryFn: api.getTransactions,
   });
 
@@ -110,19 +111,17 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!tripIds.length) return;
+    if (!tenantDashboardTopic) return;
 
-    const clients = tripIds.map((tripId) =>
-      subscribeAttendanceUpdates(tripId, () => {
-        // Debounce nhẹ để gộp nhiều event realtime đến gần nhau.
-        if (realtimeRefreshTimerRef.current !== null) return;
+    const subscription = subscribeMqttTopics([tenantDashboardTopic], () => {
+      // Debounce nhẹ để gộp nhiều event realtime đến gần nhau.
+      if (realtimeRefreshTimerRef.current !== null) return;
 
-        realtimeRefreshTimerRef.current = window.setTimeout(async () => {
-          realtimeRefreshTimerRef.current = null;
-          await refetchDashboardData();
-        }, 500);
-      })
-    );
+      realtimeRefreshTimerRef.current = window.setTimeout(async () => {
+        realtimeRefreshTimerRef.current = null;
+        await refetchDashboardData();
+      }, 500);
+    });
 
     return () => {
       if (realtimeRefreshTimerRef.current !== null) {
@@ -130,11 +129,10 @@ const Dashboard: React.FC = () => {
         realtimeRefreshTimerRef.current = null;
       }
 
-      clients.forEach((client) => client.end(true));
+      subscription.end(true);
     };
   }, [
-    tripIdsKey,
-    tripIds,
+    tenantDashboardTopic,
     refetchTrips,
     refetchBuses,
     refetchRounds,
@@ -157,10 +155,24 @@ const Dashboard: React.FC = () => {
       return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
     }).reverse();
 
+    const getTxTimestamp = (tx: any) => {
+      const events = tx.events as any[] | undefined;
+      if (events && events.length > 0) {
+        const last = events[events.length - 1];
+        if (last?.createdAt) return new Date(last.createdAt);
+      }
+      if (tx.lastActionAt) return new Date(tx.lastActionAt);
+      if (tx.updatedAt) return new Date(tx.updatedAt);
+      if (tx.createdAt) return new Date(tx.createdAt);
+      return null;
+    };
+
     return last7Days.map(date => {
-      const count = transactions.filter(tx => 
-        new Date(tx.updatedAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) === date
-      ).length;
+      const count = transactions.filter(tx => {
+        const ts = getTxTimestamp(tx);
+        if (!ts) return false;
+        return ts.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) === date;
+      }).length;
       return { name: date, lượt: count };
     });
   }, [transactions]);

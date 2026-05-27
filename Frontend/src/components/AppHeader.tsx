@@ -8,6 +8,7 @@ import {
   LogOut, Building, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
+import api from '../services/api';
 import { useTheme } from '../theme/ThemeContext';
 import { auth, signOut } from '../config/firebase';
 import {
@@ -42,6 +43,7 @@ const TopBar: React.FC = () => {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
@@ -96,6 +98,31 @@ const TopBar: React.FC = () => {
     setPasswordError(null);
     resetPasswordForm();
     setIsChangePasswordOpen(true);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (unsavedChanges.isDirty) {
+      enqueueSnackbar(unsavedChanges.message || 'Bạn có thay đổi chưa lưu. Hãy lưu trước khi thực hiện thao tác này.', { variant: 'warning' });
+      return;
+    }
+
+    const ok = window.confirm('Bạn có chắc muốn xóa tài khoản? Hành động này không thể hoàn tác.');
+    if (!ok) return;
+
+    setIsDeletingAccount(true);
+    try {
+      await api.deleteAccount();
+      // sign out from firebase and clear local auth
+      await signOut(auth);
+      dispatch(logout());
+      clearUnsavedChanges();
+      enqueueSnackbar('Xóa tài khoản thành công.', { variant: 'success' });
+      navigate('/login');
+    } catch (error: any) {
+      enqueueSnackbar(error?.message || 'Không thể xóa tài khoản lúc này. Vui lòng thử lại sau.', { variant: 'error' });
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   const closeChangePasswordModal = () => {
@@ -227,6 +254,17 @@ const TopBar: React.FC = () => {
                   </button>
                 </li>
                 
+                <li>
+                  <button
+                    className="dropdown-item d-flex align-items-center gap-3 py-2 text-danger"
+                    onClick={handleDeleteAccount}
+                    disabled={isDeletingAccount}
+                    type="button"
+                  >
+                    <CircleAlert size={16} /> <span className="fw-bold">{isDeletingAccount ? 'Đang xóa...' : 'Xóa tài khoản'}</span>
+                  </button>
+                </li>
+
                 <li className="my-2 border-top" style={{ borderColor: colors.border }}></li>
                 
                 <li className="mb-2">

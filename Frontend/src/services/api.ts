@@ -141,9 +141,15 @@ export const api = {
 
   getMyStatus: async (token?: string, options?: { silentOn401?: boolean }) => {
     try {
+      const resolvedToken = token || (fbAuth.currentUser ? await fbAuth.currentUser.getIdToken(true) : undefined);
+
+      if (!resolvedToken) {
+        return null;
+      }
+
       return await axiosClient.get(
         '/auth/status',
-        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+        resolvedToken ? { headers: { Authorization: `Bearer ${resolvedToken}` } } : undefined
       );
     } catch (error: any) {
       if (options?.silentOn401 && error?.status === 401) {
@@ -280,6 +286,9 @@ export const api = {
 
   deleteUser: (id: string) =>
     axiosClient.delete(`/users/${id}`),
+  
+  setUserStatus: (id: string, isDisabled: boolean) =>
+    axiosClient.patch(`/users/${id}/status`, { isDisabled }),
 
   // Role APIs
   getRoles: () =>

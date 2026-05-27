@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth';
+import { publishDashboardRefresh } from '../services/mqtt';
 import { prisma } from '../config/db';
 
 enum Status {
@@ -64,6 +65,13 @@ export const tripController = {
     const trip = await prisma.trip.create({
       data: { name, status, tenantId }
     });
+    publishDashboardRefresh(tenantId, {
+      type: 'dashboard.refresh',
+      entity: 'trip',
+      action: 'create',
+      tripId: trip.id,
+      updatedAt: new Date().toISOString(),
+    });
     res.status(201).json(trip);
   },
 
@@ -100,12 +108,29 @@ export const tripController = {
       where: { id: Number(id) },
       data: { name, status }
     });
+    publishDashboardRefresh(req.tenantId, {
+      type: 'dashboard.refresh',
+      entity: 'trip',
+      action: 'update',
+      tripId: updated.id,
+      updatedAt: new Date().toISOString(),
+    });
     res.json(updated);
   },
 
   delete: async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
+    const tenantId = req.tenantId;
     await prisma.trip.delete({ where: { id: Number(id) } });
+    if (tenantId) {
+      publishDashboardRefresh(tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'trip',
+        action: 'delete',
+        tripId: Number(id),
+        updatedAt: new Date().toISOString(),
+      });
+    }
     res.json({ message: "Deleted" });
   }
 };

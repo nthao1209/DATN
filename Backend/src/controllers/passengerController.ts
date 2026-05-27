@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import XLSX from 'xlsx';
 import { prisma } from '../config/db';
+import { publishDashboardRefresh } from '../services/mqtt';
 
 type ImportField = 'name' | 'tel' | 'note' | 'bus';
 type SheetCell = string | number | boolean | Date | null | undefined;
@@ -272,6 +273,15 @@ export const passengerController = {
         }
       });
 
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'passenger',
+        action: 'create',
+        tripId,
+        passengerId: passenger.id,
+        updatedAt: new Date().toISOString(),
+      });
+
       res.status(201).json(passenger);
 
     } catch (error) {
@@ -445,6 +455,18 @@ export const passengerController = {
               tenantId: req.tenantId
             }
           }
+        },
+        select: {
+          id: true,
+          name: true,
+          busId: true,
+          tel: true,
+          note: true,
+          bus: {
+            select: {
+              tripId: true
+            }
+          }
         }
       });
 
@@ -486,6 +508,15 @@ export const passengerController = {
         }
       });
 
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'passenger',
+        action: 'update',
+        tripId: existing.bus.tripId,
+        passengerId: updated.id,
+        updatedAt: new Date().toISOString(),
+      });
+
       res.json(updated);
 
     } catch (error) {
@@ -510,6 +541,18 @@ export const passengerController = {
               tenantId: req.tenantId
             }
           }
+        },
+        select: {
+          id: true,
+          name: true,
+          busId: true,
+          tel: true,
+          note: true,
+          bus: {
+            select: {
+              tripId: true
+            }
+          }
         }
       });
 
@@ -519,6 +562,15 @@ export const passengerController = {
 
       await prisma.passenger.delete({
         where: { id: Number(id) }
+      });
+
+      publishDashboardRefresh(req.tenantId, {
+        type: 'dashboard.refresh',
+        entity: 'passenger',
+        action: 'delete',
+        tripId: existing.bus.tripId,
+        passengerId: Number(id),
+        updatedAt: new Date().toISOString(),
       });
 
       res.json({ message: 'Deleted successfully' });

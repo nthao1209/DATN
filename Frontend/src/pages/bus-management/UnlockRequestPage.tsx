@@ -57,8 +57,7 @@ const UnlockRequestPage: React.FC = () => {
     enabled: !!selectedTripId,
   });
 
-  const selectedTrip = trips.find((trip: any) => Number(trip.id) === Number(selectedTripId)) as any | undefined;
-  const selectedRound = rounds.find((round: any) => Number(round.id) === Number(selectedRoundId)) as any | undefined;
+
   const currentStatus = busRoundStatuses.find(
     (status: any) =>
       Number(status.busId) === Number(selectedBusId) &&

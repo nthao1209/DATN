@@ -96,30 +96,46 @@ const deleteUser = async (req, res) => {
         });
     }
     try {
-        console.log('Deleting Firebase user:', firebaseUid);
-        // Xóa Firebase trước
-        await firebaseAdmin_1.default.auth().deleteUser(firebaseUid);
-        console.log('Firebase user deleted');
-        // Sau đó mới xóa DB
-        await db_1.prisma.userTenant.deleteMany({
-            where: {
-                userId,
+        const existingUser = await db_1.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                firebaseUid: true,
+                isDisabled: true,
             },
         });
-        await db_1.prisma.user.delete({
-            where: {
-                id: userId,
-            },
-        });
-        console.log('Database user deleted');
-        return res.json({
-            message: 'Tài khoản đã được xóa thành công',
-        });
+        if (!existingUser) {
+            return res.status(404).json({
+                message: 'Không tìm thấy tài khoản',
+            });
+        }
+        if (!existingUser.isDisabled) {
+            await db_1.prisma.user.update({
+                where: { id: userId },
+                data: {
+                    isDisabled: true,
+                    disabledAt: new Date(),
+                },
+            });
+        }
+        console.log('Database user disabled');
+        // Vô hiệu hóa và revoke Firebase để chặn token cũ ở phía Firebase
+        try {
+            await firebaseAdmin_1.default.auth().updateUser(firebaseUid, {
+                disabled: true,
+            });
+            await firebaseAdmin_1.default.auth().revokeRefreshTokens(firebaseUid);
+            console.log('Firebase user disabled and tokens revoked');
+        }
+        catch (fbErr) {
+            console.error('Firebase disable sync failed after DB update:', fbErr);
+        }
+        return res.json({ message: 'Tài khoản đã bị vô hiệu hóa thành công' });
     }
     catch (error) {
-        console.error('Delete user error:', JSON.stringify(error, null, 2));
+        console.error('Disable user error:', JSON.stringify(error, null, 2));
         return res.status(500).json({
-            message: 'Lỗi server khi xóa tài khoản',
+            message: 'Lỗi server khi vô hiệu hóa tài khoản',
             error: error.message,
         });
     }
