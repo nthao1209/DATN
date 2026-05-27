@@ -5,7 +5,7 @@ import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/ty
 
 
 const axiosClient = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
