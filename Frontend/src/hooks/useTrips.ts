@@ -13,8 +13,7 @@ export const useTrips = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
-    onError: (error: any) => {
-      console.error('Failed to create trip:', error);
+    onError: (_error: any) => {
     }
   });
 
@@ -24,8 +23,7 @@ export const useTrips = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
-    onError: (error: any) => {
-      console.error('Failed to update trip:', error);
+    onError: (_error: any) => {
     }
   });
 
@@ -35,8 +33,7 @@ export const useTrips = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
-    onError: (error: any) => {
-      console.error('Failed to delete trip:', error);
+    onError: (_error: any) => {
     }
   });
 

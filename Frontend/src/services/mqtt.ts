@@ -132,7 +132,6 @@ const ensureSharedClient = () => {
       const parsed = JSON.parse(payload.toString()) as Record<string, unknown>;
       handlers.forEach((handler) => handler(topic, parsed));
     } catch (err) {
-      console.error('[MQTT] Parse error:', err);
     }
   });
 

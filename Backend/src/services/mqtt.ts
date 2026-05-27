@@ -14,18 +14,15 @@ const mqttClient = mqtt.connect(MQTT_URL, {
 });
 
 mqttClient.on('connect', () => {
-  console.log('[MQTT] connected');
 });
 
 mqttClient.on('error', (error) => {
-  console.error('[MQTT] error:', error);
 });
 
 const toMessage = (payload: unknown) => (typeof payload === 'string' ? payload : JSON.stringify(payload));
 
 export const publishJson = (topic: string, payload: unknown, qos = 1) => {
   if (!mqttClient.connected) {
-    console.warn('[MQTT] not connected');
     return;
   }
 

@@ -209,7 +209,6 @@ exports.roundController = {
             res.status(201).json(createdRoundWithStats);
         }
         catch (error) {
-            console.error(' create round error:', error);
             if (error.code === 'P2000' || error.code === 'P2002') {
                 return res.status(400).json({ message: 'Invalid data' });
             }
@@ -266,7 +265,6 @@ exports.roundController = {
             res.json(updated);
         }
         catch (error) {
-            console.error('update round error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -305,7 +303,6 @@ exports.roundController = {
             res.json({ message: 'Deleted successfully' });
         }
         catch (error) {
-            console.error('delete round error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     }

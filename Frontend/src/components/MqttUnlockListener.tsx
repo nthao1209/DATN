@@ -28,7 +28,6 @@ export const MqttUnlockListener = ({ tripId, roleId, adminUserId, enabled = true
     // Admin listens to unlock requests
     if (roleId === ROLE_IDS.ADMIN && adminUserId) {
       const adminSub = subscribeAdminUnlockRequests(adminUserId, (message) => {
-        console.log('[Unlock] Admin received unlock request:', message);
         addNotification(
           `Xe ${message.busCode} yêu cầu mở khóa ${message.lockType === 'check_in' ? 'điểm danh vào' : 'điểm danh ra'} cho tuyến ${message.roundName}. Lý do: ${message.reason}`,
           'info',
@@ -50,7 +49,6 @@ export const MqttUnlockListener = ({ tripId, roleId, adminUserId, enabled = true
 
     // Requester listens to approval/rejection responses (personal)
     const requesterSub = subscribeRequesterUnlockResponse(user.id, (message) => {
-      console.log('[Unlock] Requester received response:', message);
       if (message.type === 'unlock.request.created.self') {
         addNotification(
           `Đã gửi yêu cầu mở khóa cho xe ${message.busCode} - ${message.roundName}`,
@@ -95,7 +93,6 @@ export const MqttUnlockListener = ({ tripId, roleId, adminUserId, enabled = true
 
     // All users listen to lock changes
     const lockSub = subscribeLockUpdates(tripId, (message) => {
-      console.log('[Unlock] Lock update:', message);
       if (message.type === 'round.lock.changed' || message.type === 'bus.round.lock.updated') {
         const lockLabel = message.checkInLocked || message.checkOutLocked ? 'đã khóa' : 'đã mở khóa';
         const detailLabel = message.checkInLocked !== undefined

@@ -37,17 +37,8 @@ export const useAuthBootstrap = () => {
       const syncSeq = ++authSyncSeqRef.current;
       setIsBootstrapping(true);
 
-      console.debug('[useAuthBootstrap] auth state changed', {
-        syncSeq,
-        hasFirebaseUser: Boolean(firebaseUser),
-        uid: firebaseUser?.uid,
-        email: firebaseUser?.email,
-        emailVerified: firebaseUser?.emailVerified,
-      });
-
       try {
         if (!firebaseUser) {
-          console.debug('[useAuthBootstrap] no firebase user; clearing session if needed');
           if (hadAuthenticatedSessionRef.current) {
             clearSessionState();
           }
@@ -56,10 +47,6 @@ export const useAuthBootstrap = () => {
         }
 
         if (!firebaseUser.emailVerified) {
-          console.warn('[useAuthBootstrap] firebase user not verified; signing out', {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-          });
           hadAuthenticatedSessionRef.current = false;
           await signOutAndClear();
           return;
@@ -67,43 +54,17 @@ export const useAuthBootstrap = () => {
 
         const token = await firebaseUser.getIdToken(true);
 
-        console.debug('[useAuthBootstrap] firebase token acquired', {
-          syncSeq,
-          uid: firebaseUser.uid,
-          tokenProvided: Boolean(token),
-          tokenLength: token?.length || 0,
-        });
-
         if (syncSeq !== authSyncSeqRef.current || fbAuth.currentUser?.uid !== firebaseUser.uid) {
-          console.debug('[useAuthBootstrap] stale auth callback skipped', {
-            syncSeq,
-            currentSeq: authSyncSeqRef.current,
-            currentUid: fbAuth.currentUser?.uid,
-            callbackUid: firebaseUser.uid,
-          });
           return;
         }
 
-        console.debug('[useAuthBootstrap] calling auth status endpoint');
         const response = await api.getMyStatus(token, { silentOn401: true });
 
-        console.debug('[useAuthBootstrap] auth status response', {
-          syncSeq,
-          hasResponse: Boolean(response),
-        });
-
         if (syncSeq !== authSyncSeqRef.current || fbAuth.currentUser?.uid !== firebaseUser.uid) {
-          console.debug('[useAuthBootstrap] stale auth status response skipped', {
-            syncSeq,
-            currentSeq: authSyncSeqRef.current,
-            currentUid: fbAuth.currentUser?.uid,
-            callbackUid: firebaseUser.uid,
-          });
           return;
         }
 
         if (!response) {
-          console.warn('[useAuthBootstrap] auth status returned null/401; signing out');
           hadAuthenticatedSessionRef.current = false;
           await signOutAndClear();
           return;
@@ -112,7 +73,6 @@ export const useAuthBootstrap = () => {
         const status = (response as any)?.data ?? response;
 
         if (status?.user?.isDisabled) {
-          console.warn('[useAuthBootstrap] account disabled');
           hadAuthenticatedSessionRef.current = false;
           await signOutAndClear();
           try {
@@ -138,8 +98,6 @@ export const useAuthBootstrap = () => {
         if (syncSeq !== authSyncSeqRef.current) {
           return;
         }
-
-        console.error('[useAuthBootstrap] bootstrap failed', error);
 
         if (error?.status === 401 || error?.status === 403) {
           hadAuthenticatedSessionRef.current = false;

@@ -123,7 +123,6 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
       XLSX.writeFile(workbook, fileName);
       enqueueSnackbar('Đã export file Excel thành công', { variant: 'success' });
     } catch (error) {
-      console.error('Export transaction excel error:', error);
       enqueueSnackbar('Export Excel thất bại', { variant: 'error' });
     }
   };

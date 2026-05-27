@@ -18,7 +18,6 @@ export const useMqttListener = ({ topics, onMessage, enabled = true }: UseMqttLi
 
     const subscription = subscribeMqttTopics(topics, (topic, message) => {
       const parsed = message as MqttMessage;
-      console.log(`[MQTT] Message from ${topic}:`, parsed);
       onMessage(topic, parsed);
     });
 

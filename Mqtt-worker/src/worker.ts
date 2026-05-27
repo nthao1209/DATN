@@ -176,10 +176,7 @@ async function init() {
         data: any
     ) => {
         try {
-            console.log(
-                `📥 [${prj}] Received attendance message:`,
-                data
-            );
+            
 
             if (
                 !data.passengerId ||
@@ -857,9 +854,6 @@ async function init() {
                 process.env.NODE_ENV ===
                 'development'
             ) {
-                console.log(
-                    ` [${prj}] Updated Attendance: Passenger ${data.passengerId} in Round ${data.roundId}`
-                );
             }
         } catch (e: any) {
             parentPort?.postMessage(

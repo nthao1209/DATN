@@ -425,7 +425,6 @@ export const transactionController = {
 
       res.json(transactions);
     } catch (error: any) {
-      console.error("get transactions error:", error);
       res.status(500).json({ message: "Server error", detail: error?.message });
     }
   },
@@ -499,8 +498,6 @@ export const transactionController = {
       const currentCheckOutNote = readTrimmedNote(existing?.checkOutNote) ?? null;
 
       let actorId = req.user?.id ?? null;
-      console.log(req.user);
-      console.log(req.firebaseUser);
       if (!actorId && req.firebaseUser?.uid) {
         try {
           const possibleUser = await prisma.user.findUnique({
@@ -510,17 +507,10 @@ export const transactionController = {
             actorId = possibleUser.id;
           }
         } catch (e) {
-          console.warn("Fallback user lookup failed", e);
         }
       }
 
       if (!actorId) {
-        console.warn(
-          "transaction.create: actorId is null (request may be unauthenticated). req.user:",
-          req.user?.id,
-          "req.firebaseUser:",
-          req.firebaseUser?.uid,
-        );
       }
 
       // Check BusRoundStatus locks
@@ -714,7 +704,6 @@ export const transactionController = {
 
       res.status(201).json(created);
     } catch (error: any) {
-      console.error("create transaction error:", error);
       res.status(500).json({ message: "Server error", detail: error?.message });
     }
   },
@@ -769,7 +758,6 @@ export const transactionController = {
           });
           if (possibleUser) actorId = possibleUser.id;
         } catch (e) {
-          console.warn("Fallback user lookup failed", e);
         }
       }
 
@@ -960,7 +948,6 @@ export const transactionController = {
 
       res.json(updated);
     } catch (error: any) {
-      console.error("update transaction error:", error);
       res.status(500).json({ message: "Server error", detail: error?.message });
     }
   },
@@ -996,7 +983,6 @@ export const transactionController = {
       await prisma.transaction.delete({ where: { id } });
       res.json({ message: "Deleted successfully" });
     } catch (error: any) {
-      console.error("delete transaction error:", error);
       res.status(500).json({ message: "Server error", detail: error?.message });
     }
   },

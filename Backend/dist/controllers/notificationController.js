@@ -50,7 +50,6 @@ const list = async (req, res) => {
         res.json(notifications);
     }
     catch (error) {
-        console.error('list notifications error:', error);
         res.status(500).json({ message: 'Server error', detail: error?.message });
     }
 };
@@ -76,7 +75,6 @@ const create = async (req, res) => {
         res.status(201).json(notification);
     }
     catch (error) {
-        console.error('create notification error:', error);
         res.status(500).json({ message: 'Server error', detail: error?.message });
     }
 };
@@ -100,7 +98,6 @@ const markRead = async (req, res) => {
         res.json(updated);
     }
     catch (error) {
-        console.error('mark read notification error:', error);
         res.status(500).json({ message: 'Server error', detail: error?.message });
     }
 };
@@ -116,7 +113,6 @@ const markAllRead = async (req, res) => {
         res.json(result);
     }
     catch (error) {
-        console.error('mark all notifications read error:', error);
         res.status(500).json({ message: 'Server error', detail: error?.message });
     }
 };
@@ -139,7 +135,6 @@ const remove = async (req, res) => {
         res.json({ message: 'Deleted successfully' });
     }
     catch (error) {
-        console.error('delete notification error:', error);
         res.status(500).json({ message: 'Server error', detail: error?.message });
     }
 };
@@ -154,7 +149,6 @@ const removeAll = async (req, res) => {
         res.json({ message: 'All notifications deleted', count: result.count });
     }
     catch (error) {
-        console.error('delete all notifications error:', error);
         res.status(500).json({ message: 'Server error', detail: error?.message });
     }
 };

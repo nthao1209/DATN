@@ -172,7 +172,6 @@ const handleSubmit = async () => {
 
     setReason('');
   } catch (error: any) {
-    console.error(error);
     enqueueSnackbar(
       error?.response?.data?.message ||
         error?.message ||

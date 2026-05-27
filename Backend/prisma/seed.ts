@@ -61,7 +61,6 @@ async function main() {
   await ensureRoles();
 
   if (!email || !firebaseUid) {
-    console.log("Thiếu SUPERADMIN_EMAIL hoặc SUPERADMIN_UID, chỉ seed role.");
     return;
   }
 
@@ -85,12 +84,10 @@ async function main() {
 
   await ensureFirebaseVerified(firebaseUid, email);
 
-  console.log("Seed xong role 1/2/3 + system admin.");
 }
 
 main()
   .catch((e) => {
-    console.error(e);
     process.exit(1);
   })
   .finally(async () => {

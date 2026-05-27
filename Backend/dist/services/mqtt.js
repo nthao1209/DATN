@@ -17,15 +17,12 @@ const mqttClient = mqtt_1.default.connect(MQTT_URL, {
     clientId: `backend_${Date.now()}_${Math.random().toString(16).slice(2)}`,
 });
 mqttClient.on('connect', () => {
-    console.log('[MQTT] connected');
 });
 mqttClient.on('error', (error) => {
-    console.error('[MQTT] error:', error);
 });
 const toMessage = (payload) => (typeof payload === 'string' ? payload : JSON.stringify(payload));
 const publishJson = (topic, payload, qos = 1) => {
     if (!mqttClient.connected) {
-        console.warn('[MQTT] not connected');
         return;
     }
     mqttClient.publish(topic, toMessage(payload), { qos: 1 });

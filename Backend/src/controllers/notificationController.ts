@@ -59,7 +59,7 @@ const list = async (req: AuthRequest, res: Response) => {
 
     res.json(notifications);
   } catch (error: any) {
-    console.error('list notifications error:', error);
+
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };
@@ -88,7 +88,7 @@ const create = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(notification);
   } catch (error: any) {
-    console.error('create notification error:', error);
+
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };
@@ -115,7 +115,7 @@ const markRead = async (req: AuthRequest, res: Response) => {
 
     res.json(updated);
   } catch (error: any) {
-    console.error('mark read notification error:', error);
+
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };
@@ -132,7 +132,7 @@ const markAllRead = async (req: AuthRequest, res: Response) => {
 
     res.json(result);
   } catch (error: any) {
-    console.error('mark all notifications read error:', error);
+
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };
@@ -157,7 +157,7 @@ const remove = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Deleted successfully' });
   } catch (error: any) {
-    console.error('delete notification error:', error);
+
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };
@@ -173,7 +173,7 @@ const removeAll = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'All notifications deleted', count: result.count });
   } catch (error: any) {
-    console.error('delete all notifications error:', error);
+
     res.status(500).json({ message: 'Server error', detail: error?.message });
   }
 };

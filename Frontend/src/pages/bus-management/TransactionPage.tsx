@@ -569,7 +569,6 @@ const TransactionPage: React.FC = () => {
         }
                 
       } catch (e) {
-        console.error('Lock check error:', e);
       }
 
     const defaultCell: DraftCell = {

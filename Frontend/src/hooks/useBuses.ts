@@ -24,8 +24,7 @@ export const useBuses = (tripId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['buses', tripId] });
     },
-    onError: (error: any) => {
-      console.error('Failed to create bus:', error);
+    onError: (_error: any) => {
     }
   });
 
@@ -35,8 +34,7 @@ export const useBuses = (tripId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['buses', tripId] });
     },
-    onError: (error: any) => {
-      console.error('Failed to update bus:', error);
+    onError: (_error: any) => {
     }
   });
 
@@ -46,8 +44,7 @@ export const useBuses = (tripId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['buses', tripId] });
     },
-    onError: (error: any) => {
-      console.error('Failed to delete bus:', error);
+    onError: (_error: any) => {
     }
   });
 

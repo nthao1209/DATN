@@ -184,7 +184,6 @@ exports.passengerController = {
             res.json(passengers);
         }
         catch (error) {
-            console.error('❌ getAll passengers error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -237,7 +236,6 @@ exports.passengerController = {
             res.status(201).json(passenger);
         }
         catch (error) {
-            console.error(' create passenger error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -258,7 +256,6 @@ exports.passengerController = {
             return res.json({ sheets: workbook.SheetNames });
         }
         catch (error) {
-            console.error('❌ get import sheets error:', error);
             return res.status(500).json({ message: 'Server error' });
         }
     },
@@ -354,7 +351,6 @@ exports.passengerController = {
             });
         }
         catch (error) {
-            console.error('❌ import passenger preview error:', error);
             return res.status(500).json({ message: 'Server error' });
         }
     },
@@ -430,7 +426,6 @@ exports.passengerController = {
             res.json(updated);
         }
         catch (error) {
-            console.error('❌ update passenger error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -479,7 +474,6 @@ exports.passengerController = {
             res.json({ message: 'Deleted successfully' });
         }
         catch (error) {
-            console.error(' delete passenger error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     }

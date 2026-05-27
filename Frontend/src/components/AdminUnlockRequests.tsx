@@ -32,7 +32,7 @@ export const AdminUnlockRequests = ({ tripId, refreshTrigger }: AdminUnlockReque
     try {
       await approveRequest.mutateAsync(request.id);
       refetch();
-    } catch (error) { console.error('Failed to approve:', error); }
+    } catch (error) { }
   };
 
   const handleRejectSubmit = async () => {
@@ -43,7 +43,7 @@ export const AdminUnlockRequests = ({ tripId, refreshTrigger }: AdminUnlockReque
       setRejectReason('');
       setSelectedRequest(null);
       refetch();
-    } catch (error) { console.error('Failed to reject:', error); }
+    } catch (error) { }
   };
 
   const getLockTypeLabel = (type: string) => type === 'check_in' ? 'Vào' : 'Ra';

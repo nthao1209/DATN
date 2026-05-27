@@ -49,7 +49,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       const response = await api.getNotifications({ limit: 100 });
       setNotifications(Array.isArray(response) ? response : []);
     } catch (error) {
-      console.error('Failed to load notifications:', error);
     }
   }, [authLoading, tenantId, token, userId]);
 
@@ -70,7 +69,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       await api.markNotificationAsRead(id);
       setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
     }
   }, []);
 
@@ -79,7 +77,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       await api.markAllNotificationsAsRead();
       setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
     } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
     }
   }, []);
 
@@ -103,7 +100,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       await api.deleteNotification(id);
       setNotifications((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
-      console.error('Failed to delete notification:', error);
     }
   }, []);
 
@@ -112,7 +108,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       await api.deleteAllNotifications();
       setNotifications([]);
     } catch (error) {
-      console.error('Failed to delete all notifications:', error);
     }
   }, []);
 

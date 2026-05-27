@@ -80,7 +80,6 @@ const getMyStatus = async (req, res) => {
         });
     }
     catch (error) {
-        console.error('getMyStatus error:', error);
         return res.status(500).json({
             message: 'Internal server error',
         });
@@ -118,22 +117,18 @@ const deleteUser = async (req, res) => {
                 },
             });
         }
-        console.log('Database user disabled');
         // Vô hiệu hóa và revoke Firebase để chặn token cũ ở phía Firebase
         try {
             await firebaseAdmin_1.default.auth().updateUser(firebaseUid, {
                 disabled: true,
             });
             await firebaseAdmin_1.default.auth().revokeRefreshTokens(firebaseUid);
-            console.log('Firebase user disabled and tokens revoked');
         }
         catch (fbErr) {
-            console.error('Firebase disable sync failed after DB update:', fbErr);
         }
         return res.json({ message: 'Tài khoản đã bị vô hiệu hóa thành công' });
     }
     catch (error) {
-        console.error('Disable user error:', JSON.stringify(error, null, 2));
         return res.status(500).json({
             message: 'Lỗi server khi vô hiệu hóa tài khoản',
             error: error.message,

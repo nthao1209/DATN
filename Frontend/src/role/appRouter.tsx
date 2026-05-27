@@ -49,15 +49,6 @@ export const createAppRouter = (
       ? '/setup-org'
       : getFallbackPathForRole(roleId);
 
-  console.debug('[appRouter] createAppRouter', {
-    hasUser: Boolean(user),
-    roleId,
-    tenantCount: tenants.length,
-    hasCurrentTenant: Boolean(currentTenant),
-    needsTenantSelection,
-    authenticatedFallbackPath,
-  });
-
   const publicRoutes = createRoutesFromElements(
     <>
       <Route path="/login" element={<Login />} />

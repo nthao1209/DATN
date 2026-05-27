@@ -118,7 +118,6 @@ async function init() {
     });
     const handleAttendanceMessage = async (_topic, data) => {
         try {
-            console.log(`📥 [${prj}] Received attendance message:`, data);
             if (!data.passengerId ||
                 !data.roundId ||
                 !data.busId) {
@@ -578,7 +577,6 @@ async function init() {
             }
             if (process.env.NODE_ENV ===
                 'development') {
-                console.log(` [${prj}] Updated Attendance: Passenger ${data.passengerId} in Round ${data.roundId}`);
             }
         }
         catch (e) {

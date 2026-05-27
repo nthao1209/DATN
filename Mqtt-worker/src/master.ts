@@ -16,19 +16,11 @@ const CONFIG_PATH = isProd
   ? '/etc/secrets/transaction.config.json'
   : path.join(__dirname, '../configs/transaction.config.json');
 
-console.log('🚀 [Master] Hệ thống đang khởi động...');
-console.log(`📂 [Master] File cấu hình: ${CONFIG_PATH}`);
-
 if (!fs.existsSync(CONFIG_PATH)) {
-  console.error('❌ Không tìm thấy file config!');
   process.exit(1);
 }
 
 function startProject(configPath: string) {
-  const fileName = path.basename(configPath);
-
-  console.log(`🚀 [Master] Đang khởi tạo dự án: ${fileName}`);
-
   const worker = new Worker(
     new URL(isProd ? './worker.js' : './worker.ts', import.meta.url),
     {
@@ -37,17 +29,13 @@ function startProject(configPath: string) {
     }
   );
 
-  worker.on('message', (msg) => {
-    console.log(`[${fileName}] ${msg}`);
+  worker.on('message', () => {
   });
 
-  worker.on('error', (err: any) => {
-    console.error(`[${fileName}] Worker lỗi:`, err.message);
+  worker.on('error', () => {
   });
 
-  worker.on('exit', (code) => {
-    console.log(`[${fileName}] Worker dừng (code ${code}), restart sau 5s...`);
-
+  worker.on('exit', () => {
     setTimeout(() => {
       startProject(configPath);
     }, 5000);

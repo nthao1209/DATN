@@ -103,7 +103,7 @@ const getPendingRequests = async (
 
     return res.json(requests);
   } catch (error: any) {
-    console.error('get pending unlock requests error:', error);
+
 
     return res.status(500).json({
       message: error.message,
@@ -251,7 +251,7 @@ const create = async (req: AuthRequest, res: Response) => {
 
         return res.status(201).json(request);
   } catch (error: any) {
-        console.error(error);
+
         return res.status(500).json({ message: error.message });
     }
 };
@@ -377,7 +377,7 @@ const approve = async (req: AuthRequest, res: Response) => {
 
     return res.json(updated);
   } catch (error: any) {
-    console.error('approve unlock error:', error);
+
     return res.status(500).json({ message: error.message });
   }
 };
@@ -462,7 +462,7 @@ const reject = async (req: AuthRequest, res: Response) => {
 
     return res.json(updated);
   } catch (error: any) {
-    console.error('reject unlock error:', error);
+
     return res.status(500).json({ message: error.message });
   }
 };

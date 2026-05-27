@@ -34,7 +34,6 @@ const SyncManager: React.FC = () => {
 
       await queryClient.invalidateQueries();
     } catch (error) {
-      console.error('Offline sync failed:', error);
     } finally {
       isFlushingRef.current = false;
     }

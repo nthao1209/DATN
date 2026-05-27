@@ -60,7 +60,7 @@ export const userController = {
 
       res.json(normalizedUsers);
     } catch (error: any) {
-      console.error('get users error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   },
@@ -113,7 +113,7 @@ export const userController = {
 
       res.json(updatedUser);
     } catch (error: any) {
-      console.error('update user error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   },
@@ -136,7 +136,7 @@ export const userController = {
 
       res.json({ message: 'User removed from tenant successfully' });
     } catch (error: any) {
-      console.error('delete user error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   },
@@ -171,12 +171,12 @@ export const userController = {
           }
         }
       } catch (fbErr) {
-        console.warn('Failed to sync user disabled state to Firebase:', fbErr);
+
       }
 
       res.json(updated);
     } catch (error: any) {
-      console.error('set user status error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   }

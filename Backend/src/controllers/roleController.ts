@@ -25,7 +25,7 @@ export const roleController = {
       });
       res.json(roles);
     } catch (error: any) {
-      console.error('get roles error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   },
@@ -52,7 +52,7 @@ export const roleController = {
 
       res.status(201).json(role);
     } catch (error: any) {
-      console.error('create role error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   },
@@ -81,7 +81,7 @@ export const roleController = {
 
       res.json(updated);
     } catch (error: any) {
-      console.error('update role error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   },
@@ -105,7 +105,7 @@ export const roleController = {
       await prisma.role.delete({ where: { id: roleId } });
       res.json({ message: 'Deleted successfully' });
     } catch (error: any) {
-      console.error('delete role error:', error);
+
       res.status(500).json({ message: 'Server error', detail: error?.message });
     }
   }

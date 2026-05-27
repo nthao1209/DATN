@@ -22,8 +22,7 @@ export const useRounds = (tripId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rounds', tripId] });
     },
-    onError: (error: any) => {
-      console.error('Failed to create round:', error);
+    onError: (_error: any) => {
     }
   });
 
@@ -33,8 +32,7 @@ export const useRounds = (tripId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rounds', tripId] });
     },
-    onError: (error: any) => {
-      console.error('Failed to update round:', error);
+    onError: (_error: any) => {
     }
   });
 
@@ -44,8 +42,7 @@ export const useRounds = (tripId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rounds', tripId] });
     },
-    onError: (error: any) => {
-      console.error('Failed to delete round:', error);
+    onError: (_error: any) => {
     }
   });
 

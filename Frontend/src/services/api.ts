@@ -101,18 +101,6 @@ axiosClient.interceptors.response.use(
       message = `[${status}] ${method} ${endpoint} - ${backendMessage || 'Server không trả về chi tiết lỗi'}`;
     }
 
-    if (!shouldSuppressLog) {
-      console.error('API Request Failed', {
-        method,
-        endpoint,
-        status,
-        code: error.code,
-        backendMessage,
-        responseData,
-        requestData: originalRequest?.data,
-      });
-    }
-
     const apiError = new Error(message) as Error & {
       status?: number;
       endpoint?: string;

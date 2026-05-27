@@ -23,7 +23,6 @@ exports.roleController = {
             res.json(roles);
         }
         catch (error) {
-            console.error('get roles error:', error);
             res.status(500).json({ message: 'Server error', detail: error?.message });
         }
     },
@@ -46,7 +45,6 @@ exports.roleController = {
             res.status(201).json(role);
         }
         catch (error) {
-            console.error('create role error:', error);
             res.status(500).json({ message: 'Server error', detail: error?.message });
         }
     },
@@ -71,7 +69,6 @@ exports.roleController = {
             res.json(updated);
         }
         catch (error) {
-            console.error('update role error:', error);
             res.status(500).json({ message: 'Server error', detail: error?.message });
         }
     },
@@ -92,7 +89,6 @@ exports.roleController = {
             res.json({ message: 'Deleted successfully' });
         }
         catch (error) {
-            console.error('delete role error:', error);
             res.status(500).json({ message: 'Server error', detail: error?.message });
         }
     }

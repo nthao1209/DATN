@@ -8,26 +8,13 @@ const logVerifyAttempt = (label: string, req: AuthRequest) => {
   const hasBearer = Boolean(rawAuth?.startsWith('Bearer '));
   const token = hasBearer ? rawAuth?.slice(7) : '';
 
-  console.log(`[authMiddleware] ${label} verifyToken start`, {
-    method: req.method,
-    path: req.originalUrl,
-    hasAuthorizationHeader: Boolean(rawAuth),
-    hasBearer,
-    tokenProvided: Boolean(token),
-    tokenLength: token?.length || 0,
-  });
-
   return token;
 };
 
 const getOrCreatePrismaUser = async (token: string) => {
-  console.time('verifyIdToken');
-
   const decodedToken = await admin
     .auth()
     .verifyIdToken(token, true);
-
-  console.timeEnd('verifyIdToken');
 
   if (!decodedToken.uid) {
     throw new Error('Invalid Firebase token');
@@ -109,11 +96,6 @@ export const verifyFirebaseTokenOnly = async (
   const token = logVerifyAttempt('verifyFirebaseTokenOnly', req);
 
   if (!token) {
-    console.warn('[authMiddleware] verifyFirebaseTokenOnly no token provided', {
-      method: req.method,
-      path: req.originalUrl,
-    });
-
     return res.status(401).json({
       message: 'No token provided',
     });
@@ -122,14 +104,6 @@ export const verifyFirebaseTokenOnly = async (
   try {
     const { user, decodedToken } =
       await getOrCreatePrismaUser(token);
-
-    console.log('[authMiddleware] verifyFirebaseTokenOnly success', {
-      method: req.method,
-      path: req.originalUrl,
-      userId: user.id,
-      firebaseUid: decodedToken.uid,
-      email: decodedToken.email,
-    });
 
     if (rejectDisabledUser(res, user)) {
       return;
@@ -140,11 +114,6 @@ export const verifyFirebaseTokenOnly = async (
 
     return next();
   } catch (error: any) {
-    console.error(
-      '[authMiddleware] verifyFirebaseTokenOnly failed:',
-      error
-    );
-
     return res.status(401).json({
       message: 'Unauthorized',
     });
@@ -159,11 +128,6 @@ export const verifyVerifiedFirebaseTokenOnly = async (
   const token = logVerifyAttempt('verifyVerifiedFirebaseTokenOnly', req);
 
   if (!token) {
-    console.warn('[authMiddleware] verifyVerifiedFirebaseTokenOnly no token provided', {
-      method: req.method,
-      path: req.originalUrl,
-    });
-
     return res.status(401).json({
       message: 'No token provided',
     });
@@ -172,15 +136,6 @@ export const verifyVerifiedFirebaseTokenOnly = async (
   try {
     const { user, decodedToken } =
       await getOrCreatePrismaUser(token);
-
-    console.log('[authMiddleware] verifyVerifiedFirebaseTokenOnly success', {
-      method: req.method,
-      path: req.originalUrl,
-      userId: user.id,
-      firebaseUid: decodedToken.uid,
-      email: decodedToken.email,
-      emailVerified: decodedToken.email_verified,
-    });
 
     if (rejectDisabledUser(res, user)) {
       return;
@@ -195,11 +150,6 @@ export const verifyVerifiedFirebaseTokenOnly = async (
 
     return next();
   } catch (error: any) {
-    console.error(
-      '[authMiddleware] verifyVerifiedFirebaseTokenOnly failed:',
-      error
-    );
-
     return res.status(401).json({
       message: 'Unauthorized',
     });
@@ -214,11 +164,6 @@ export const verifyFirebaseToken = async (
   const token = logVerifyAttempt('verifyFirebaseToken', req);
 
   if (!token) {
-    console.warn('[authMiddleware] verifyFirebaseToken no token provided', {
-      method: req.method,
-      path: req.originalUrl,
-    });
-
     return res.status(401).json({
       message: 'No token provided',
     });
@@ -227,15 +172,6 @@ export const verifyFirebaseToken = async (
   try {
     const { user, decodedToken } =
       await getOrCreatePrismaUser(token);
-
-    console.log('[authMiddleware] verifyFirebaseToken success', {
-      method: req.method,
-      path: req.originalUrl,
-      userId: user.id,
-      firebaseUid: decodedToken.uid,
-      email: decodedToken.email,
-      emailVerified: decodedToken.email_verified,
-    });
 
     if (rejectDisabledUser(res, user)) {
       return;
@@ -271,11 +207,6 @@ export const verifyFirebaseToken = async (
 
     return next();
   } catch (error: any) {
-    console.error(
-      '[authMiddleware] verifyFirebaseToken failed:',
-      error
-    );
-
     return res.status(401).json({
       message: 'Unauthorized',
     });

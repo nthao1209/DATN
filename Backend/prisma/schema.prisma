@@ -3,36 +3,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-
 }
-
-enum Status {
-  DOING
-  DONE
-}
-
-enum BusRoundCompletionStatus {
-  PENDING
-  DRIVER_CONFIRMED
-  ADMIN_APPROVED
-}
-
-enum AttendanceAction {
-  CHECK_IN_ON
-  CHECK_IN_OFF
-  CHECK_OUT_ON
-  CHECK_OUT_OFF
-}
-
-enum RequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
 
 model Tenant {
   id          Int          @id @default(autoincrement())
@@ -44,23 +18,22 @@ model Tenant {
 }
 
 model User {
-  id                     Int             @id @default(autoincrement())
-  email                  String          @unique
+  id                     Int               @id @default(autoincrement())
+  email                  String            @unique
   description            String?
-  createdDate            DateTime        @default(now())
+  createdDate            DateTime          @default(now())
   latestData             DateTime?
-  isDisabled             Boolean         @default(false)
-  disabledAt             DateTime?
-  firebaseUid            String          @unique
+  firebaseUid            String            @unique
   name                   String
-  buses                  Bus[]           @relation("BusManager")
-  
-  driverConfirmedRounds BusRoundStatus[] @relation("DriverConfirmedBy")
-  adminApprovedRounds   BusRoundStatus[] @relation("AdminApprovedBy")
-  attendanceEvents AttendanceEvent[] @relation("AttendanceEventActor")
-  approvedUnlockRequests UnlockRequest[] @relation("UnlockRequestApprover")
-  createdUnlockRequests  UnlockRequest[] @relation("UnlockRequestCreator")
+  disabledAt             DateTime?
+  isDisabled             Boolean           @default(false)
+  attendanceEvents       AttendanceEvent[] @relation("AttendanceEventActor")
+  buses                  Bus[]             @relation("BusManager")
+  adminApprovedRounds    BusRoundStatus[]  @relation("AdminApprovedBy")
+  driverConfirmedRounds  BusRoundStatus[]  @relation("DriverConfirmedBy")
   notifications          Notification[]
+  approvedUnlockRequests UnlockRequest[]   @relation("UnlockRequestApprover")
+  createdUnlockRequests  UnlockRequest[]   @relation("UnlockRequestCreator")
   userTenants            UserTenant[]
 }
 
@@ -79,7 +52,7 @@ model UserTenant {
   role     Role    @relation(fields: [roleId], references: [id])
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
- 
+
   @@unique([userId, tenantId])
   @@index([userId])
   @@index([tenantId])
@@ -97,7 +70,7 @@ model Trip {
 }
 
 model Bus {
-  id                 Int              @id @default(autoincrement())
+  id                 Int               @id @default(autoincrement())
   registrationNumber String
   busCode            String
   driverName         String?
@@ -107,13 +80,13 @@ model Bus {
   description        String?
   managerId          Int
   tripId             Int
-  manager            User             @relation("BusManager", fields: [managerId], references: [id])
-  trip               Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  attendanceEvents   AttendanceEvent[] @relation("AttendanceEventBus")
+  manager            User              @relation("BusManager", fields: [managerId], references: [id])
+  trip               Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
   busRoundStatuses   BusRoundStatus[]
   passengers         Passenger[]
   transactions       Transaction[]
   unlockRequests     UnlockRequest[]
-  attendanceEvents AttendanceEvent[] @relation("AttendanceEventBus")
 
   @@unique([tripId, busCode])
   @@index([managerId])
@@ -129,14 +102,12 @@ model Notification {
   payload   Json?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
   @@index([createdAt])
 }
- 
 
 model Round {
   id               Int              @id @default(autoincrement())
@@ -165,29 +136,25 @@ model Passenger {
 }
 
 model Transaction {
-  id           Int       @id @default(autoincrement())
+  id           Int               @id @default(autoincrement())
   busId        Int
   roundId      Int
   passengerId  Int
-  checkIn      Boolean   @default(false)
-  checkOut     Boolean   @default(false)
+  checkIn      Boolean           @default(false)
+  checkOut     Boolean           @default(false)
+  lastActionAt DateTime?
   checkInNote  String?
   checkOutNote String?
-  lastActionAt DateTime?
-
-  bus          Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
-  
-  passenger    Passenger @relation(fields: [passengerId], references: [id], onDelete: Cascade)
-  round        Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
   events       AttendanceEvent[]
+  bus          Bus               @relation(fields: [busId], references: [id], onDelete: Cascade)
+  passenger    Passenger         @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+  round        Round             @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@unique([passengerId, roundId])
   @@index([busId])
   @@index([roundId])
   @@index([passengerId])
 }
- 
-
 
 model AttendanceEvent {
   id            Int              @id @default(autoincrement())
@@ -196,10 +163,11 @@ model AttendanceEvent {
   actorId       Int?
   busId         Int
   note          String?
-  createdAt     DateTime @default(now())
-  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  actor         User? @relation("AttendanceEventActor",fields: [actorId], references: [id])
-  bus           Bus @relation("AttendanceEventBus",fields: [busId], references: [id])
+  createdAt     DateTime         @default(now())
+  actor         User?            @relation("AttendanceEventActor", fields: [actorId], references: [id])
+  bus           Bus              @relation("AttendanceEventBus", fields: [busId], references: [id])
+  transaction   Transaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
   @@index([transactionId])
   @@index([actorId])
   @@index([busId])
@@ -207,46 +175,66 @@ model AttendanceEvent {
 }
 
 model BusRoundStatus {
-  id             Int       @id @default(autoincrement())
-  busId          Int
-  roundId        Int
-  checkInLocked  Boolean   @default(false)
-  checkInAt      DateTime?
-  checkOutLocked Boolean   @default(false)
-  checkOutAt     DateTime?
-  driverConfirmedBy Int?
+  id                Int       @id @default(autoincrement())
+  busId             Int
+  roundId           Int
+  checkInLocked     Boolean   @default(false)
+  checkInAt         DateTime?
+  checkOutLocked    Boolean   @default(false)
+  checkOutAt        DateTime?
   adminApprovedBy   Int?
-  driverConfirmer User? @relation("DriverConfirmedBy", fields: [driverConfirmedBy],references: [id])
-  adminApprover User? @relation("AdminApprovedBy",fields: [adminApprovedBy],references: [id])
-  bus            Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
-  round          Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  driverConfirmedBy Int?
+  adminApprover     User?     @relation("AdminApprovedBy", fields: [adminApprovedBy], references: [id])
+  bus               Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
+  driverConfirmer   User?     @relation("DriverConfirmedBy", fields: [driverConfirmedBy], references: [id])
+  round             Round     @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@unique([busId, roundId])
 }
 
 model UnlockRequest {
-  id          Int           @id @default(autoincrement())
-  busId       Int
-  roundId     Int
-  type        String        @default("check_in")
-  reason      String?
-  status      RequestStatus @default(PENDING)
-  requestedBy Int
-  handledBy  Int?
-  createdAt   DateTime      @default(now())
-  respondedAt DateTime?
+  id           Int           @id @default(autoincrement())
+  busId        Int
+  roundId      Int
+  type         String        @default("check_in")
+  reason       String?
+  status       RequestStatus @default(PENDING)
+  requestedBy  Int
+  createdAt    DateTime      @default(now())
+  respondedAt  DateTime?
+  handledBy    Int?
   rejectReason String?
-  handler    User?         @relation("UnlockRequestApprover", fields: [handledBy], references: [id])
-  bus         Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
-  requester   User          @relation("UnlockRequestCreator", fields: [requestedBy], references: [id])
-  round       Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
- 
+  bus          Bus           @relation(fields: [busId], references: [id], onDelete: Cascade)
+  handler      User?         @relation("UnlockRequestApprover", fields: [handledBy], references: [id])
+  requester    User          @relation("UnlockRequestCreator", fields: [requestedBy], references: [id])
+  round        Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
   @@unique([busId, roundId, type])
   @@index([busId])
   @@index([roundId])
   @@index([status])
 }
 
+enum Status {
+  DOING
+  DONE
+}
 
+enum BusRoundCompletionStatus {
+  PENDING
+  DRIVER_CONFIRMED
+  ADMIN_APPROVED
+}
 
+enum AttendanceAction {
+  CHECK_IN_ON
+  CHECK_IN_OFF
+  CHECK_OUT_ON
+  CHECK_OUT_OFF
+}
 
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

@@ -25,7 +25,6 @@ const publishLockUpdate = (tripId, busId, roundId, checkInLocked, checkOutLocked
         updatedAt: new Date().toISOString(),
     };
     mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
-    console.log(`[Bus] Published lock update to ${topic}:`, payload);
 };
 const resolveActorId = async (req) => {
     if (req.user?.id)
@@ -114,11 +113,6 @@ exports.busController = {
             res.status(201).json(bus);
         }
         catch (error) {
-            console.error('create bus error:', {
-                message: error.message,
-                code: error.code,
-                meta: error.meta
-            });
             res.status(500).json({ message: 'Server error', detail: error.message });
         }
     },
@@ -170,7 +164,6 @@ exports.busController = {
             res.json(updated);
         }
         catch (error) {
-            console.error('update bus error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -208,7 +201,6 @@ exports.busController = {
             res.json({ message: "Deleted" });
         }
         catch (error) {
-            console.error('delete bus error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -239,7 +231,6 @@ exports.busController = {
             res.json(users);
         }
         catch (error) {
-            console.error('get bus managers error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -265,7 +256,6 @@ exports.busController = {
             res.json(statuses);
         }
         catch (error) {
-            console.error('getRoundStatuses error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -331,7 +321,6 @@ exports.busController = {
             res.json(completed);
         }
         catch (error) {
-            console.error('confirmCompletion error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     },
@@ -400,7 +389,6 @@ exports.busController = {
             res.json(up);
         }
         catch (error) {
-            console.error('confirmChecks error:', error);
             res.status(500).json({ message: 'Server error' });
         }
     }

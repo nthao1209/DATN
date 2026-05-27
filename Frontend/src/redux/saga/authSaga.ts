@@ -14,23 +14,11 @@ function* handleLogin(action: any): any {
   try {
     const { email, password } = action.payload;
 
-    console.debug('[authSaga] login start', {
-      email,
-      hasPassword: Boolean(password),
-    });
-    
     // 1. Firebase xác thực
     const userCredential = yield call(signInWithEmailAndPassword, fbAuth, email.trim(), password);
     const user = userCredential.user;
 
-    console.debug('[authSaga] firebase sign-in success', {
-      uid: user.uid,
-      email: user.email,
-      emailVerified: user.emailVerified,
-    });
-
     if (!user.emailVerified) {
-      console.warn('[authSaga] login blocked: email not verified', { uid: user.uid, email: user.email });
       yield call(signOut, fbAuth);
       yield put(authActions.authFailure("Email chưa được xác thực. Vui lòng kiểm tra hộp thư!"));
       return;
@@ -38,21 +26,8 @@ function* handleLogin(action: any): any {
    
     const token = yield call([user, user.getIdToken], true);
 
-    console.debug('[authSaga] firebase token acquired', {
-      uid: user.uid,
-      tokenProvided: Boolean(token),
-      tokenLength: token?.length || 0,
-    });
-
     // 2. Gọi API Status để lấy thông tin từ Postgres (Prisma) và kiểm tra Tenant
     const response = yield call(api.getMyStatus, token);
-
-    console.debug('[authSaga] auth status response received', {
-      hasResponse: Boolean(response),
-      tenantCount: response?.tenants?.length ?? 0,
-      roleId: response?.roleId,
-      userId: response?.user?.id,
-    });
 
     yield put(authActions.authSuccess({
       user: response.user,
@@ -62,7 +37,6 @@ function* handleLogin(action: any): any {
     }));
 
   } catch (error: any) {
-    console.error('[authSaga] login failed', error);
     const errorMessage = getFirebaseErrorMessage(error);
     yield put(authActions.authFailure(errorMessage));
   }
@@ -129,7 +103,6 @@ function* handleLogout(): any {
     yield call(signOut, fbAuth);
     // Xóa các dữ liệu nhạy cảm nếu cần
   } catch (error: any) {
-    console.error("Logout error", error);
   }
 }
 
