@@ -79,8 +79,6 @@ const Register: React.FC = () => {
             password: data.password
           })
         );
-       
-        enqueueSnackbar("Đăng ký thành công!", { variant: "success" });
 
         } catch (error: any) {
         const errorMsg = getFirebaseErrorMessage(error) || "Không thể kiểm tra email";
@@ -251,6 +249,12 @@ const Register: React.FC = () => {
               </div>
             )}
           </div>
+
+          {error && (
+            <div className="alert alert-danger py-2 small">
+              {error}
+            </div>
+          )}
 
           {formError && (
             <div className="alert alert-warning py-2 small">
