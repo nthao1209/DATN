@@ -4,8 +4,13 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/types';
 
 
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+const normalizedApiBaseUrl = rawApiBaseUrl
+  ? rawApiBaseUrl.replace(/\/$/, '').replace(/\/api$/, '') + '/api'
+  : '/api';
+
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: normalizedApiBaseUrl,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
