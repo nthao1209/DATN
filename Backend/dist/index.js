@@ -10,6 +10,8 @@ const public_1 = __importDefault(require("./routes/public"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const system_admin_1 = __importDefault(require("./routes/system-admin"));
 const bus_management_1 = __importDefault(require("./routes/bus-management"));
+const attendanceMqttConsumer_1 = require("./services/attendanceMqttConsumer");
+const mqtt_1 = require("./services/mqtt");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -36,5 +38,15 @@ app.get('/api/_routes', (_req, res) => {
     }
 });
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
+    (0, attendanceMqttConsumer_1.startAttendanceMqttConsumer)();
 });
+const shutdown = () => {
+    (0, attendanceMqttConsumer_1.stopAttendanceMqttConsumer)();
+    (0, mqtt_1.getMqttClient)().end(true);
+    server.close(() => {
+        process.exit(0);
+    });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

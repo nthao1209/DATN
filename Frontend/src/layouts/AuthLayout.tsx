@@ -1,18 +1,49 @@
 import React, { useState, useEffect } from 'react';
-
+import anh1 from '../assets/anh1.jpg';
+import anh2 from '../assets/anh2.jpg';
+import anh3 from '../assets/anh3.jpg';
+import anh4 from '../assets/anh4.jpg';
 const slides = [
   {
-    background:
-      'linear-gradient(135deg, rgba(15,23,42,0.35), rgba(2,6,23,0.8)), radial-gradient(circle at top left, rgba(37,99,235,0.32), transparent 45%), linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0b1120 100%)',
+    background: `
+      linear-gradient(
+        135deg,
+        rgba(15,23,42,0.4),
+        rgba(2,6,23,0.7)
+      ),
+      url(${anh1})
+    `,
   },
   {
-    background:
-      'linear-gradient(135deg, rgba(15,23,42,0.2), rgba(2,6,23,0.82)), radial-gradient(circle at 20% 20%, rgba(14,165,233,0.28), transparent 36%), linear-gradient(160deg, #11263f 0%, #1f3a5f 48%, #0b1120 100%)',
+    background: `
+      linear-gradient(
+        135deg,
+        rgba(15,23,42,0.2),
+        rgba(2,6,23,0.82)
+      ),
+      url(${anh2})
+    `,
   },
   {
-    background:
-      'linear-gradient(135deg, rgba(15,23,42,0.18), rgba(2,6,23,0.86)), radial-gradient(circle at 80% 20%, rgba(16,185,129,0.24), transparent 34%), linear-gradient(160deg, #123024 0%, #1f3a2f 48%, #0b1120 100%)',
+    background: `
+      linear-gradient(
+        135deg,
+        rgba(15,23,42,0.18),
+        rgba(2,6,23,0.86)
+      ),
+      url(${anh3})
+    `,
   },
+  {
+    background: `
+      linear-gradient(
+        135deg,
+        rgba(15,23,42,0.16),
+        rgba(2,6,23,0.88)
+      ),
+      url(${anh4})
+    `,
+  }
 ];
 
 interface AuthLayoutProps {
@@ -40,9 +71,16 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
               <div 
                 key={index}
                 className={`slideshow-img ${index === activeIndex ? 'active' : ''}`}
-                style={{ 
-                  background: slide.background,
-                  transform: index === activeIndex ? 'scale(1.1)' : 'scale(1)'}}
+                style={{
+                        background: slide.background,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        width: '100%',
+                        height: '100%',
+                        transform: index === activeIndex ? 'scale(1.1)' : 'scale(1)',
+                        transition: 'all 1s ease',
+                      }}
               />
             ))}
 

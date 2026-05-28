@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, Users, RefreshCw } from 'lucide-react';
+import { Save, Users } from 'lucide-react';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { format } from 'date-fns';
@@ -23,7 +23,7 @@ const UserManagementPage: React.FC = () => {
 
   const initializedRef = useRef(false);
 
-  const { data: users = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
+  const { data: users = [], isLoading, isError, refetch} = useQuery<any[]>({
     queryKey: ['users-management'],
     queryFn: () => api.get('/users'),
   });
@@ -219,18 +219,7 @@ const UserManagementPage: React.FC = () => {
           </div>
         </div>
         
-        <button 
-          className="btn-refresh-custom shadow-sm" 
-          onClick={() => {
-            initializedRef.current = false;
-            setDeletedIds([]);
-            refetch();
-          }}
-          title="Làm mới dữ liệu"
-          style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-        >
-          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
-        </button>
+        {/* refresh button removed */}
       </div>
 
       
@@ -301,11 +290,7 @@ const UserManagementPage: React.FC = () => {
         .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
         .btn-custom-action-save:active { transform: scale(0.96); }
 
-        .btn-refresh-custom {
-          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-          border-radius: 8px; transition: all 0.2s; border: none; cursor: pointer;
-        }
-        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
+        /* refresh button styles removed */
 
         /* Table Header nhẹ nhàng cho Light Mode */
         .table thead th {

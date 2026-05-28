@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Save, RefreshCw, UserPlus} from 'lucide-react';
+import { Save,UserPlus} from 'lucide-react';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { subscribeAttendanceUpdates } from '../../services/mqtt';
@@ -514,7 +514,12 @@ const TransactionPage: React.FC = () => {
   };
 
 
-  const setCell = (payload: DraftCell) => {
+  const setCell = (payload: Partial<DraftCell>) => {
+    
+  if (payload.passengerId === undefined || payload.roundId === undefined || payload.busId === undefined) {
+    return;
+  }
+
   const key = keyOf(payload.passengerId, payload.roundId);
 
   const baseCell = txMap[key];
@@ -535,20 +540,32 @@ const TransactionPage: React.FC = () => {
         );
 
         const changingCheckIn =
-          payload.checkIn !== undefined &&
-          payload.checkIn !== baseCell?.checkIn;
-        
+          payload.checkIn !== undefined
+            ? baseCell
+              ? payload.checkIn !== baseCell.checkIn
+              : payload.checkIn === true
+            : false;
+
         const changingCheckInNote =
-          payload.checkInNote !== undefined &&
-          payload.checkInNote !== baseCell?.checkInNote;
+          payload.checkInNote !== undefined
+            ? baseCell
+              ? payload.checkInNote !== baseCell.checkInNote
+              : (payload.checkInNote ?? '').trim() !== ''
+            : false;
 
         const changingCheckOut =
-          payload.checkOut !== undefined &&
-          payload.checkOut !== baseCell?.checkOut;
+          payload.checkOut !== undefined
+            ? baseCell
+              ? payload.checkOut !== baseCell.checkOut
+              : payload.checkOut === true
+            : false;
 
         const changingCheckOutNote =
-          payload.checkOutNote !== undefined &&
-          payload.checkOutNote !== baseCell?.checkOutNote;
+          payload.checkOutNote !== undefined
+            ? baseCell
+              ? payload.checkOutNote !== baseCell.checkOutNote
+              : (payload.checkOutNote ?? '').trim() !== ''
+            : false;
 
         if (
           (lockedIn && (changingCheckIn || changingCheckInNote)) ||
@@ -710,7 +727,7 @@ const TransactionPage: React.FC = () => {
     [draftMap, txMap]
   );
 
-  const { isSaving, isOnline, syncBanner, hasPendingSync, handleSave } = useTransactionSync({
+  const { isSaving, syncBanner, hasPendingSync, handleSave } = useTransactionSync({
     dirtyEntries,
     selectedTripId,
     storageKey,
@@ -755,14 +772,7 @@ const TransactionPage: React.FC = () => {
   return (
     <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5" style={pageThemeVars as React.CSSProperties}>
       
-          <TransactionHeader isOnline={isOnline} hasPendingSync={hasPendingSync}>
-            <button 
-              className="btn-refresh-custom shadow-sm" 
-              onClick={() => { refetchTransactions(); refetchPassengers(); }}
-              style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-            >
-              <RefreshCw size={18} />
-            </button>
+          <TransactionHeader hasPendingSync={hasPendingSync}>
             <ExportExcelButton
               visiblePassengers={visiblePassengers}
               selectedRounds={selectedRounds}

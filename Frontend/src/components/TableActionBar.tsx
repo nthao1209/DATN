@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, Plus, RotateCw, Filter, Mic, MicOff, X } from 'lucide-react';
+import { Search, Plus, Filter, Mic, MicOff, X } from 'lucide-react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -14,17 +14,15 @@ export interface FilterConfig {
 interface TableActionBarProps {
   onSearch: (val: string) => void;
   onAdd?: () => void;
-  onRefresh?: () => void;
-  isFetching?: boolean;
   filters?: FilterConfig[];
   onFilterChange?: (key: string, value: string) => void;
 }
 
 const TableActionBar: React.FC<TableActionBarProps> = ({
-  onSearch, onAdd, onRefresh, isFetching, filters, onFilterChange
+  onSearch, onAdd , filters, onFilterChange
 }) => {
   const { colors, effects } = useTheme();
-  const [isExpanded, setIsExpanded] = useState(false); // Trạng thái mở rộng trên mobile
+  const [isExpanded, setIsExpanded] = useState(false); 
   const [searchValue, setSearchValue] = useState('');
   const onSearchRef = useRef(onSearch);
 
@@ -67,7 +65,6 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
         language: 'vi-VN',
       });
     } catch {
-      // Ignore browser permission/runtime errors; the button state stays unchanged.
     }
   };
 
@@ -207,13 +204,6 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
             </button>
           )}
           
-          <button 
-            style={actionButtonStyle}
-            onClick={onRefresh} 
-            title="Tải lại dữ liệu"
-          >
-            <RotateCw size={16} style={{ animation: isFetching ? 'spin 1s linear infinite' : 'none' }} />
-          </button>
 
           {/* Nút Filter Toggle (Hiện trên mobile) */}
           {filters && filters.length > 0 && (

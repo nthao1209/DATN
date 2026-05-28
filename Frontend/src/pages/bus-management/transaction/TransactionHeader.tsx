@@ -3,12 +3,11 @@ import {ClipboardCheck} from 'lucide-react';
 import {useTheme} from '../../../theme/ThemeContext';
 
 interface TransactionHeaderProps{
-  isOnline: boolean;
   hasPendingSync: boolean;
   children: React.ReactNode;
 }
 
-const TransactionHeader: React.FC<TransactionHeaderProps> = ({isOnline, hasPendingSync, children}) => {
+const TransactionHeader: React.FC<TransactionHeaderProps> = ({ hasPendingSync, children }) => {
   const {colors, isDarkMode} = useTheme();
 
   return (
@@ -31,16 +30,7 @@ const TransactionHeader: React.FC<TransactionHeaderProps> = ({isOnline, hasPendi
       </div>
 
       <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-        <span
-          className="badge rounded-pill px-3 py-2 fw-semibold"
-          style={{
-            backgroundColor: isOnline ? `${colors.success}15` : `${colors.warning}15`,
-            color: isOnline ? colors.success : colors.warning,
-            border: `1px solid ${isOnline ? `${colors.success}33` : `${colors.warning}33`}`,
-          }}
-        >
-          {isOnline ? 'Online' : 'Offline'}
-        </span>
+        {/* Online/Offline badge removed per request */}
         {hasPendingSync && (
           <span
             className="badge rounded-pill px-3 py-2 fw-semibold"

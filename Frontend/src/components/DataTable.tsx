@@ -41,7 +41,6 @@ function DataTable<T extends object>({
   data,
   isLoading: externalLoading,
   isError: externalError,
-  onRefresh,
   onAdd,
   filters,
   pageSizeOptions = [5, 10, 20, 30, 40, 50],
@@ -81,7 +80,7 @@ function DataTable<T extends object>({
     ? useQuery({ queryKey, queryFn: fetchFn })
     : { data: undefined, isLoading: false, isError: false, refetch: () => {}, isFetching: false };
 
-  const { data: queryData, isLoading: queryLoading, isError: queryError, refetch, isFetching } = queryResult;
+  const { data: queryData, isLoading: queryLoading, isError: queryError,isFetching } = queryResult;
 
   const tableData = useMemo(() => data ?? queryData ?? [], [data, queryData]);
   const isLoading = externalLoading ?? queryLoading;
@@ -161,8 +160,6 @@ function DataTable<T extends object>({
         <TableActionBar 
           onSearch={(val) => { setSearchText(val); setCurrentPage(1); }}
           onAdd={onAdd}
-          onRefresh={() => (onRefresh ? onRefresh() : refetch())}
-          isFetching={isFetching}
           filters={filters}
           onFilterChange={handleFilterChange}
         />

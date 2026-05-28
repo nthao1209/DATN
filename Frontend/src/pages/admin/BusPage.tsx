@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Bus, RefreshCw } from 'lucide-react';
+import { Plus, Save, Bus} from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
@@ -27,7 +27,7 @@ const BusPage: React.FC = () => {
   const initialRowsByIdRef = useRef<Record<number, BusRow>>({});
 
   // --- DATA FETCHING (Giữ nguyên) ---
-  const { data: buses = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
+  const { data: buses = [], isLoading, isError, refetch} = useQuery<any[]>({
     queryKey: ['buses', tripId],
     queryFn: () => api.getBuses(String(tripId)),
     enabled: !!tripId,
@@ -228,13 +228,7 @@ const BusPage: React.FC = () => {
           <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Quản lý Đội xe</h1>
         </div>
         
-        <button 
-          className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
-          style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-        >
-          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
-        </button>
+        {/* refresh button removed */}
       </div>
 
 
@@ -270,6 +264,7 @@ const BusPage: React.FC = () => {
           data={rows}
           isLoading={isLoading}
           isError={isError}
+          onRefresh={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
         />

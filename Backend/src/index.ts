@@ -5,6 +5,8 @@ import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import systemAdminRoutes from './routes/system-admin';
 import busManagementRoutes from './routes/bus-management';
+import { startAttendanceMqttConsumer, stopAttendanceMqttConsumer } from './services/attendanceMqttConsumer';
+import { getMqttClient } from './services/mqtt';
 dotenv.config()
 
 
@@ -38,5 +40,17 @@ app.get('/api/_routes', (_req, res) => {
 
 const PORT = process.env.PORT || 5000
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
+  startAttendanceMqttConsumer();
 })
+
+const shutdown = () => {
+  stopAttendanceMqttConsumer();
+  getMqttClient().end(true);
+  server.close(() => {
+    process.exit(0);
+  });
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

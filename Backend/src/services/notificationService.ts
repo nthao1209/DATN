@@ -2,6 +2,9 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 export type NotificationPayload = Prisma.InputJsonValue | null;
 
+type NotificationWriteClient = Pick<PrismaClient, 'notification'>;
+type NotificationBatchClient = NotificationWriteClient & Pick<PrismaClient, '$transaction'>;
+
 export interface NotificationCreateInput {
   userId: number;
   type: string;
@@ -10,7 +13,7 @@ export interface NotificationCreateInput {
   payload?: NotificationPayload;
 }
 
-export const createNotification = (prisma: PrismaClient, input: NotificationCreateInput) => {
+export const createNotification = (prisma: NotificationWriteClient, input: NotificationCreateInput) => {
   return prisma.notification.create({
     data: {
       userId: input.userId,
@@ -23,7 +26,7 @@ export const createNotification = (prisma: PrismaClient, input: NotificationCrea
 };
 
 export const createNotificationsForUsers = async (
-  prisma: PrismaClient,
+  prisma: NotificationBatchClient,
   userIds: number[],
   input: Omit<NotificationCreateInput, 'userId'>,
 ) => {

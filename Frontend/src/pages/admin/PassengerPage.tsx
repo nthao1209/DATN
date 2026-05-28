@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Users, Bus, RefreshCw,ChevronDown, MapPin  } from 'lucide-react';
+import { Plus, Save, Users, Bus,ChevronDown, MapPin  } from 'lucide-react';
 import DataTable from '../../components/DataTable';
 import { PassengerExcelImport } from '../../components/passenger-import';
 import api from '../../services/api';
@@ -57,7 +57,7 @@ const PassengerPage: React.FC = () => {
     },
   });
 
-  const { data: passengers = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
+  const { data: passengers = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ['passengers', selectedTripId, selectedBusId],
     enabled: trips.length > 0,
     queryFn: async () => {
@@ -444,13 +444,7 @@ useEffect(() => {
           <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Quản lý Hành khách</h1>
         </div>
         
-        <button 
-          className="btn-refresh-custom shadow-sm" 
-          onClick={() => refetch()} 
-          style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-        >
-          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
-        </button>
+        {/* refresh button removed */}
       </div>
 
       

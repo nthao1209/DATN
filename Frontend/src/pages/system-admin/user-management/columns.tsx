@@ -87,32 +87,30 @@ export const buildUserColumns = ({
       />
     ),
   },
-  {
+ {
   header: 'Thao tác',
   key: 'actions',
-  width: '100px', 
+  width: '150px', 
   render: (row) => (
     <div className="d-flex justify-content-center align-items-center gap-2">
-      {row.isDisabled ? (
-        <span className="badge bg-warning text-dark">Đã vô hiệu</span>
-      ) : null}
-
       <button
-        className="btn-action-toggle"
+        className={`btn btn-sm ${row.isDisabled ? 'btn-success' : 'btn-outline-secondary'}`}
+        style={{ minWidth: '75px', fontSize: '13px' }}
         onClick={() => row.id && handleToggleDisabled(row.id, !!row.isDisabled)}
-        title={row.isDisabled ? 'Bật lại tài khoản' : 'Vô hiệu hoá tài khoản'}
+        title={row.isDisabled ? 'Kích hoạt lại tài khoản' : 'Vô hiệu hoá tài khoản'}
       >
-        {row.isDisabled ? 'Bật' : 'Vô hiệu'}
+        {row.isDisabled ? 'Kích hoạt' : 'Vô hiệu'}
       </button>
 
       <button 
         className="btn-action-delete" 
+        style={{ padding: '6px', borderRadius: '6px' }}
         onClick={() => handleDeleteRow(row)} 
         title="Xóa người dùng"
       >
-        <Trash2 size={18} />
+        <Trash2 size={16} />
       </button>
     </div>
   ),
-},
+}
 ];

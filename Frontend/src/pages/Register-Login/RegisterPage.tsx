@@ -280,7 +280,7 @@ const Register: React.FC = () => {
         </form>
 
         <div className="d-flex justify-content-between align-items-center mt-4 small">
-          <Link to="/forgot-password" className="auth-muted text-decoration-none">
+          <Link to="/forgot-password" className="auth-muted text-info">
             Quên mật khẩu?
           </Link>
 

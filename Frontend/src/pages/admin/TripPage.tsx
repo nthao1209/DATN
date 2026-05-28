@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Route, RefreshCw } from 'lucide-react';
+import { Plus, Save, Route} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
@@ -26,7 +26,7 @@ const TripPage: React.FC = () => {
   const initialRowsByIdRef = useRef<Record<number, TripRow>>({});
 
   // --- DATA FETCHING ---
-  const { data: trips = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
+  const { data: trips = [], isLoading, isError, refetch} = useQuery<any[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
   });
@@ -203,13 +203,7 @@ const TripPage: React.FC = () => {
           <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Quản lý Lộ trình</h1>
         </div>
 
-        <button 
-          className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r))); refetch(); }}
-          style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-        >
-          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
-        </button>
+        {/* refresh button removed */}
       </div>
 
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
@@ -243,6 +237,7 @@ const TripPage: React.FC = () => {
           data={rows}
           isLoading={isLoading}
           isError={isError}
+          onRefresh={() => { setDeletedIds([]); setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r))); refetch(); }}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
         />

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Shield, RefreshCw } from 'lucide-react';
+import { Plus, Save, Shield} from 'lucide-react';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { buildRoleColumns } from './role-management/columns';
@@ -22,7 +22,7 @@ const RoleManagementPage: React.FC = () => {
   const [focusRowSignal, setFocusRowSignal] = useState(0);
   const initialRowsByIdRef = useRef<Record<number, RoleRow>>({});
 
-  const { data: roles = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
+  const { data: roles = [], isLoading, isError, refetch} = useQuery<any[]>({
     queryKey: ['roles-management'],
     queryFn: () => api.get('/roles'),
   });
@@ -190,18 +190,10 @@ const RoleManagementPage: React.FC = () => {
             <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>
               Quản lý Vai trò
             </h1>
-            <div className="text-muted small">Định nghĩa quyền hạn người dùng</div>
           </div>
         </div>
         
-        <button 
-          className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
-          title="Làm mới dữ liệu"
-          style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-        >
-          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
-        </button>
+        {/* refresh button removed */}
       </div>
 
       {/* Main Table Card */}
@@ -288,11 +280,7 @@ const RoleManagementPage: React.FC = () => {
         .btn-custom-action-save:not(:disabled):hover { filter: brightness(1.05); transform: translateY(-1px); }
         .btn-custom-action-save:active { transform: scale(0.96); }
 
-        .btn-refresh-custom {
-          width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-          border-radius: 8px; transition: all 0.2s; border: none; cursor: pointer;
-        }
-        .btn-refresh-custom:hover { background-color: ${colors.surfaceLight} !important; transform: rotate(15deg); }
+        /* refresh button styles removed */
 
         /* Table Header Light Mode */
         .table thead th {

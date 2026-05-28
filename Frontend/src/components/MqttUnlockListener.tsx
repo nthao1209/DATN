@@ -91,7 +91,6 @@ export const MqttUnlockListener = ({ tripId, roleId, adminUserId, enabled = true
     });
     subscriptions.push(requesterSub);
 
-    // All users listen to lock changes
     const lockSub = subscribeLockUpdates(tripId, (message) => {
       if (message.type === 'round.lock.changed' || message.type === 'bus.round.lock.updated') {
         const lockLabel = message.checkInLocked || message.checkOutLocked ? 'đã khóa' : 'đã mở khóa';

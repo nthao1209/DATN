@@ -8,7 +8,7 @@ type BuildColumnsParams = {
   selectedRounds: RoundOption[];
   roundSummary: RoundSummary;
   getCell: (passengerId: number, roundId: number) => DraftCell | null;
-  setCell: (payload: DraftCell) => void;
+  setCell: (payload: Partial<DraftCell>) => void;
   isLocked: (
     passengerId: number,
     assignedBusId: number | null,

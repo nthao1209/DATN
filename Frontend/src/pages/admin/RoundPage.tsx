@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Save, Map, RefreshCw } from 'lucide-react';
+import { Plus, Save, Map } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
@@ -34,7 +34,7 @@ const RoundPage: React.FC = () => {
   } | null>(null);
 
   // --- DATA FETCHING ---
-  const { data: rounds = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({
+  const { data: rounds = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ['rounds', tripId],
     queryFn: () => api.getRounds(String(tripId)),
     enabled: !!tripId,
@@ -72,6 +72,8 @@ const RoundPage: React.FC = () => {
   // Realtime updates MQTT
   useEffect(() => {
     const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
+      if (Number(message?.tripId) !== Number(tripId)) return;
+
       if (message.type === 'bus.round.lock.updated') {
         queryClient.setQueryData(['bus-round-locks', tripId], (oldData: any[]) => {
           if (!oldData) return oldData;
@@ -389,14 +391,7 @@ const RoundPage: React.FC = () => {
           </h1>
         </div>
         
-        <button 
-          className="btn-refresh-custom shadow-sm" 
-          onClick={() => { setDeletedIds([]); refetch(); refetchUnlockRequests(); }}
-          title="Làm mới dữ liệu"
-          style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-        >
-          <RefreshCw size={18} className={isFetching ? 'spin' : ''} />
-        </button>
+        {/* refresh button removed */}
       </div>
 
       {/* Table Section */}
@@ -431,6 +426,7 @@ const RoundPage: React.FC = () => {
           data={rows}
           isLoading={isLoading}
           isError={isError}
+          onRefresh={() => { setDeletedIds([]); refetch(); refetchUnlockRequests(); }}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
         />

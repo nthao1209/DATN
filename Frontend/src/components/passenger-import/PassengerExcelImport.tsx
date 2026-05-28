@@ -166,9 +166,13 @@ return (
         <select
           className="form-select-custom-toolbar"
           style={{ 
-            width: '120px', 
+            width: '220px', 
+            minWidth: '120px',
             height: '34px',
-            backgroundColor: isDarkMode ? colors.surfaceLight : '#fff' 
+            backgroundColor: isDarkMode ? colors.surfaceLight : '#fff',
+            color: colors.textPrimary,
+            whiteSpace: 'nowrap',
+            overflow: 'visible'
           }}
           value={selectedSheet}
           onChange={(e) => setSelectedSheet(e.target.value)}

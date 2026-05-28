@@ -432,6 +432,20 @@ const TopBar: React.FC = () => {
           z-index: 2000;
         }
 
+        /* Mobile: fixed dropdown to avoid being hidden by sidebars */
+        @media (max-width: 768px) {
+          .notification-dropdown {
+            position: fixed;
+            top: 64px;
+            right: 12px;
+            left: 12px;
+            width: auto;
+            max-width: calc(100vw - 24px);
+            border-radius: 12px;
+            z-index: 2500;
+          }
+        }
+
         .notification-dropdown-list {
           max-height: 360px;
           overflow: auto;

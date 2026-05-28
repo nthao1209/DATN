@@ -178,6 +178,20 @@ const NotificationBell: React.FC = () => {
           z-index: 2000;
         }
 
+        /* Mobile: make dropdown fixed so it won't be covered by side menus */
+        @media (max-width: 768px) {
+          .notification-dropdown {
+            position: fixed;
+            top: 64px; /* below the top nav */
+            right: 12px;
+            left: 12px;
+            width: auto;
+            max-width: calc(100vw - 24px);
+            border-radius: 12px;
+            z-index: 2500; /* above typical sidebars but below modals */
+          }
+        }
+
         .notification-dropdown-list {
           max-height: 380px;
           overflow-y: auto;
