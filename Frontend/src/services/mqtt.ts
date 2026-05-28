@@ -109,6 +109,7 @@ const ensureSharedClient = () => {
     connectTimeout: 10000,
     keepalive: 30,
   });
+  console.log('Connecting to MQTT broker...', { MQTT_WS_URL, MQTT_USERNAME: MQTT_USERNAME ? '***' : null });
 
   sharedClient.on('connect', () => {
     notifyStatus('connected');

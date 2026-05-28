@@ -13,6 +13,8 @@ const mqttClient = mqtt.connect(MQTT_URL, {
   clientId: `backend_${Date.now()}_${Math.random().toString(16).slice(2)}`,
 });
 
+console.log('Connecting to MQTT broker...', { MQTT_URL, MQTT_USERNAME: MQTT_USERNAME ? '***' : null });
+
 mqttClient.on('connect', () => {
 });
 
