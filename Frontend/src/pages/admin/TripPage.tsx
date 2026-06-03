@@ -13,6 +13,7 @@ import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChange
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
+const EMPTY_TRIPS: any[] = [];
 
 const TripPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
@@ -26,10 +27,12 @@ const TripPage: React.FC = () => {
   const initialRowsByIdRef = useRef<Record<number, TripRow>>({});
 
   // --- DATA FETCHING ---
-  const { data: trips = [], isLoading, isError, refetch} = useQuery<any[]>({
+  const { data: tripsData, isLoading, isError, refetch} = useQuery<any[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
   });
+
+  const trips = tripsData ?? EMPTY_TRIPS;
 
   useEffect(() => {
     const mapped: TripRow[] = trips.map((t: any) => ({
@@ -209,10 +212,10 @@ const TripPage: React.FC = () => {
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Danh sách lộ trình"
-          titleActions={
+          titleActions={dirtyCount > 0 ? (
             <div className="d-flex flex-column align-items-end gap-1">
               <button
-                className="btn-custom-action-save shadow-sm"
+                className="btn-custom-action-save shadow-sm save-floating-action"
                 onClick={handleSave}
                 disabled={isSaving || !canSave}
                 title={saveValidationMessage || undefined}
@@ -231,7 +234,7 @@ const TripPage: React.FC = () => {
                 </div>
               )}
             </div>
-          }
+          ) : null}
           columns={columns}
           queryKey={['trips-local']}
           data={rows}

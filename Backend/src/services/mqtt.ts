@@ -13,7 +13,6 @@ const mqttClient = mqtt.connect(MQTT_URL, {
   clientId: `backend_${Date.now()}_${Math.random().toString(16).slice(2)}`,
 });
 
-console.log('Connecting to MQTT broker...', { MQTT_URL, MQTT_USERNAME: MQTT_USERNAME ? '***' : null });
 
 mqttClient.on('connect', () => {
 });
@@ -23,13 +22,25 @@ mqttClient.on('error', (error) => {
 
 const toMessage = (payload: unknown) => (typeof payload === 'string' ? payload : JSON.stringify(payload));
 
-export const publishJson = (topic: string, payload: unknown, qos = 1) => {
+type PublishOptions = {
+  retain?: boolean;
+};
+
+export const publishJson = (topic: string, payload: unknown, qos = 1, options: PublishOptions = {}) => {
   if (!mqttClient.connected) {
     return;
   }
 
-  mqttClient.publish(topic, toMessage(payload), { qos : 1 });
+  mqttClient.publish(topic, toMessage(payload), { qos : 1 ,retain: options.retain ?? false });
 };
+
+export const clearRetainedTopic = (topic: string, qos:1) => {
+  if (!mqttClient.connected) {
+    return;
+  }
+  mqttClient.publish(topic, '', { qos, retain: true });
+};
+
 
 export const publishToTripTopic = (tripId: number, payload: unknown, qos = 1) => {
   publishJson(`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, payload, qos);

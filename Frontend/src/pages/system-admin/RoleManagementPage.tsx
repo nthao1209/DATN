@@ -208,9 +208,9 @@ const RoleManagementPage: React.FC = () => {
       >
         <DataTable
           title="Danh sách vai trò"
-          titleActions={
+          titleActions={dirtyCount > 0 ? (
             <button
-              className="btn-custom-action-save shadow-sm"
+              className="btn-custom-action-save shadow-sm save-floating-action"
               onClick={handleSave}
               disabled={isSaving || dirtyCount === 0}
               style={{ 
@@ -222,7 +222,7 @@ const RoleManagementPage: React.FC = () => {
               <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
               <span className="d-inline d-sm-none">{dirtyCount}</span>
             </button>
-          }
+          ) : null}
           columns={columns}
           queryKey={['roles-management-local']}
           data={rows}

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Save, Users, Bus,ChevronDown, MapPin  } from 'lucide-react';
 import DataTable from '../../components/DataTable';
-import { PassengerExcelImport } from '../../components/passenger-import';
+import { PassengerExcelImport, PassengerExcelExport } from '../../components/passenger-import';
 import api from '../../services/api';
 import { normalizePhoneNumber } from '../../utils/phone';
 import { buildPassengerColumns } from './passenger/columns';
@@ -557,14 +557,24 @@ useEffect(() => {
 
         <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0 ms-md-auto">
           
-          {!isAllTripsView && (
-            <PassengerExcelImport 
-              selectedTripId={selectedTripId} 
-              resetToken={importResetToken} 
-              disabled={isSaving || !isTargetSelectionReady} 
-              onImported={handleImportedPreview}
-            />
-          )}
+          <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            {isTargetSelectionReady && (
+              <PassengerExcelImport 
+                selectedTripId={selectedTripId} 
+                resetToken={importResetToken} 
+                disabled={isSaving || !isTargetSelectionReady} 
+                onImported={handleImportedPreview}
+              />
+            )}
+            {!isAllTripsView && (
+              <PassengerExcelExport
+                rows={displayRows}
+                trips={selectedTripId ? trips.filter((trip) => trip.id === selectedTripId) : trips}
+                selectedTripId={selectedTripId}
+                disabled={isSaving || !displayRows.length}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -572,10 +582,10 @@ useEffect(() => {
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Danh sách hành khách"
-          titleActions={
+          titleActions={dirtyCount > 0 ? (
             <div className="d-flex flex-column align-items-end gap-1">
               <button
-                className="btn-custom-action-save shadow-sm"
+                className="btn-custom-action-save shadow-sm save-floating-action"
                 onClick={handleSave}
                 disabled={isSaving || !canSave}
                 title={saveValidationMessage || undefined}
@@ -594,13 +604,14 @@ useEffect(() => {
                 </div>
               )}
             </div>
-          }         
+          ) : null}         
           columns={columns}
           queryKey={['passengers-local', selectedTripId, selectedBusId]}
           data={displayRows}
           isLoading={isLoading}
           isError={isError}
           onRefresh={refetch}
+          initialPageSize={50}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
         />

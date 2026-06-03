@@ -2,7 +2,7 @@ import { AttendanceAction } from '@prisma/client';
 import type { MqttClient } from 'mqtt';
 import { prisma } from '../config/db';
 import { createNotification } from './notificationService';
-import { getMqttClient, publishToTripTopic } from './mqtt';
+import { clearRetainedTopic, getMqttClient, publishToTripTopic } from './mqtt';
 
 type AttendanceMqttPayload = {
   passengerId?: number | string;
@@ -763,10 +763,14 @@ const handleAttendanceMessage = async (
   if (
     hasAttendanceStatusChanged
   ) {
-    await publishToTripTopic(
-      bus.tripId,
-      payloadToPublish,
-    );
+    try{
+      await publishToTripTopic(
+        bus.tripId,
+        payloadToPublish,
+      );
+    } finally {
+      clearRetainedTopic(topic,1);
+    }
   }
 };
 

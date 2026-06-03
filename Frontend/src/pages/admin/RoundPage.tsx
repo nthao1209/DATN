@@ -16,6 +16,10 @@ import { subscribeMqttTopics } from '../../services/mqtt';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
+const EMPTY_ROUNDS: any[] = [];
+const EMPTY_TRANSACTIONS: any[] = [];
+const EMPTY_BUSES: any[] = [];
+const EMPTY_UNLOCK_REQUESTS: any[] = [];
 
 const RoundPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
@@ -34,29 +38,34 @@ const RoundPage: React.FC = () => {
   } | null>(null);
 
   // --- DATA FETCHING ---
-  const { data: rounds = [], isLoading, isError, refetch } = useQuery<any[]>({
+  const { data: roundsData, isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ['rounds', tripId],
     queryFn: () => api.getRounds(String(tripId)),
     enabled: !!tripId,
   });
 
-  const { data: transactions = [] } = useQuery<any[]>({
+  const rounds = roundsData ?? EMPTY_ROUNDS;
+
+  const { data: transactionsData } = useQuery<any[]>({
     queryKey: ['round-transactions', tripId],
     queryFn: () => api.getTransactions(),
     enabled: !!tripId,
   });
+
+  const transactions = transactionsData ?? EMPTY_TRANSACTIONS;
 
   const { lockStatuses = [], refetchLocks } = useRoundLocks(
     tripId ? Number(tripId) : null,
     () => null
   );
 
-  const { data: buses = [] } = useQuery<any[]>({
+  const { data: busesData } = useQuery<any[]>({
     queryKey: ['buses', tripId],
     queryFn: () => api.getBuses(String(tripId)),
     enabled: !!tripId,
   });
-  const { data: unlockRequests = [], refetch: refetchUnlockRequests } = useQuery<any[]>({
+  const buses = busesData ?? EMPTY_BUSES;
+  const { data: unlockRequestsData, refetch: refetchUnlockRequests } = useQuery<any[]>({
     queryKey: ['unlock-requests', tripId, openLockModal?.roundId],
     queryFn: async () => {
       const response = await api.getPendingUnlockRequests(String(tripId), String(openLockModal?.roundId));
@@ -64,6 +73,7 @@ const RoundPage: React.FC = () => {
     },
     enabled: !!tripId && !!openLockModal?.roundId,
   });
+  const unlockRequests = unlockRequestsData ?? EMPTY_UNLOCK_REQUESTS;
 
   
 
@@ -329,47 +339,31 @@ const RoundPage: React.FC = () => {
   };
 
   const handleUnlockRequest = async (
-  requestId: number,
-  status: 'APPROVED' | 'REJECTED',
-  rejectReason?: string
-) => {
-  try {
-    if (status === 'APPROVED') {
-      await api.approveUnlockRequest(requestId);
-    } else {
-      await api.rejectUnlockRequest(requestId, {
-        rejectReason,
-      });
+    requestId: number,
+    status: 'APPROVED' | 'REJECTED',
+    rejectReason?: string
+  ) => {
+    try {
+      if (status === 'APPROVED') {
+        await api.approveUnlockRequest(requestId);
+      } else {
+        await api.rejectUnlockRequest(requestId, {
+          rejectReason,
+        });
+      }
+
+      enqueueSnackbar(
+        status === 'APPROVED'
+          ? 'Đã phê duyệt yêu cầu mở khóa'
+          : 'Đã từ chối yêu cầu mở khóa',
+        { variant: 'success' }
+      );
+      refetchUnlockRequests();
+    } catch (err: any) {
+      enqueueSnackbar(err?.message || 'Lỗi khi xử lý yêu cầu mở khóa', { variant: 'error' });
     }
+  };
 
-    enqueueSnackbar(
-      status === 'APPROVED'
-        ? 'Đã phê duyệt yêu cầu mở khóa'
-        : 'Đã từ chối yêu cầu mở khóa',
-      {
-        variant:
-          status === 'APPROVED'
-            ? 'success'
-            : 'info',
-      }
-    );
-
-    await Promise.all([
-      refetchUnlockRequests(),
-      refetchLocks(),
-    ]);
-  } catch (err: any) {
-    enqueueSnackbar(
-      err?.message ||
-        'Lỗi khi xử lý yêu cầu mở khóa',
-      {
-        variant: 'error',
-      }
-    );
-
-    throw err;
-  }
-};
   return (
     <div className="animate-fade-in p-0 p-md-3 round-page" style={pageThemeVars as React.CSSProperties}>
       {/* Header Section */}
@@ -390,7 +384,7 @@ const RoundPage: React.FC = () => {
             Quản lý Chặng đi
           </h1>
         </div>
-        
+
         {/* refresh button removed */}
       </div>
 
@@ -398,10 +392,10 @@ const RoundPage: React.FC = () => {
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Danh sách các chặng"
-          titleActions={
+          titleActions={dirtyCount > 0 ? (
             <div className="d-flex flex-column align-items-end gap-1">
               <button
-                className="btn-custom-action-save shadow-sm"
+                className="btn-custom-action-save shadow-sm save-floating-action"
                 onClick={handleSave}
                 disabled={isSaving || !canSave}
                 title={saveValidationMessage || undefined}
@@ -420,7 +414,7 @@ const RoundPage: React.FC = () => {
                 </div>
               )}
             </div>
-          }
+          ) : null}
           columns={columns}
           queryKey={['rounds-local', tripId]}
           data={rows}
@@ -430,7 +424,7 @@ const RoundPage: React.FC = () => {
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
         />
-        
+
         {openLockModal !== null && (
           <LockRoundModal 
             roundId={openLockModal.roundId}
@@ -442,12 +436,11 @@ const RoundPage: React.FC = () => {
             onToggleLock={toggleLock}
             unlockRequests={unlockRequests}
             onHandleUnlockRequest={handleUnlockRequest}
-
             colors={colors}
             isDarkMode={isDarkMode}
           />
         )}
-        
+
         <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
           <button 
             className="btn-add-row-bottom w-100 py-2" 

@@ -76,12 +76,12 @@ const TopBar: React.FC = () => {
   
 
   const statusMeta = {
-    connecting: { label: 'Connecting', color: colors.warning, bg: `${colors.warning}15` },
-    connected: { label: 'Connected', color: colors.success, bg: `${colors.success}15` },
-    reconnecting: { label: 'Reconnecting', color: colors.info, bg: `${colors.info}15` },
-    disconnected: { label: 'Disconnected', color: colors.danger, bg: `${colors.danger}15` },
-    error: { label: 'Error', color: colors.warning, bg: `${colors.warning}15` },
-  }[mqttStatus] || { label: 'Unknown', color: colors.textSecondary, bg: `${colors.textSecondary}15` };
+    connecting: { color: colors.warning, bg: `${colors.warning}15` },
+    connected: { color: colors.success, bg: `${colors.success}15` },
+    reconnecting: { color: colors.info, bg: `${colors.info}15` },
+    disconnected: { color: colors.danger, bg: `${colors.danger}15` },
+    error: { color: colors.warning, bg: `${colors.warning}15` },
+  }[mqttStatus] || { color: colors.textSecondary, bg: `${colors.textSecondary}15` };
 
   const handleLogout = () => {
     if (unsavedChanges.isDirty) {
@@ -194,9 +194,6 @@ const TopBar: React.FC = () => {
               }}>
               <span className={`status-dot ${mqttStatus === 'connected' ? 'pulse' : ''}`} 
                     style={{ backgroundColor: statusMeta.color }}></span>
-              <span className="status-label d-none d-md-inline" style={{ color: statusMeta.color }}>
-                {statusMeta.label}
-              </span>
             </div>
 
             <div className="tenant-badge" style={{ backgroundColor: colors.surfaceLight, border: `1px solid ${colors.border}` }}>

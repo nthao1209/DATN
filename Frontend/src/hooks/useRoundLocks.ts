@@ -10,11 +10,13 @@ type BusRoundStatus = {
   adminApprovedBy?: number | null;
 };
 
+const EMPTY_LOCK_STATUSES: BusRoundStatus[] = [];
+
 export const useRoundLocks = (
   tripId: number | null,
   getActualBusId: (passengerId: number, roundId: number, assignedBusId?: number | null) => number | null
 ) => {
-  const { data: lockStatuses = [], refetch: refetchLocks } = useQuery<BusRoundStatus[]>({
+  const { data: lockStatusesData, refetch: refetchLocks } = useQuery<BusRoundStatus[]>({
     queryKey: ['bus-round-locks', tripId],
     queryFn: async () => {
       const data = await api.getBusRoundStatuses(String(tripId));
@@ -22,6 +24,8 @@ export const useRoundLocks = (
     },
     enabled: !!tripId,
   });
+
+  const lockStatuses = lockStatusesData ?? EMPTY_LOCK_STATUSES;
 
 
   const isLocked = (

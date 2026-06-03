@@ -86,7 +86,7 @@ export const buildTripColumns = ({
       ),
   },
   {
-    header: 'Số round',
+    header: 'Số chặng',
     key: 'roundCount',
     render: (row) =>
       row.id ? (
@@ -94,7 +94,7 @@ export const buildTripColumns = ({
           <button 
             className="btn-stat-link stat-round" 
             onClick={() => onManageRounds(row.id!)}
-            title="Bấm vào để quản lý round của chuyến này"
+            title="Bấm vào để quản lý chặng của chuyến này"
           >
             <Route size={14} className="me-1 opacity-75" />
             <span>{row.roundCount}</span>
@@ -105,7 +105,7 @@ export const buildTripColumns = ({
       ),
   },
   {
-    header: 'Round hoàn thành',
+    header: 'Chặng hoàn thành',
     key: 'completedRoundCount',
     render: (row) => (row.id ? `${row.completedRoundCount ?? 0}/${row.roundCount ?? 0}` : '-'),
   },

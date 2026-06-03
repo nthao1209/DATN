@@ -36,9 +36,8 @@ export const buildPassengerColumns = ({
       readOnly ? (
         <span className="text-white fw-semibold">{row.name || '-'}</span>
       ) : (
-        <input
+        <AutoResizeTextarea
           className="form-control form-control-sm"
-          style={{ minWidth: 280 }}
           value={row.name}
           onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
           placeholder="Nhập tên"

@@ -3,8 +3,15 @@ import type { Column } from '../../../components/DataTable';
 import type { BusManager, BusRow } from './types';
 import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
 
+type BusAttendanceSummary = {
+  busId: number;
+  checkInCount: number;
+  checkOutCount: number;
+};
+
 type BuildBusColumnsParams = {
   managers: BusManager[];
+  attendanceSummary?: BusAttendanceSummary[];
   handleCellChange: <K extends keyof BusRow>(
     localId: string,
     key: K,
@@ -15,9 +22,11 @@ type BuildBusColumnsParams = {
 
 export const buildBusColumns = ({
   managers,
+  attendanceSummary = [],
   handleCellChange,
   handleDeleteRow,
 }: BuildBusColumnsParams): Column<BusRow>[] => [
+ 
   { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
   {
     header: 'Mã xe *',
@@ -126,6 +135,32 @@ export const buildBusColumns = ({
         ))}
       </select>
     ),
+  },
+   {
+    header: 'Số khách check-in',
+    key: 'checkInCount',
+    width: '120px',
+    render: (row) => {
+      const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
+      return (
+        <span className="fw-bold text-success">
+          {summary?.checkInCount ?? 0}
+        </span>
+      );
+    },
+  },
+  {
+    header: 'Số khách check-out',
+    key: 'checkOutCount',
+    width: '120px',
+    render: (row) => {
+      const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
+      return (
+        <span className="fw-bold text-warning">
+          {summary?.checkOutCount ?? 0}
+        </span>
+      );
+    },
   },
   {
   header: 'Thao tác',

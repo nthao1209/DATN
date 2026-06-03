@@ -782,18 +782,20 @@ const TransactionPage: React.FC = () => {
               getCell={getCell}
             />
             
-            <button 
-                className="btn-custom-action-save shadow-sm" 
-                onClick={handleSave} 
-              disabled={isSaving || !dirtyEntries.length}
-                style={{ 
-                backgroundColor: dirtyEntries.length > 0 ? colors.success : colors.surfaceLight,
-                color: dirtyEntries.length > 0 ? '#fff' : colors.textMuted
-                }}
-            >
-                <Save size={18} />
-              <span className="d-none d-sm-inline">Lưu ({dirtyEntries.length})</span>
-            </button>
+              {dirtyEntries.length > 0 && (
+                <button 
+                    className="btn-custom-action-save shadow-sm save-floating-action" 
+                    onClick={handleSave} 
+                  disabled={isSaving || !dirtyEntries.length}
+                    style={{ 
+                    backgroundColor: dirtyEntries.length > 0 ? colors.success : colors.surfaceLight,
+                    color: dirtyEntries.length > 0 ? '#fff' : colors.textMuted
+                    }}
+                >
+                    <Save size={18} />
+                  <span className="d-none d-sm-inline">Lưu ({dirtyEntries.length})</span>
+                </button>
+              )}
         </TransactionHeader>
 
         <SyncStatusBanner syncBanner={syncBanner} />
@@ -950,6 +952,7 @@ const TransactionPage: React.FC = () => {
             canRemovePassenger,
           })}
           isLoading={isLoading}
+          initialPageSize={50}
           onRefresh={() => { refetchTransactions(); refetchPassengers(); refetchLocks(); }}
         />
       <div className="bento-action-hub shadow-sm" 

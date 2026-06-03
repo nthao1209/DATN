@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Bus} from 'lucide-react';
+import { Plus, Save, Bus } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import DataTable from '../../components/DataTable';
 import api from '../../services/api';
@@ -8,15 +8,19 @@ import { isValidPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
 import { buildBusColumns } from './bus/columns';
 import { useTheme } from '../../theme/ThemeContext';
 import './BusPage.css';
+import type { TransactionRecord } from '../bus-management/transaction/types';
 import type { BusManager, BusRow } from './bus/types';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
+const EMPTY_BUSES: any[] = [];
+const EMPTY_MANAGERS: BusManager[] = [];
+const EMPTY_TRANSACTIONS: TransactionRecord[] = [];
 
 const BusPage: React.FC = () => {
-  const { colors, effects, isDarkMode } = useTheme(); // Lấy thêm isDarkMode để tinh chỉnh shadow
+  const { colors, effects, isDarkMode } = useTheme(); 
   const { enqueueSnackbar } = useSnackbar();
   const { id: tripId } = useParams<{ id: string }>();
   const [rows, setRows] = useState<BusRow[]>([]);
@@ -27,16 +31,28 @@ const BusPage: React.FC = () => {
   const initialRowsByIdRef = useRef<Record<number, BusRow>>({});
 
   // --- DATA FETCHING (Giữ nguyên) ---
-  const { data: buses = [], isLoading, isError, refetch} = useQuery<any[]>({
+  const { data: busesData, isLoading, isError, refetch} = useQuery<any[]>({
     queryKey: ['buses', tripId],
     queryFn: () => api.getBuses(String(tripId)),
     enabled: !!tripId,
   });
 
-  const { data: managers = [] } = useQuery<BusManager[]>({
+  const buses = busesData ?? EMPTY_BUSES;
+
+  const { data: managersData } = useQuery<BusManager[]>({
     queryKey: ['bus-managers'],
     queryFn: api.getBusManagers,
   });
+
+  const managers = managersData ?? EMPTY_MANAGERS;
+
+  const { data: transactionsData, isLoading: isTransactionsLoading } = useQuery<TransactionRecord[]>({
+    queryKey: ['transactions', tripId],
+    queryFn: api.getTransactions,
+    enabled: !!tripId,
+  });
+
+  const transactions = transactionsData ?? EMPTY_TRANSACTIONS;
 
   useEffect(() => {
     const mapped: BusRow[] = buses.map((b: any) => ({
@@ -134,6 +150,34 @@ const BusPage: React.FC = () => {
   }, [rows, deletedIds]);
 
   const canSave = dirtyCount > 0 && !hasValidationErrors;
+
+  const busAttendanceSummary = useMemo(() => {
+    if (!tripId) return [];
+
+    const currentTripId = Number(tripId);
+    const tripTransactions = transactions.filter((tx) => {
+      const txTripId = Number(tx.round?.tripId ?? (tx as any)?.bus?.tripId ?? 0);
+      return txTripId === currentTripId;
+    });
+
+    return rows
+      .filter((row) => row.id)
+      .map((bus) => {
+        const busId = Number(bus.id);
+        const busTransactions = tripTransactions.filter((tx) => Number(tx.busId ?? tx.bus?.id ?? 0) === busId);
+
+        return {
+          busId,
+          busLabel: bus.busCode || bus.registrationNumber || `Xe #${bus.id}`,
+          checkInCount: busTransactions.filter((tx) => Boolean(tx.checkIn)).length,
+          checkOutCount: busTransactions.filter((tx) => Boolean(tx.checkOut)).length,
+          totalTransactions: busTransactions.length,
+        };
+      });
+  }, [rows, tripId, transactions]);
+
+  const isPageLoading = isLoading || isTransactionsLoading;
+
   const pageThemeVars = {
     '--page-primary': colors.primary,
     '--page-primary-11': `${colors.primary}11`,
@@ -207,7 +251,7 @@ const BusPage: React.FC = () => {
     } catch (err: any) { enqueueSnackbar(err?.message || 'Lỗi khi lưu dữ liệu', { variant: 'error' }); } finally { setIsSaving(false); }
   };
 
-  const columns = buildBusColumns({ managers, handleCellChange, handleDeleteRow});
+  const columns = buildBusColumns({ managers, attendanceSummary: busAttendanceSummary, handleCellChange, handleDeleteRow});
 
   return (
     <div className="animate-fade-in p-0 p-md-3 bus-page" style={pageThemeVars as React.CSSProperties}>
@@ -236,10 +280,10 @@ const BusPage: React.FC = () => {
       <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
         <DataTable
           title="Thông tin chi tiết đội xe"
-          titleActions={
+          titleActions={dirtyCount > 0 ? (
             <div className="d-flex flex-column align-items-end gap-1">
               <button
-                className="btn-custom-action-save shadow-sm"
+                className="btn-custom-action-save shadow-sm save-floating-action"
                 onClick={handleSave}
                 disabled={isSaving || !canSave}
                 title={saveValidationMessage || undefined}
@@ -258,11 +302,11 @@ const BusPage: React.FC = () => {
                 </div>
               )}
             </div>
-          }
+          ) : null}
           columns={columns}
           queryKey={['buses-local', tripId]}
           data={rows}
-          isLoading={isLoading}
+          isLoading={isPageLoading}
           isError={isError}
           onRefresh={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
           focusRowKey={focusRowKey}

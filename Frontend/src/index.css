@@ -20,6 +20,23 @@ body {
   background:var(--bg-dark);
 }
 
+.save-floating-action {
+  position: fixed !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  z-index: 1100 !important;
+  min-width: 60px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22) !important;
+}
+
+@media (max-width: 768px) {
+  .save-floating-action {
+    right: 16px !important;
+    bottom: 16px !important;
+    min-width: 60px;
+  }
+}
+
 .auth-container {
   min-height: 100vh;
   display: flex;

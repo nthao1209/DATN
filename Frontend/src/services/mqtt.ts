@@ -369,7 +369,7 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
   };
 
   await new Promise<void>((resolve, reject) => {
-    client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false }, (error) => {
+    client.publish(topic, JSON.stringify(payload), { qos: 1, retain: true }, (error) => {
       if (error) {
         reject(error);
         return;
