@@ -205,7 +205,7 @@ const create = async (req: AuthRequest, res: Response) => {
           userId: req.user.id,
           type: 'unlock.request.created.self',
           title: 'Yêu cầu mở khóa đã được gửi',
-          content: `Yêu cầu mở khóa đã gửi cho chặng ${round.name} (Xe ${bus.busCode}).`,
+          content: `Yêu cầu mở khóa đã được gửi cho trưởng đoàn trong chặng ${round.name} (Xe ${bus.busCode}).`,
           payload: {
             requestId: request.id,
             busId,

@@ -2,6 +2,7 @@ export type PassengerRow = {
   id: number;
   name: string;
   tel: string;
+  note?: string | null;
   busId: number | null;
   assignedBusId?: number | null;
   busName: string;
@@ -33,10 +34,16 @@ export type DraftCell = {
   checkOut: boolean;
   checkInNote: string;
   checkOutNote: string;
+  checkInBusId?: number | null;
+  checkOutBusId?: number | null;
   checkInAt?: Date | string | null;
   checkOutAt?: Date | string | null;
   checkInBy?: number | null;
   checkOutBy?: number | null;
+  checkInTouched?: boolean;
+  checkOutTouched?: boolean;
+  checkInNoteTouched?: boolean;
+  checkOutNoteTouched?: boolean;
   dirty?: boolean;
 };
 
@@ -53,10 +60,19 @@ export type TransactionRecord = {
   checkOutBy?: number | null;
   checkInNote?: string | null;
   checkOutNote?: string | null;
+  checkInBusId?: number | null;
+  checkOutBusId?: number | null;
+  events?: {
+    action?: string;
+    busId?: number | null;
+    note?: string | null;
+    createdAt?: string | Date | null;
+  }[];
   passenger?: {
     id?: number;
     name?: string;
     tel?: string;
+    note?: string | null;
     busId?: number;
     bus?: {
       id?: number;

@@ -99,7 +99,6 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
       await onHandleUnlockRequest(requestId, 'REJECTED', rejectReasonText);
       setRejectingRequestId(null);
       setRejectReasonText('');
-    } catch (err) {
     } finally {
       setIsSubmittingHandle(false);
     }
@@ -111,7 +110,6 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
     try {
       setIsSubmittingHandle(true);
       await onHandleUnlockRequest(requestId, 'APPROVED');
-    } catch (err) {
     } finally {
       setIsSubmittingHandle(false);
     }

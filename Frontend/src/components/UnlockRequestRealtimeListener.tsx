@@ -31,8 +31,9 @@ export const UnlockRequestRealtimeListener = () => {
 
   return (
     <>
+      <MqttUnlockListener roleId={roleId} enabled />
       {tripIds.map((tripId) => (
-        <MqttUnlockListener key={tripId} tripId={tripId} roleId={roleId} enabled />
+        <MqttUnlockListener key={tripId} tripId={tripId} roleId={roleId} enabled listenRequester={false} />
       ))}
     </>
   );

@@ -1,6 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useSelector } from 'react-redux';
-import { useSnackbar } from 'notistack'; // Dùng notistack thay cho giao diện tự chế
+import { useSnackbar } from 'notistack'; 
 import api from '../services/api';
 import type { RootState } from '../redux/store';
 
@@ -44,12 +44,8 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     if (!userId || !tenantId || !token || authLoading) {
       return;
     }
-
-    try {
       const response = await api.getNotifications({ limit: 100 });
       setNotifications(Array.isArray(response) ? response : []);
-    } catch (error) {
-    }
   }, [authLoading, tenantId, token, userId]);
 
   useEffect(() => {
@@ -65,19 +61,14 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   }, [refreshNotifications, tenantId, userId]);
 
   const markNotificationAsRead = useCallback(async (id: number) => {
-    try {
       await api.markNotificationAsRead(id);
       setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
-    } catch (error) {
-    }
   }, []);
 
   const markAllNotificationsAsRead = useCallback(async () => {
-    try {
+    
       await api.markAllNotificationsAsRead();
       setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
-    } catch (error) {
-    }
   }, []);
 
   const addNotification = useCallback(
@@ -96,19 +87,14 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const deleteNotification = useCallback(async (id: number) => {
-    try {
       await api.deleteNotification(id);
       setNotifications((prev) => prev.filter((item) => item.id !== id));
-    } catch (error) {
-    }
   }, []);
 
   const deleteAllNotifications = useCallback(async () => {
-    try {
       await api.deleteAllNotifications();
       setNotifications([]);
-    } catch (error) {
-    }
+    
   }, []);
 
   return (

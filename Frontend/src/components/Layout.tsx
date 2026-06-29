@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar.tsx";
 import TopBar from "./AppHeader";
@@ -8,10 +8,24 @@ import { UnlockRequestRealtimeListener } from './UnlockRequestRealtimeListener';
 
 const Layout: React.FC = () => {
   const { colors } = useTheme();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const nextIsMobile = window.innerWidth <= 768;
+      setIsMobile(nextIsMobile);
+      if (nextIsMobile) {
+        setSidebarCollapsed(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Cập nhật lại width cho khớp với Sidebar mới (75px và 260px)
-  const marginLeft = sidebarCollapsed ? '75px' : '260px';
+  const marginLeft = sidebarCollapsed ? (isMobile ? '64px' : '75px') : '260px';
 
   return (
     <div style={{ 
@@ -39,7 +53,7 @@ const Layout: React.FC = () => {
         
         <main style={{ 
           flex: 1, 
-          padding: '2rem', // Tăng padding để nội dung "thở" hơn
+          padding: isMobile ? '0.75rem' : '2rem',
           backgroundColor: colors.background,
           color: colors.textPrimary,
           minHeight: 'calc(100vh - 64px - 45px)', // Trừ đi chiều cao TopBar và Footer

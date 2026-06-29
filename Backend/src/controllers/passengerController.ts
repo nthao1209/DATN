@@ -39,6 +39,11 @@ const normalizeBusLookupKeys = (value: unknown): string[] => {
 
 const toText = (value: SheetCell): string => String(value ?? '').trim();
 
+const normalizeOptionalPhoneText = (value: unknown): string => {
+  const text = String(value ?? '').trim();
+  return text.toLowerCase() === 'null' ? '' : text;
+};
+
 const normalizeImportedPhone = (value: string): string => {
   const digitsOnly = value.replace(/\D/g, '').trim();
   if (digitsOnly.length === 9) {
@@ -218,7 +223,10 @@ export const passengerController = {
         ]
       });
 
-      res.json(passengers);
+      res.json(passengers.map((passenger) => ({
+        ...passenger,
+        tel: normalizeOptionalPhoneText(passenger.tel)
+      })));
 
     } catch (error) {
       res.status(500).json({ message: 'Server error' });
@@ -238,7 +246,7 @@ export const passengerController = {
       }
 
       const { name, note, busId } = req.body;
-      const tel = String(req.body?.tel ?? '').trim();
+      const tel = normalizeOptionalPhoneText(req.body?.tel);
       const busIdNumber = Number(busId);
 
       if (!name) {
@@ -498,7 +506,7 @@ export const passengerController = {
         where: { id: Number(id) },
         data: {
           ...(name !== undefined ? { name: String(name).trim() } : {}),
-          ...(tel !== undefined ? { tel: String(tel).trim() } : {}),
+          ...(tel !== undefined ? { tel: normalizeOptionalPhoneText(tel) } : {}),
           ...(note !== undefined ? { note } : {}),
           ...(nextBusId ? { busId: nextBusId } : {})
         }

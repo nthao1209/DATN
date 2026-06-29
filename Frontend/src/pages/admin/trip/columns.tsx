@@ -32,7 +32,6 @@ export const buildTripColumns = ({
           value={row.name}
           onChange={(e) => handleCellChange(row.localId, 'name', e.target.value)}
           placeholder="Nhập tên chuyến"
-          style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#ffffff' }}
         />
       </div>
     ),

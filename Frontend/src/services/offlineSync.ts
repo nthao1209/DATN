@@ -10,6 +10,10 @@ export interface OfflineAction {
   checkOutBy?: number | null;
   checkInNote?: string;
   checkOutNote?: string;
+  checkInTouched?: boolean;
+  checkOutTouched?: boolean;
+  checkInNoteTouched?: boolean;
+  checkOutNoteTouched?: boolean;
   timestamp: number;
   status: 'pending' | 'syncing';
   storageKey?: string;
@@ -60,6 +64,9 @@ export const offlineService = {
   getQueueByStorageKey: (storageKey: string): OfflineAction[] =>
     readQueue().filter((action) => action.storageKey === storageKey),
 
+  hasQueueForStorageKey: (storageKey: string): boolean =>
+    readQueue().some((action) => action.storageKey === storageKey),
+
   addToQueue: (action: Omit<OfflineAction, 'id' | 'status'>) => {
     const queue = readQueue();
     const newAction: OfflineAction = {
@@ -76,10 +83,12 @@ export const offlineService = {
     const queue = readQueue();
     const matchKey = queueMatchKey(action);
     const existingIndex = queue.findIndex((item) => queueMatchKey(item) === matchKey);
+    const existingAction = existingIndex >= 0 ? queue[existingIndex] : null;
+    const shouldKeepExistingId = existingAction && existingAction.status !== 'syncing';
     const nextAction: OfflineAction = {
       ...action,
-      id: existingIndex >= 0 ? queue[existingIndex].id : Math.random().toString(36).slice(2),
-      status: existingIndex >= 0 ? queue[existingIndex].status : 'pending',
+      id: shouldKeepExistingId ? existingAction.id : Math.random().toString(36).slice(2),
+      status: 'pending',
     };
 
     if (existingIndex >= 0) {
@@ -95,6 +104,13 @@ export const offlineService = {
   markSyncing: (id: string) => {
     const queue = readQueue().map((item) =>
       item.id === id ? { ...item, status: 'syncing' as const } : item
+    );
+    writeQueue(queue);
+  },
+
+  markPending: (id: string) => {
+    const queue = readQueue().map((item) =>
+      item.id === id ? { ...item, status: 'pending' as const } : item
     );
     writeQueue(queue);
   },

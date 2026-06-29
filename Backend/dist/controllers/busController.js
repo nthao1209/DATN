@@ -14,7 +14,6 @@ const mqttClient = mqtt_1.default.connect(process.env.MQTT_URL || 'wss://mqtt.to
     clientId: `backend_bus_${Date.now()}_${Math.random().toString(16).slice(2)}`,
 });
 const publishLockUpdate = (tripId, busId, roundId, checkInLocked, checkOutLocked) => {
-    const topic = 'attendance/ui/locks';
     const payload = {
         type: 'bus.round.lock.updated',
         tripId,
@@ -24,7 +23,9 @@ const publishLockUpdate = (tripId, busId, roundId, checkInLocked, checkOutLocked
         checkOutLocked,
         updatedAt: new Date().toISOString(),
     };
-    mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+    ['attendance/ui/locks', `attendance/trips/${tripId}/locks`].forEach((topic) => {
+        mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+    });
 };
 const resolveActorId = async (req) => {
     if (req.user?.id)

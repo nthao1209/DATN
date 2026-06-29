@@ -97,13 +97,9 @@ function* handleJoinTenant(action: any): any {
   }
 }
 
-// ✅ XỬ LÝ ĐĂNG XUẤT
+//  XỬ LÝ ĐĂNG XUẤT
 function* handleLogout(): any {
-  try {
     yield call(signOut, fbAuth);
-    // Xóa các dữ liệu nhạy cảm nếu cần
-  } catch (error: any) {
-  }
 }
 
 export default function* authSaga() {

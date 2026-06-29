@@ -218,16 +218,14 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           font-weight: 500;
           transition: all 0.2s ease;
           text-align: left;
+          height: 40px;
         }
+
         .custom-filter-input, 
         .form-select {
-          display: block !important;
+          display: flex !important;
           width: 100% !important;
           max-width: 100% !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          white-space: nowrap !important;
-          padding-right: 36px !important; 
         }
 
         .custom-filter-input:hover {
@@ -289,8 +287,6 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           color: ${colors.primary};
           font-weight: 600;
         }
-
-
 
         .checkbox-custom {
           width: 18px;

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { type RootState } from '../redux/store';
 import { logout } from '../redux/slice/authSlice';
 import { 
-  LogOut, Building, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
+  LogOut, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 import api from '../services/api';
@@ -43,7 +43,7 @@ const TopBar: React.FC = () => {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isDisablingAccount, setIsDisablingAccount] = useState(false);
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
@@ -100,28 +100,28 @@ const TopBar: React.FC = () => {
     setIsChangePasswordOpen(true);
   };
 
-  const handleDeleteAccount = async () => {
+  const handleDisableAccount = async () => {
     if (unsavedChanges.isDirty) {
       enqueueSnackbar(unsavedChanges.message || 'Bạn có thay đổi chưa lưu. Hãy lưu trước khi thực hiện thao tác này.', { variant: 'warning' });
       return;
     }
 
-    const ok = window.confirm('Bạn có chắc muốn xóa tài khoản? Hành động này không thể hoàn tác.');
+    const ok = window.confirm('Bạn có chắc muốn vô hiệu hóa tài khoản? Sau thao tác này bạn sẽ không thể đăng nhập cho đến khi được quản trị viên kích hoạt lại.');
     if (!ok) return;
 
-    setIsDeletingAccount(true);
+    setIsDisablingAccount(true);
     try {
-      await api.deleteAccount();
+      await api.disableAccount();
       // sign out from firebase and clear local auth
       await signOut(auth);
       dispatch(logout());
       clearUnsavedChanges();
-      enqueueSnackbar('Xóa tài khoản thành công.', { variant: 'success' });
+      enqueueSnackbar('Đã vô hiệu hóa tài khoản.', { variant: 'success' });
       navigate('/login');
     } catch (error: any) {
-      enqueueSnackbar(error?.message || 'Không thể xóa tài khoản lúc này. Vui lòng thử lại sau.', { variant: 'error' });
+      enqueueSnackbar(error?.message || 'Không thể vô hiệu hóa tài khoản lúc này. Vui lòng thử lại sau.', { variant: 'error' });
     } finally {
-      setIsDeletingAccount(false);
+      setIsDisablingAccount(false);
     }
   };
 
@@ -195,13 +195,6 @@ const TopBar: React.FC = () => {
               <span className={`status-dot ${mqttStatus === 'connected' ? 'pulse' : ''}`} 
                     style={{ backgroundColor: statusMeta.color }}></span>
             </div>
-
-            <div className="tenant-badge" style={{ backgroundColor: colors.surfaceLight, border: `1px solid ${colors.border}` }}>
-              <Building size={14} className="text-primary" />
-              <span  style={{ color: colors.textPrimary }}>
-                {currentTenant?.name || 'Hệ thống'}
-              </span>
-            </div>
           </div>
 
           <div className="d-flex align-items-center gap-2">
@@ -254,11 +247,11 @@ const TopBar: React.FC = () => {
                 <li>
                   <button
                     className="dropdown-item d-flex align-items-center gap-3 py-2 text-danger"
-                    onClick={handleDeleteAccount}
-                    disabled={isDeletingAccount}
+                    onClick={handleDisableAccount}
+                    disabled={isDisablingAccount}
                     type="button"
                   >
-                    <CircleAlert size={16} /> <span className="fw-bold">{isDeletingAccount ? 'Đang xóa...' : 'Xóa tài khoản'}</span>
+                    <CircleAlert size={16} /> <span className="fw-bold">{isDisablingAccount ? 'Đang vô hiệu hóa...' : 'Vô hiệu hóa tài khoản'}</span>
                   </button>
                 </li>
 
@@ -389,10 +382,7 @@ const TopBar: React.FC = () => {
         }
         .status-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05rem; }
         
-        .tenant-badge {
-            display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
-        }
-
+        
         .btn-icon-topbar {
           background: transparent; border: none; color: ${colors.textSecondary};
           padding: 8px; border-radius: 10px; transition: all 0.2s; display: flex; align-items: center; justify-content: center;

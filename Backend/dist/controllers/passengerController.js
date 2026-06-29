@@ -31,6 +31,10 @@ const normalizeBusLookupKeys = (value) => {
     return Array.from(keys);
 };
 const toText = (value) => String(value ?? '').trim();
+const normalizeOptionalPhoneText = (value) => {
+    const text = String(value ?? '').trim();
+    return text.toLowerCase() === 'null' ? '' : text;
+};
 const normalizeImportedPhone = (value) => {
     const digitsOnly = value.replace(/\D/g, '').trim();
     if (digitsOnly.length === 9) {
@@ -181,7 +185,10 @@ exports.passengerController = {
                     { id: 'asc' }
                 ]
             });
-            res.json(passengers);
+            res.json(passengers.map((passenger) => ({
+                ...passenger,
+                tel: normalizeOptionalPhoneText(passenger.tel)
+            })));
         }
         catch (error) {
             res.status(500).json({ message: 'Server error' });
@@ -197,7 +204,7 @@ exports.passengerController = {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
             const { name, note, busId } = req.body;
-            const tel = String(req.body?.tel ?? '').trim();
+            const tel = normalizeOptionalPhoneText(req.body?.tel);
             const busIdNumber = Number(busId);
             if (!name) {
                 return res.status(400).json({ message: 'Missing name' });
@@ -410,7 +417,7 @@ exports.passengerController = {
                 where: { id: Number(id) },
                 data: {
                     ...(name !== undefined ? { name: String(name).trim() } : {}),
-                    ...(tel !== undefined ? { tel: String(tel).trim() } : {}),
+                    ...(tel !== undefined ? { tel: normalizeOptionalPhoneText(tel) } : {}),
                     ...(note !== undefined ? { note } : {}),
                     ...(nextBusId ? { busId: nextBusId } : {})
                 }

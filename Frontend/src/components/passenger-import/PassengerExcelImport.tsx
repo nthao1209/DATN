@@ -119,7 +119,7 @@ const PassengerExcelImport: React.FC<PassengerExcelImportProps> = ({
       setLastResultText(text);
 
       enqueueSnackbar(
-        'Import Excel thành công',
+        'Nhập file Excel thành công',
         {
           variant: 'success',
         }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, UserCircle,
   MapPin, Route, Bus, ChevronDown, Menu, X, Clock, ShieldAlert,
@@ -20,7 +20,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
   const navigate = useNavigate();
   const { roleId } = useSelector((state: RootState) => state.auth); 
   const [collapsed, setCollapsed] = useState(isCollapsed);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
   const [expandedItems, setExpandedItems] = useState<string[]>(['trips']);
+
+  useEffect(() => {
+    setCollapsed(isCollapsed);
+  }, [isCollapsed]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const pathParts = location.pathname.split('/');
   const currentTripId = pathParts[1] === 'trips' && pathParts[2] && !isNaN(Number(pathParts[2]))
@@ -92,13 +103,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
           ? `linear-gradient(180deg, ${colors.surfaceLight} 0%, ${colors.surface} 100%)` 
           : 'none',
         color: colors.textPrimary,
-        width: collapsed ? '78px' : '260px',
+        width: collapsed ? (isMobile ? '64px' : '78px') : '260px',
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 1050,
       }}
     >
       {/* 1. Header / Logo Section */}
-      <div className="p-4 d-flex justify-content-between align-items-center">
+      <div className="sidebar-header p-4 d-flex justify-content-between align-items-center">
         {!collapsed && (
           <div className="d-flex align-items-center gap-2 animate-fade-in">
             <div className="logo-box">
@@ -131,7 +142,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
           {/* Trips Section */}
 {menuConfig.trips && (
   <li className="nav-item mb-1 px-2">
-    {/* Mục Quản lý Trip chính */}
+    {/* Mục Quản lý Chuyến đi */}
     <div
       className={`nav-link d-flex justify-content-between align-items-center py-2 px-3 rounded-3 cursor-pointer transition-all ${
         isActive('/trips') && !currentTripId ? 'active-item text-white' : 'text-sidebar hover-sidebar'
@@ -143,7 +154,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     >
       <div className="d-flex align-items-center" onClick={(e) => { e.stopPropagation(); navigate('/trips'); }}>
         <MapPin size={19} className={collapsed ? 'mx-auto' : 'me-3'} />
-        {!collapsed && <span className="fw-medium" style={{ fontSize: '0.875rem' }}>Quản lý Trip</span>}
+        {!collapsed && <span className="fw-medium" style={{ fontSize: '0.875rem' }}>Quản lý Chuyến đi</span>}
       </div>
       {!collapsed && (
         <ChevronDown size={14} className={`transition-all ${expandedItems.includes('trips') ? 'rotate-180' : ''}`} />
@@ -164,7 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
                 backgroundColor: location.pathname === '/trips' ? colors.primary : 'transparent'
               }}
             >
-               • Danh sách Trip
+              Danh sách Chuyến đi
             </Link>
           </li>
         )}
@@ -283,6 +294,30 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
         .sidebar-content::-webkit-scrollbar { width: 4px; }
         .sidebar-content::-webkit-scrollbar-track { background: transparent; }
         .sidebar-content::-webkit-scrollbar-thumb { background: ${colors.primary}22; border-radius: 10px; }
+
+        @media (max-width: 768px) {
+          .sidebar-header {
+            padding: 18px 10px !important;
+            justify-content: center !important;
+          }
+
+          .sidebar-content {
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+          }
+
+          .nav-item {
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+          }
+
+          .nav-link {
+            min-height: 44px;
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            justify-content: center;
+          }
+        }
       `}</style>
     </div>
   );

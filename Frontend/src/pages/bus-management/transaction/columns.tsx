@@ -6,6 +6,7 @@ import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
 
 type BuildColumnsParams = {
   selectedRounds: RoundOption[];
+  displayMode?: 'all' | 'checkIn' | 'checkOut';
   roundSummary: RoundSummary;
   getCell: (passengerId: number, roundId: number) => DraftCell | null;
   setCell: (payload: Partial<DraftCell>) => void;
@@ -21,6 +22,7 @@ type BuildColumnsParams = {
 
 export const buildTransactionColumns = ({
   selectedRounds,
+  displayMode = 'all',
   roundSummary,
   getCell,
   setCell,
@@ -71,12 +73,13 @@ export const buildTransactionColumns = ({
         );
 
         return (
-          <div className="d-flex flex-column gap-1 align-items-center">
+          <div className="transaction-attendance-cell d-flex flex-column gap-2 align-items-center">
             <input
+              className="transaction-check-input"
               type="checkbox"
               checked={checkIn}
               disabled={locked}
-              style={{ cursor: locked ? 'not-allowed' : 'pointer' }}
+              style={{ cursor: locked ? 'not-allowed' : 'pointer', width: 24, height: 24 }}
               onChange={(e) => {
                 if (!row.busId) return;
 
@@ -89,12 +92,15 @@ export const buildTransactionColumns = ({
                   checkOut,
                   checkInNote: current?.checkInNote || '',
                   checkOutNote: current?.checkOutNote || '',
+                  checkInBusId: row.busId,
+                  ...(current?.checkOutBusId ? { checkOutBusId: current.checkOutBusId } : {}),
+                  checkInTouched: true,
                 });
               }}
             />
 
             <AutoResizeTextarea
-              className="form-control form-control-sm"
+              className="form-control form-control-sm transaction-note-input"
               value={current?.checkInNote || ''}
               placeholder="Ghi chú lượt đi"
               disabled={locked}
@@ -111,6 +117,9 @@ export const buildTransactionColumns = ({
                   checkOut,
                   checkInNote: e.target.value,
                   checkOutNote: current?.checkOutNote || '',
+                  checkInBusId: current?.checkInBusId ?? row.busId,
+                  ...(current?.checkOutBusId ? { checkOutBusId: current.checkOutBusId } : {}),
+                  checkInNoteTouched: true,
                 });
               }}
             />
@@ -156,12 +165,13 @@ export const buildTransactionColumns = ({
         );
 
         return (
-          <div className="d-flex flex-column gap-1 align-items-center">
+          <div className="transaction-attendance-cell d-flex flex-column gap-2 align-items-center">
             <input
+              className="transaction-check-input"
               type="checkbox"
               checked={checkOut}
               disabled={locked}
-              style={{ cursor: locked ? 'not-allowed' : 'pointer' }}
+              style={{ cursor: locked ? 'not-allowed' : 'pointer', width: 24, height: 24 }}
               onChange={(e) => {
                 if (!row.busId) return;
 
@@ -174,12 +184,15 @@ export const buildTransactionColumns = ({
                   checkOut: e.target.checked,      
                   checkInNote: current?.checkInNote || '',
                   checkOutNote: current?.checkOutNote || '',
+                  ...(current?.checkInBusId ? { checkInBusId: current.checkInBusId } : {}),
+                  checkOutBusId: row.busId,
+                  checkOutTouched: true,
                 });
               }}
             />
 
             <AutoResizeTextarea
-              className="form-control form-control-sm"
+              className="form-control form-control-sm transaction-note-input"
               value={current?.checkOutNote || ''}
               placeholder="Ghi chú lượt về"
               disabled={locked}
@@ -196,6 +209,9 @@ export const buildTransactionColumns = ({
                   checkOut,
                   checkInNote: current?.checkInNote || '',
                   checkOutNote: e.target.value,
+                  ...(current?.checkInBusId ? { checkInBusId: current.checkInBusId } : {}),
+                  checkOutBusId: current?.checkOutBusId ?? row.busId,
+                  checkOutNoteTouched: true,
                 });
               }}
             />
@@ -203,6 +219,9 @@ export const buildTransactionColumns = ({
         );
       },
     };
+
+    if (displayMode === 'checkIn') return [checkInCol];
+    if (displayMode === 'checkOut') return [checkOutCol];
 
     return [checkInCol, checkOutCol];
   });
@@ -279,6 +298,25 @@ export const buildTransactionColumns = ({
               </div>
             ) : null}
           </div>
+        );
+      },
+    },
+
+    {
+      header: 'Ghi chú hồ sơ',
+      key: 'passengerNote',
+      width: '220px',
+      render: (row) => {
+        if (row.isSummary) {
+          return <span className="text-muted">-</span>;
+        }
+
+        const note = (row.note || '').trim();
+
+        return note ? (
+          <span className="transaction-profile-note">{note}</span>
+        ) : (
+          <span className="text-muted">-</span>
         );
       },
     },

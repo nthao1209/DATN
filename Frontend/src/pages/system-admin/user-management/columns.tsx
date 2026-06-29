@@ -45,6 +45,16 @@ export const buildUserColumns = ({
     render: (row) => row.latestAccessDate,
   },
   {
+    header: 'Tổ chức',
+    key: 'tenantName',
+    render: (row) => {
+      const isSystemAdmin = (row.latestRole || '').toLowerCase() === 'system_admin';
+      const label = row.tenantName || (isSystemAdmin ? 'Hệ thống' : 'Chưa có tổ chức');
+
+      return <span className={isSystemAdmin ? 'badge bg-secondary' : ''}>{label}</span>;
+    },
+  },
+  {
     header: 'Role',
     key: 'latestRole',
     render: (row) => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import {  Send, ShieldAlert, Sparkles } from 'lucide-react';
+import { Send, ShieldAlert, Sparkles } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import { type RootState } from '../../redux/store';
 import api from '../../services/api';
@@ -68,6 +68,8 @@ const UnlockRequestPage: React.FC = () => {
 
 
   const createRequest = useCreateUnlockRequest();
+  const selectedBus = buses.find((bus: any) => Number(bus.id) === Number(selectedBusId));
+  const selectedRound = rounds.find((round: any) => Number(round.id) === Number(selectedRoundId));
 
   useEffect(() => {
     if (trips.length === 0) {
@@ -166,9 +168,12 @@ const handleSubmit = async () => {
       reason,
     });
 
-    enqueueSnackbar('Đã gửi yêu cầu mở khóa thành công.', {
-      variant: 'success',
-    });
+    const successMessage =
+      'Yêu cầu mở khóa đã được gửi cho trưởng đoàn trong chặng ' +
+      (selectedRound?.name || 'đã chọn') +
+      (selectedBus?.busCode ? ' (' + selectedBus.busCode + ')' : '') +
+      '.';
+    enqueueSnackbar(successMessage, { variant: 'success' });
 
     setReason('');
   } catch (error: any) {
@@ -202,7 +207,7 @@ const handleSubmit = async () => {
               Yêu cầu mở điểm danh
             </h1>
             <div className="small" style={{ color: colors.textMuted }}>
-              Gửi yêu cầu cho admin khi chặng đang bị khóa.
+              Gửi yêu cầu cho trưởng đoàn khi chặng đang bị khóa.
             </div>
             {requestLocked ? (
               <div className="small mt-1 fw-semibold text-danger">

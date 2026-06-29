@@ -3,7 +3,7 @@ import { auth as fbAuth } from '../config/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/types';
 
-const rawApiBaseUrl = import.meta.env.VITE_API_URL || 'https://backend-datn-3leo.onrender.com';
+const rawApiBaseUrl = import.meta.env.VITE_API_URL;
 const axiosClient = axios.create({
   baseURL: `${rawApiBaseUrl.replace(/\/$/, '')}/api`,
   timeout: 15000,
@@ -153,6 +153,9 @@ export const api = {
   deleteAccount: () => 
     axiosClient.delete('/auth/delete-account'),
 
+  disableAccount: () =>
+    axiosClient.delete('/auth/delete-account'),
+
   // Tenant APIs
   createTenant: (data: { name: string }) =>
     axiosClient.post('/tenants/create', data),
@@ -296,9 +299,6 @@ export const api = {
 
   createTransaction: (data: any) =>
     axiosClient.post('/transactions', data),
-
-  updateTransaction: (id: string, data: any) =>
-    axiosClient.put(`/transactions/${id}`, data),
 
   deleteTransaction: (id: string) =>
     axiosClient.delete(`/transactions/${id}`),

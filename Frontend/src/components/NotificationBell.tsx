@@ -36,11 +36,10 @@ const NotificationBell: React.FC = () => {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const recentNotifications = useMemo(() => [...notifications].slice(0, 15), [notifications]); 
 
-  const shortenMessage = (message: string) => {
+  const formatMessage = (message: string) => {
     const text = message.trim();
     if (!text) return 'Thông báo mới';
-    if (text.length <= 72) return text;
-    return `${text.slice(0, 72).trimEnd()}...`;
+    return text;
   };
 
   return (
@@ -123,7 +122,7 @@ const NotificationBell: React.FC = () => {
                         {item.title}
                       </div>
                       <div className="small notification-preview" style={{ color: colors.textSecondary }}>
-                        {shortenMessage(item.content)}
+                        {formatMessage(item.content)}
                       </div>
                       <div className="tiny text-uppercase mt-1" style={{ color: colors.textMuted, fontSize: '0.7rem' }}>
                         {format(new Date(item.createdAt), 'dd/MM/yyyy HH:mm')}
@@ -241,6 +240,11 @@ const NotificationBell: React.FC = () => {
 
         .notification-preview {
           line-height: 1.35;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: clip;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
 
         .notification-dot {

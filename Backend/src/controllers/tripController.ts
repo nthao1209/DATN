@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../types/auth';
 import { publishDashboardRefresh } from '../services/mqtt';
 import { prisma } from '../config/db';
@@ -119,18 +120,120 @@ export const tripController = {
   },
 
   delete: async (req: AuthRequest, res: Response) => {
-    const { id } = req.params;
-    const tenantId = req.tenantId;
-    await prisma.trip.delete({ where: { id: Number(id) } });
-    if (tenantId) {
+    try {
+      const tripId = Number(req.params.id);
+      const tenantId = req.tenantId;
+
+      if (!tripId) {
+        return res.status(400).json({ message: 'Missing trip id' });
+      }
+
+      if (!tenantId) {
+        return res.status(401).json({ message: 'Missing tenantId' });
+      }
+
+      const existing = await prisma.trip.findFirst({
+        where: {
+          id: tripId,
+          tenantId,
+        },
+        select: {
+          id: true,
+          buses: {
+            select: { id: true },
+          },
+          rounds: {
+            select: { id: true },
+          },
+        },
+      });
+
+      if (!existing) {
+        return res.status(404).json({ message: 'Trip not found' });
+      }
+
+      const busIds = existing.buses.map((bus) => bus.id);
+      const roundIds = existing.rounds.map((round) => round.id);
+
+      await prisma.$transaction(async (tx) => {
+        const unlockRequests = await tx.unlockRequest.findMany({
+          where: {
+            OR: [
+              { busId: { in: busIds } },
+              { roundId: { in: roundIds } },
+            ],
+          },
+          select: { id: true },
+        });
+
+        const notificationFilters: Prisma.NotificationWhereInput[] = [
+          { payload: { path: ['tripId'], equals: tripId } },
+          ...busIds.map((busId) => ({ payload: { path: ['busId'], equals: busId } })),
+          ...roundIds.map((roundId) => ({ payload: { path: ['roundId'], equals: roundId } })),
+          ...unlockRequests.map((request) => ({ payload: { path: ['requestId'], equals: request.id } })),
+        ];
+
+        await tx.notification.deleteMany({
+          where: {
+            OR: notificationFilters,
+          },
+        });
+
+        await tx.attendanceEvent.deleteMany({
+          where: {
+            OR: [
+              {
+                bus: {
+                  tripId,
+                },
+              },
+              {
+                transaction: {
+                  round: {
+                    tripId,
+                  },
+                },
+              },
+            ],
+          },
+        });
+
+        await tx.busRoundStatus.deleteMany({
+          where: {
+            OR: [
+              { busId: { in: busIds } },
+              { roundId: { in: roundIds } },
+            ],
+          },
+        });
+
+        await tx.unlockRequest.deleteMany({
+          where: {
+            OR: [
+              { busId: { in: busIds } },
+              { roundId: { in: roundIds } },
+            ],
+          },
+        });
+
+        await tx.trip.delete({
+          where: { id: tripId },
+        });
+      });
+
       publishDashboardRefresh(tenantId, {
         type: 'dashboard.refresh',
         entity: 'trip',
         action: 'delete',
-        tripId: Number(id),
+        tripId,
         updatedAt: new Date().toISOString(),
       });
+
+      res.json({ message: "Deleted" });
+    } catch (error: any) {
+      res.status(500).json({
+        message: error?.message || 'Cannot delete trip',
+      });
     }
-    res.json({ message: "Deleted" });
   }
 };

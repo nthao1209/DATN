@@ -54,7 +54,7 @@ const ForgotPasswordPage: React.FC = () => {
       <div className="w-100">
         <div className="text-center mb-4">
 
-          <h1 className="h3 fw-bold text-white mb-2">Quên mật khẩu?</h1>
+          <h1 className="h3 fw-bold auth-title mb-2">Quên mật khẩu?</h1>
 
           <p className="auth-muted mb-0">
             Nhập email đã đăng ký, hệ thống sẽ gửi liên kết đặt lại mật khẩu.

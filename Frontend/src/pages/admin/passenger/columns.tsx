@@ -34,7 +34,7 @@ export const buildPassengerColumns = ({
     width: '320px',
     render: (row) =>
       readOnly ? (
-        <span className="text-white fw-semibold">{row.name || '-'}</span>
+        <span className="fw-semibold">{row.name || '-'}</span>
       ) : (
         <AutoResizeTextarea
           className="form-control form-control-sm"
@@ -49,7 +49,7 @@ export const buildPassengerColumns = ({
     key: 'tel',
     render: (row) =>
       readOnly ? (
-        <span className="text-white">{row.tel || '-'}</span>
+        <span>{row.tel || '-'}</span>
       ) : (
         <input
           className="form-control form-control-sm"
@@ -73,11 +73,11 @@ export const buildPassengerColumns = ({
         if (readOnly) {
           const assignment = (row as any).tripAssignments?.[tripId];
           if (assignment) {
-            return <span className="text-white">{assignment.busCode || '-'}</span>;
+            return <span>{assignment.busCode || '-'}</span>;
           }
 
           const busText = row.tripId === tripId ? (row.busCode || '-') : '-';
-          return <span className="text-white">{busText}</span>;
+          return <span>{busText}</span>;
         }
 
         return (
@@ -119,7 +119,7 @@ export const buildPassengerColumns = ({
     key: 'note',
     render: (row) =>
       readOnly ? (
-        <span className="text-white text-wrap passenger-wrap-cell" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{row.note || '-'}</span>
+        <span className="text-wrap passenger-wrap-cell" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{row.note || '-'}</span>
       ) : (
         <AutoResizeTextarea
           className="form-control form-control-sm passenger-wrap-input"

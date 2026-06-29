@@ -54,7 +54,7 @@ const PassengerExcelExport: React.FC<PassengerExcelExportProps> = ({
 
   const handleExport = () => {
     if (!exportRows.length) {
-      enqueueSnackbar('Không có dữ liệu để export', { variant: 'warning' });
+      enqueueSnackbar('Không có dữ liệu để xuất file', { variant: 'warning' });
       return;
     }
 
@@ -79,9 +79,9 @@ const PassengerExcelExport: React.FC<PassengerExcelExportProps> = ({
       const fileName = `Danh_sach_hanh_khach_${safeTripName}_${timestamp}.xlsx`;
 
       XLSX.writeFile(workbook, fileName);
-      enqueueSnackbar('Đã export file Excel thành công', { variant: 'success' });
+      enqueueSnackbar('Đã xuất file Excel thành công', { variant: 'success' });
     } catch {
-      enqueueSnackbar('Export Excel thất bại', { variant: 'error' });
+      enqueueSnackbar('Xuất file Excel thất bại', { variant: 'error' });
     }
   };
 
@@ -95,7 +95,7 @@ const PassengerExcelExport: React.FC<PassengerExcelExportProps> = ({
       disabled={isBtnDisabled}
     >
       <Download size={14} />
-      <span className="d-none d-lg-inline">Export Excel</span>
+      <span className="d-none d-lg-inline">Xuất file Excel</span>
 
       <style>{`
         .btn-custom-export {

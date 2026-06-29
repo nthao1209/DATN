@@ -9,6 +9,8 @@ export type UserRow = {
   description?: string;
   roleId?: number | null;
   tenantId?: number | null;
+  tenantName?: string;
+  userTenantId?: number | null;
   isEdited?: boolean;
   isDisabled?: boolean;
   disabledAt?: string | null;

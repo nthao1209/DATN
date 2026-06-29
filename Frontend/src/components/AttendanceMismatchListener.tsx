@@ -15,11 +15,7 @@ export const AttendanceMismatchListener = () => {
   );
 
   const { data: trips = [] } = useQuery<any[]>({
-    queryKey: [
-      'attendance-mismatch-trips',
-      user?.id,
-      roleId,
-    ],
+    queryKey: ['attendance-mismatch-trips', user?.id, roleId],
     queryFn: api.getTrips,
     enabled: Boolean(user?.id) && roleId === ROLE_IDS.BUS_MANAGEMENT && !authLoading,
   });
@@ -28,10 +24,7 @@ export const AttendanceMismatchListener = () => {
     () =>
       trips
         .map((trip) => Number(trip.id))
-        .filter(
-          (tripId) =>
-            Number.isFinite(tripId) && tripId > 0,
-        ),
+        .filter((tripId) => Number.isFinite(tripId) && tripId > 0),
     [trips],
   );
 
@@ -46,67 +39,52 @@ export const AttendanceMismatchListener = () => {
     }
 
     const subscriptions = tripIds.map((tripId) =>
-      subscribeAttendanceUpdates(
-        tripId,
-        async (message) => {
-          if (
-            message.type !== 'attendance.wrong_bus'
-          ) {
-            return;
+      subscribeAttendanceUpdates(tripId, async (message) => {
+        if (message.type !== 'attendance.wrong_bus') {
+          return;
+        }
+
+        if (!message.targetManagerId) {
+          return;
+        }
+
+        if (Number(message.targetManagerId) !== Number(user.id)) {
+          return;
+        }
+
+        let passengerName = message.passengerName || `#${message.passengerId}`;
+
+        if (!message.passengerName) {
+          const list = await api.getPassengers(String(message.tripId));
+          const found = (list as any[]).find(
+            (p) => Number(p.id) === Number(message.passengerId),
+          );
+
+          if (found?.name) {
+            passengerName = found.name;
           }
+        }
 
-          if (!message.targetManagerId) {
-            return;
-          }
+        const correctBus = message.passengerBusCode || `xe ${message.passengerBusId}`;
+        const currentBus = message.busCode || `xe ${message.busId}`;
+        const roundName = message.roundName || `chặng #${message.roundId}`;
 
-          if (
-            Number(message.targetManagerId) !==
-            Number(user.id)
-          ) {
-            return;
-          }
+        const isMismatch =
+          Number(message.passengerBusId) !== Number(message.busId);
 
-          let passengerName = message.passengerName || `#${message.passengerId}`;
-          if (!message.passengerName) {
-            try {
-              const list = await api.getPassengers(String(message.tripId));
-              const found = (list as any[]).find((p) => Number(p.id) === Number(message.passengerId));
-              if (found && found.name) passengerName = found.name;
-            } catch (e) {
-            }
-          }
+        if (!isMismatch) {
+          return;
+        }
 
-          // Xe biên chế
-          const correctBus = message.passengerBusCode || `xe ${message.passengerBusId}`;
+        const shortText = `Khách ${passengerName} của ${correctBus} vừa được điểm danh trên ${currentBus} ở ${roundName}.`;
 
-          // Xe hiện tại thực tế
-          const currentBus = message.busCode || `xe ${message.busId}`;
-
-          const roundName = message.roundName || `tuyến #${message.roundId}`;
-
-
-          const isMismatch =
-            Number(message.passengerBusId) !==
-            Number(message.busId);
-
-          if (!isMismatch) {
-            return;
-          }
-
-          const truncate = (s: string, n = 60) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
-
-          const shortText = `Khách ${passengerName} của ${correctBus} vừa được điểm danh trên ${currentBus} ở ${truncate(roundName, 40)}.`;
-
-          addNotification(shortText, 'warning', 10000, { showToast: true });
-          void refreshNotifications();
-        },
-      ),
+        addNotification(shortText, 'warning', 10000, { showToast: true });
+        void refreshNotifications();
+      }),
     );
 
     return () => {
-      subscriptions.forEach((subscription) =>
-        subscription.end(true),
-      );
+      subscriptions.forEach((subscription) => subscription.end(true));
     };
   }, [
     addNotification,

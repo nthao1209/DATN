@@ -13,7 +13,6 @@ const mqttClient = mqtt.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:
 });
 
 const publishLockUpdate = (tripId: number, busId: number, roundId: number, checkInLocked: boolean, checkOutLocked: boolean) => {
-  const topic = 'attendance/ui/locks';
   const payload = {
     type: 'bus.round.lock.updated',
     tripId,
@@ -24,7 +23,9 @@ const publishLockUpdate = (tripId: number, busId: number, roundId: number, check
     updatedAt: new Date().toISOString(),
   };
 
-  mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+  ['attendance/ui/locks', `attendance/trips/${tripId}/locks`].forEach((topic) => {
+    mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+  });
 
 };
 

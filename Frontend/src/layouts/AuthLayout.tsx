@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type CSSProperties } from 'react';
 import anh1 from '../assets/anh1.jpg';
 import anh2 from '../assets/anh2.jpg';
 import anh3 from '../assets/anh3.jpg';
 import anh4 from '../assets/anh4.jpg';
+import { Bus } from "lucide-react"; 
+import { useTheme } from '../theme/ThemeContext';
 const slides = [
   {
     background: `
@@ -52,6 +54,7 @@ interface AuthLayoutProps {
 
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const { colors, effects, isDarkMode } = useTheme();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -61,8 +64,27 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
     return () => clearInterval(interval);
   }, []);
 
+  const authThemeVars = {
+    '--auth-page-bg': isDarkMode
+      ? `radial-gradient(circle at 50% 50%, ${colors.surfaceLight} 0%, ${colors.background} 100%)`
+      : `radial-gradient(circle at 50% 50%, ${colors.surfaceLight} 0%, ${colors.background} 100%)`,
+    '--auth-card-bg': colors.surface,
+    '--auth-form-bg': colors.surface,
+    '--auth-input-bg': isDarkMode ? colors.background : '#ffffff',
+    '--auth-input-border': colors.borderLight,
+    '--auth-text': colors.textPrimary,
+    '--auth-muted': colors.textSecondary,
+    '--auth-border': colors.border,
+    '--auth-primary': colors.info,
+    '--auth-primary-text': '#ffffff',
+    '--auth-radius': effects.borderRadius.lg,
+    '--auth-shadow': isDarkMode
+      ? '0 25px 60px rgba(0, 0, 0, 0.35)'
+      : '0 25px 60px rgba(15, 23, 42, 0.12)',
+  } as CSSProperties;
+
   return (
-    <div className="auth-container p-2 p-md-4">
+    <div className="auth-container p-2 p-md-4" style={authThemeVars}>
       <div className="auth-card shadow-lg border-0">
         <div className="row g-0">
           
@@ -87,13 +109,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             {/* Nội dung bên trái */}
             <div className="auth-left-content" style={{ zIndex: 10 }}>
               <div className="d-flex align-items-center gap-2">
-                <div className="bg-white rounded-circle p-1 d-flex align-items-center justify-content-center">
-                  <img
-                    src="/favicon.svg"
-                    alt="logo"
-                    width="30"
-                    height="30"
-                  />
+                <div className="bg-white rounded-circle p-2 d-flex align-items-center justify-content-center">
+                  <Bus size={24} className="text-primary" strokeWidth={2.5} />
                 </div>
                 <h4 className="fw-bold m-0 text-white shadow-sm">BusTrack</h4>
               </div>
@@ -117,7 +134,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           </div>
 
           {/* BÊN PHẢI: FORM NHẬP LIỆU */}
-          <div className="col-7 auth-right bg-dark-surface h-100 overflow-auto">
+          <div className="col-7 auth-right h-100 overflow-auto">
             <div className="auth-form-wrapper py-5 px-3 px-md-5">
               {children}
             </div>

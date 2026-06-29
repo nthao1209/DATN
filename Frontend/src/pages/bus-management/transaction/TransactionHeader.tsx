@@ -1,14 +1,13 @@
 import React from 'react';
-import {ClipboardCheck} from 'lucide-react';
-import {useTheme} from '../../../theme/ThemeContext';
+import { ClipboardCheck } from 'lucide-react';
+import { useTheme } from '../../../theme/ThemeContext';
 
-interface TransactionHeaderProps{
-  hasPendingSync: boolean;
+interface TransactionHeaderProps {
   children: React.ReactNode;
 }
 
-const TransactionHeader: React.FC<TransactionHeaderProps> = ({ hasPendingSync, children }) => {
-  const {colors, isDarkMode} = useTheme();
+const TransactionHeader: React.FC<TransactionHeaderProps> = ({ children }) => {
+  const { colors, isDarkMode } = useTheme();
 
   return (
     <div className="d-flex align-items-center justify-content-between mb-4 px-2">
@@ -30,20 +29,6 @@ const TransactionHeader: React.FC<TransactionHeaderProps> = ({ hasPendingSync, c
       </div>
 
       <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-        {/* Online/Offline badge removed per request */}
-        {hasPendingSync && (
-          <span
-            className="badge rounded-pill px-3 py-2 fw-semibold"
-            style={{
-              backgroundColor: `${colors.info}15`,
-              color: colors.info,
-              border: `1px solid ${colors.info}33`,
-            }}
-          >
-            Có dữ liệu chờ đồng bộ
-          </span>
-        )}
-        
         {children}
       </div>
     </div>

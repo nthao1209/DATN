@@ -1,363 +1,206 @@
-import { Response } from "express";
-import { AuthRequest } from "../types/auth";
-import { publishDashboardRefresh, publishToTripTopic } from "../services/mqtt";
 import { AttendanceAction } from "@prisma/client";
+import { Response } from "express";
 import { prisma } from "../config/db";
-
-const pickEarlierDate = (
-  current?: Date | null,
-  incoming?: Date | null,
-): Date | null => {
-  if (!incoming) return current ?? null;
-  if (!current) return incoming;
-  return current < incoming ? current : incoming;
-};
-
-const syncBusRoundStatusTimes = async (
-  busId: number,
-  roundId: number,
-  checkInAt?: Date | null,
-  checkOutAt?: Date | null,
-) => {
-  if (!checkInAt && !checkOutAt) return;
-
-  const current = await prisma.busRoundStatus.findUnique({
-    where: { busId_roundId: { busId, roundId } },
-  });
-
-  const nextCheckInAt = checkInAt
-    ? pickEarlierDate(current?.checkInAt, checkInAt)
-    : null;
-  const nextCheckOutAt = checkOutAt
-    ? pickEarlierDate(current?.checkOutAt, checkOutAt)
-    : null;
-
-  await prisma.busRoundStatus.upsert({
-    where: { busId_roundId: { busId, roundId } },
-    create: {
-      busId,
-      roundId,
-      checkInLocked: false,
-      checkOutLocked: false,
-      checkInAt: nextCheckInAt,
-      checkOutAt: nextCheckOutAt,
-    },
-    update: {
-      ...(nextCheckInAt ? { checkInAt: nextCheckInAt } : {}),
-      ...(nextCheckOutAt ? { checkOutAt: nextCheckOutAt } : {}),
-    },
-  });
-};
+import { AuthRequest } from "../types/auth";
 
 const ensureTenant = (req: AuthRequest, res: Response): number | null => {
   if (!req.tenantId) {
     res.status(401).json({ message: "Unauthorized" });
     return null;
   }
+
   return req.tenantId;
 };
 
 const canAccessTransactions = (req: AuthRequest) =>
-  req.roleId === 2 || req.roleId === 3 || req.roleId === 1;
+  req.roleId === 1 || req.roleId === 2 || req.roleId === 3;
 
-const hasLockedAttendanceChange = (
-  locked: boolean | undefined,
-  currentValue: boolean | undefined,
-  incomingValue: boolean | undefined,
-) =>
-  Boolean(locked) &&
-  incomingValue !== undefined &&
-  incomingValue !== Boolean(currentValue);
+const parseBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
 
-const hasLockedAttendanceNoteChange = (
-  locked: boolean | undefined,
-  currentNote: string | null | undefined,
-  incomingNote: string | null | undefined,
-) =>
-  Boolean(locked) &&
-  incomingNote !== undefined &&
-  incomingNote !== (currentNote ?? null);
+  if (typeof value === "number") return value === 1;
 
-const readTrimmedNote = (value: unknown): string | null | undefined => {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return false;
+};
+
+const readTrimmedString = (value: unknown): string | null => {
+  if (value === undefined || value === null) return null;
 
   const trimmed = String(value).trim();
   return trimmed ? trimmed : null;
 };
 
-const resolveTransactionNotes = ({
-  checkIn,
-  checkOut,
-  checkInNote,
-  checkOutNote,
-  legacyNote,
-}: {
-  checkIn: boolean;
-  checkOut: boolean;
-  checkInNote?: string | null | undefined;
-  checkOutNote?: string | null | undefined;
-  legacyNote?: string | null | undefined;
-}) => {
-  const hasExplicitCheckInNote = checkInNote !== undefined;
-  const hasExplicitCheckOutNote = checkOutNote !== undefined;
+const hasAttendanceMutationInput = (body: any) =>
+  parseBoolean(body?.checkIn) ||
+  parseBoolean(body?.checkOut) ||
+  Boolean(readTrimmedString(body?.checkInNote)) ||
+  Boolean(readTrimmedString(body?.checkOutNote)) ||
+  Boolean(readTrimmedString(body?.note)) ||
+  Boolean(body?.checkInAt) ||
+  Boolean(body?.checkOutAt);
 
-  if (hasExplicitCheckInNote || hasExplicitCheckOutNote) {
+const getBusDisplayName = async (busId: number) => {
+  const bus = await prisma.bus.findUnique({
+    where: { id: busId },
+    select: { busCode: true, registrationNumber: true },
+  });
+
+  return bus?.busCode || bus?.registrationNumber || `xe ${busId}`;
+};
+
+const getActiveAttendanceBusConflict = async (
+  transactionId: number | undefined,
+  targetBusId: number,
+  roundId: number,
+) => {
+  if (!transactionId) {
     return {
-      ...(hasExplicitCheckInNote ? { checkInNote: checkInNote ?? null } : {}),
-      ...(hasExplicitCheckOutNote
-        ? { checkOutNote: checkOutNote ?? null }
-        : {}),
+      blocked: false,
+      allowTransferForCheckOut: false,
     };
   }
 
-  if (legacyNote === undefined) {
-    return {};
+  const [latestAttendanceEvent, latestCheckInEvent, latestCheckOutEvent] =
+    await Promise.all([
+      prisma.attendanceEvent.findFirst({
+        where: {
+          transactionId,
+          action: {
+            in: [
+              AttendanceAction.CHECK_IN_ON,
+              AttendanceAction.CHECK_IN_OFF,
+              AttendanceAction.CHECK_OUT_ON,
+              AttendanceAction.CHECK_OUT_OFF,
+            ],
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { action: true, busId: true },
+      }),
+      prisma.attendanceEvent.findFirst({
+        where: {
+          transactionId,
+          action: {
+            in: [
+              AttendanceAction.CHECK_IN_ON,
+              AttendanceAction.CHECK_IN_OFF,
+            ],
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { action: true, busId: true },
+      }),
+      prisma.attendanceEvent.findFirst({
+        where: {
+          transactionId,
+          action: {
+            in: [
+              AttendanceAction.CHECK_OUT_ON,
+              AttendanceAction.CHECK_OUT_OFF,
+            ],
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { action: true, busId: true },
+      }),
+    ]);
+
+  if (
+    !latestAttendanceEvent ||
+    Number(latestAttendanceEvent.busId) === Number(targetBusId)
+  ) {
+    return {
+      blocked: false,
+      allowTransferForCheckOut: false,
+    };
   }
 
-  if (checkIn && !checkOut) {
-    return { checkInNote: legacyNote ?? null };
+  const isCurrentlyCheckedInElsewhere =
+    latestCheckInEvent?.action === AttendanceAction.CHECK_IN_ON &&
+    Number(latestCheckInEvent.busId) !== Number(targetBusId);
+
+  const isAlreadyCheckedOutElsewhere =
+    latestCheckOutEvent?.action === AttendanceAction.CHECK_OUT_ON &&
+    Number(latestCheckOutEvent.busId) !== Number(targetBusId);
+
+  if (isAlreadyCheckedOutElsewhere) {
+    return {
+      blocked: true,
+      code: "PASSENGER_ALREADY_CHECKED_OUT_ON_ANOTHER_BUS",
+      busId: Number(latestCheckOutEvent.busId),
+      busName: await getBusDisplayName(Number(latestCheckOutEvent.busId)),
+      message: `Passenger is already checked out on ${await getBusDisplayName(
+        Number(latestCheckOutEvent.busId),
+      )}.`,
+    };
   }
 
-  if (checkOut && !checkIn) {
-    return { checkOutNote: legacyNote ?? null };
+  if (!isCurrentlyCheckedInElsewhere || !latestCheckInEvent?.busId) {
+    return {
+      blocked: false,
+      allowTransferForCheckOut: false,
+    };
+  }
+
+  const sourceBusRoundStatus = await prisma.busRoundStatus.findUnique({
+    where: {
+      busId_roundId: {
+        busId: Number(latestCheckInEvent.busId),
+        roundId,
+      },
+    },
+    select: {
+      checkInLocked: true,
+      driverConfirmedBy: true,
+    },
+  });
+
+  if (sourceBusRoundStatus?.checkInLocked) {
+    return {
+      blocked: false,
+      allowTransferForCheckOut: true,
+      sourceBusId: Number(latestCheckInEvent.busId),
+      sourceBusName: await getBusDisplayName(Number(latestCheckInEvent.busId)),
+    };
   }
 
   return {
-    checkInNote: legacyNote ?? null,
-    checkOutNote: legacyNote ?? null,
+    blocked: true,
+    code: "PASSENGER_ALREADY_CHECKED_IN_ON_ANOTHER_BUS",
+    busId: Number(latestCheckInEvent.busId),
+    busName: await getBusDisplayName(Number(latestCheckInEvent.busId)),
+    message: `Passenger is already checked in on ${await getBusDisplayName(
+      Number(latestCheckInEvent.busId),
+    )}. Lock check-in on that bus before adding this passenger to another bus for check-out.`,
   };
 };
 
-const resolveEventBusIdByActor = async (
-  actorId: number | null,
-  tripId: number,
-  tenantId: number,
-  fallbackBusId: number,
-) => {
-  if (!actorId) return fallbackBusId;
-
-  const actorBus = await prisma.bus.findFirst({
+const getTargetBusRoundCompletion = async (busId: number, roundId: number) =>
+  prisma.busRoundStatus.findUnique({
     where: {
-      tripId,
-      managerId: actorId,
-      trip: { tenantId },
-    },
-    select: { id: true },
-  });
-
-  return actorBus?.id ?? fallbackBusId;
-};
-
-const publishAttendanceUpdate = async (transactionId: number) => {
-  const transaction = await prisma.transaction.findUnique({
-    where: { id: transactionId },
-    include: {
-      passenger: {
-        include: {
-          bus: {
-            select: {
-              id: true,
-              busCode: true,
-              registrationNumber: true,
-              tripId: true,
-              managerId: true,
-              trip: {
-                select: { tenantId: true },
-              },
-              manager: {
-                select: { id: true, name: true, email: true },
-              },
-            },
-          },
-        },
-      },
-      bus: {
-        select: {
-          id: true,
-          busCode: true,
-          registrationNumber: true,
-          tripId: true,
-          managerId: true,
-          trip: {
-            select: { tenantId: true },
-          },
-          manager: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-      },
-      round: {
-        select: {
-          id: true,
-          name: true,
-        },
+      busId_roundId: {
+        busId,
+        roundId,
       },
     },
-  });
-
-  if (!transaction) return;
-
-  // Lấy event mới nhất trước
-  const events = await prisma.attendanceEvent.findMany({
-    where: { transactionId },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const checkInEvent = events.find(
-    (e) =>
-      e.action === AttendanceAction.CHECK_IN_ON ||
-      e.action === AttendanceAction.CHECK_IN_OFF,
-  );
-
-  const checkOutEvent = events.find(
-    (e) =>
-      e.action === AttendanceAction.CHECK_OUT_ON ||
-      e.action === AttendanceAction.CHECK_OUT_OFF,
-  );
-
-  // ===== XE HIỆN TẠI =====
-  // Ưu tiên event mới nhất
-  const latestEvent = events[0];
-
-  const latestEventBusId =
-    latestEvent?.busId ??
-    checkOutEvent?.busId ??
-    checkInEvent?.busId ??
-    transaction.busId;
-
-  // Query actual bus theo event mới nhất
-  const actualBus = await prisma.bus.findUnique({
-    where: { id: latestEventBusId },
     select: {
-      id: true,
-      busCode: true,
-      registrationNumber: true,
-      tripId: true,
-      trip: {
-        select: {
-          tenantId: true,
-        },
-      },
-      managerId: true,
-      manager: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
+      driverConfirmedBy: true,
+      checkOutLocked: true,
     },
   });
-
-  // Avoid fetching user names here to keep payloads compact; frontend can fall back to ids when needed.
-
-  const passengerBus = transaction.passenger.bus;
-
-  // So sánh xe được phân công với xe hiện tại
-  const isMisassigned = Number(passengerBus.id) !== Number(latestEventBusId);
-
-  // Manager của xe hiện tại
-  const actualManagerId = actualBus?.managerId ?? null;
-
-  // Manager xe được phân công
-  const assignedManagerId = passengerBus.managerId ?? null;
-
-  const checkInNeedsReview = Boolean(
-    actualManagerId &&
-    checkInEvent?.actorId &&
-    Number(checkInEvent.actorId) !== Number(actualManagerId),
-  );
-
-  const checkOutNeedsReview = Boolean(
-    actualManagerId &&
-    checkOutEvent?.actorId &&
-    Number(checkOutEvent.actorId) !== Number(actualManagerId),
-  );
-
-  const requiresReview =
-    isMisassigned || checkInNeedsReview || checkOutNeedsReview;
-
-  const targetManagerId = isMisassigned ? assignedManagerId : actualManagerId;
-
-  // keep only manager id as routing key; avoid including manager name to reduce message size
-
-  const payload = {
-    project: "backend",
-
-    tripId: actualBus?.tripId ?? transaction.bus.tripId,
-
-    roundId: transaction.roundId,
-    roundName: transaction.round?.name,
-
-    // ===== XE HIỆN TẠI =====
-    busId: actualBus?.id,
-
-    passengerId: transaction.passengerId,
-    passengerName: transaction.passenger.name,
-
-    // ===== XE GỐC CỦA KHÁCH =====
-    passengerBusId: passengerBus.id,
-    passengerBusRegistrationNumber: passengerBus.registrationNumber,
-    passengerBusManagerId: passengerBus.managerId,
-
-    // ===== CHECK IN =====
-    checkInBy: checkInEvent?.actorId,
-    checkInAt: checkInEvent?.createdAt,
-    checkInBusId: checkInEvent?.busId,
-
-    // ===== CHECK OUT =====
-    checkOutBy: checkOutEvent?.actorId,
-    checkOutAt: checkOutEvent?.createdAt,
-    checkOutBusId: checkOutEvent?.busId,
-
-    targetManagerId,
-
-    checkIn: transaction.checkIn,
-    checkOut: transaction.checkOut,
-    checkInNote: transaction.checkInNote ?? "",
-    checkOutNote: transaction.checkOutNote ?? "",
-    updatedAt: new Date().toISOString(),
-
-    requiresReview,
-  };
-
-  const tenantId =
-    actualBus?.trip?.tenantId ??
-    transaction.bus.trip.tenantId ??
-    transaction.passenger.bus.trip.tenantId;
-
-  if (tenantId) {
-    publishDashboardRefresh(tenantId, {
-      type: 'dashboard.refresh',
-      entity: 'transaction',
-      action: 'update',
-      tripId: payload.tripId,
-      requiresReview,
-      updatedAt: payload.updatedAt,
-    });
-  }
-
-  if (requiresReview) {
-    publishToTripTopic(payload.tripId, {
-      type: "attendance.requires_review",
-      ...payload,
-    });
-
-    return;
-  }
-
-  publishToTripTopic(payload.tripId, {
-    type: "attendance.updated",
-    ...payload,
-  });
-};
 
 export const transactionController = {
   getAll: async (req: AuthRequest, res: Response) => {
     try {
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
+
       if (!canAccessTransactions(req)) {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -369,17 +212,23 @@ export const transactionController = {
                 {
                   bus: {
                     managerId: req.user.id,
-                    trip: {
-                      tenantId,
-                    },
+                    trip: { tenantId },
                   },
                 },
                 {
                   passenger: {
                     bus: {
                       managerId: req.user.id,
-                      trip: {
-                        tenantId,
+                      trip: { tenantId },
+                    },
+                  },
+                },
+                {
+                  events: {
+                    some: {
+                      bus: {
+                        managerId: req.user.id,
+                        trip: { tenantId },
                       },
                     },
                   },
@@ -388,9 +237,7 @@ export const transactionController = {
             }
           : {
               bus: {
-                trip: {
-                  tenantId,
-                },
+                trip: { tenantId },
               },
             };
 
@@ -410,7 +257,7 @@ export const transactionController = {
           },
           round: true,
           events: {
-            orderBy: { createdAt: "asc" },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
           bus: {
             select: {
@@ -433,8 +280,17 @@ export const transactionController = {
     try {
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
+
       if (!canAccessTransactions(req)) {
         return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (hasAttendanceMutationInput(req.body)) {
+        return res.status(400).json({
+          code: "ATTENDANCE_MUST_USE_MQTT",
+          message:
+            "Attendance changes must be synced through MQTT worker. This endpoint only adds a passenger placeholder to the attendance table.",
+        });
       }
 
       const busId = Number(req.body?.busId);
@@ -449,24 +305,54 @@ export const transactionController = {
 
       const bus = await prisma.bus.findFirst({
         where: { id: busId, trip: { tenantId } },
+        select: { id: true, tripId: true },
       });
-      if (!bus) return res.status(404).json({ message: "Bus not found" });
+
+      if (!bus) {
+        return res.status(404).json({ message: "Bus not found" });
+      }
 
       const round = await prisma.round.findFirst({
         where: { id: roundId, trip: { tenantId } },
+        select: { id: true, tripId: true },
       });
-      if (!round) return res.status(404).json({ message: "Round not found" });
+
+      if (!round) {
+        return res.status(404).json({ message: "Round not found" });
+      }
+
+      if (Number(round.tripId) !== Number(bus.tripId)) {
+        return res
+          .status(400)
+          .json({ message: "Round does not belong to the selected bus trip" });
+      }
 
       const passenger = await prisma.passenger.findFirst({
         where: {
           id: passengerId,
-          bus: {
-            trip: { tenantId },
-          },
+          bus: { trip: { tenantId } },
+        },
+        select: { id: true },
+      });
+
+      if (!passenger) {
+        return res.status(404).json({ message: "Passenger not found" });
+      }
+
+      const busRoundStatus = await prisma.busRoundStatus.findUnique({
+        where: { busId_roundId: { busId, roundId } },
+        select: {
+          driverConfirmedBy: true,
+          checkOutLocked: true,
         },
       });
-      if (!passenger)
-        return res.status(404).json({ message: "Passenger not found" });
+
+      if (busRoundStatus?.driverConfirmedBy) {
+        return res.status(403).json({
+          message:
+            "Round has been locked by driver; cannot add more passengers",
+        });
+      }
 
       const existing = await prisma.transaction.findUnique({
         where: {
@@ -477,476 +363,87 @@ export const transactionController = {
         },
       });
 
-      const incomingCheckIn =
-        req.body?.checkIn !== undefined
-          ? Boolean(req.body?.checkIn)
-          : undefined;
-      const incomingCheckOut =
-        req.body?.checkOut !== undefined
-          ? Boolean(req.body?.checkOut)
-          : undefined;
-      const incomingCheckInAt = req.body?.checkInAt
-        ? new Date(req.body.checkInAt)
-        : undefined;
-      const incomingCheckOutAt = req.body?.checkOutAt
-        ? new Date(req.body.checkOutAt)
-        : undefined;
-      const incomingCheckInNote = readTrimmedNote(req.body?.checkInNote);
-      const incomingCheckOutNote = readTrimmedNote(req.body?.checkOutNote);
-      const incomingLegacyNote = readTrimmedNote(req.body?.note);
-      const currentCheckInNote = readTrimmedNote(existing?.checkInNote) ?? null;
-      const currentCheckOutNote = readTrimmedNote(existing?.checkOutNote) ?? null;
-
-      let actorId = req.user?.id ?? null;
-      if (!actorId && req.firebaseUser?.uid) {
-        try {
-          const possibleUser = await prisma.user.findUnique({
-            where: { firebaseUid: req.firebaseUser.uid },
-          });
-          if (possibleUser) {
-            actorId = possibleUser.id;
-          }
-        } catch (e) {
-        }
-      }
-
-      if (!actorId) {
-      }
-
-      // Check BusRoundStatus locks
-      const brs = await prisma.busRoundStatus.findUnique({
-        where: { busId_roundId: { busId, roundId } },
-      });
-
-      if (brs?.driverConfirmedBy) {
-        return res
-          .status(403)
-          .json({ message: 'Round has been locked by driver; cannot add more passengers' });
-      }
-
-      if (brs) {
-        if (
-          hasLockedAttendanceChange(
-            brs.checkInLocked,
-            existing?.checkIn,
-            incomingCheckIn,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-in for this bus/round is locked" });
-        }
-        if (
-          hasLockedAttendanceNoteChange(
-            brs.checkInLocked,
-            currentCheckInNote,
-            incomingCheckInNote,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-in note for this bus/round is locked" });
-        }
-        if (
-          hasLockedAttendanceChange(
-            brs.checkOutLocked,
-            existing?.checkOut,
-            incomingCheckOut,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-out for this bus/round is locked" });
-        }
-        if (
-          hasLockedAttendanceNoteChange(
-            brs.checkOutLocked,
-            currentCheckOutNote,
-            incomingCheckOutNote,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-out note for this bus/round is locked" });
-        }
-      }
-
-      const nextCheckIn = existing
-        ? Boolean(existing.checkIn) || Boolean(incomingCheckIn)
-        : Boolean(incomingCheckIn);
-      const nextCheckOut = existing
-        ? Boolean(existing.checkOut) || Boolean(incomingCheckOut)
-        : Boolean(incomingCheckOut);
-      const now = new Date();
-      const eventBusId = await resolveEventBusIdByActor(
-        actorId,
-        Number(round.tripId),
-        tenantId,
-        busId,
-      );
-      const resolvedNotes = resolveTransactionNotes({
-        checkIn: nextCheckIn,
-        checkOut: nextCheckOut,
-        checkInNote: incomingCheckInNote,
-        checkOutNote: incomingCheckOutNote,
-        legacyNote: incomingLegacyNote,
-      });
-
-      const created = await prisma.transaction.upsert({
-        where: {
-          passengerId_roundId: {
-            passengerId,
-            roundId,
-          },
-        },
-        update: {
-          busId,
-          checkIn: nextCheckIn,
-          checkOut: nextCheckOut,
-          ...(resolvedNotes.checkInNote !== undefined
-            ? { checkInNote: resolvedNotes.checkInNote }
-            : {}),
-          ...(resolvedNotes.checkOutNote !== undefined
-            ? { checkOutNote: resolvedNotes.checkOutNote }
-            : {}),
-        },
-        create: {
-          busId: Number(busId),
-          roundId: Number(roundId),
-          passengerId: Number(passengerId),
-          checkIn: nextCheckIn,
-          checkOut: nextCheckOut,
-          ...resolvedNotes,
-        },
-      });
-
-      // create attendance events only when an action is newly enabled
-      const createdEvents: { action: "CHECK_IN" | "CHECK_OUT"; at: Date }[] =
-        [];
-
-      if (nextCheckIn && !existing?.checkIn) {
-        const at = incomingCheckInAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: created.id,
-            action: AttendanceAction.CHECK_IN_ON,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkInNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
-        });
-        createdEvents.push({ action: "CHECK_IN", at });
-      }
-
-      // create OFF event when action was previously enabled but now disabled
-      if (existing?.checkIn && !nextCheckIn) {
-        const at = incomingCheckInAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: created.id,
-            action: AttendanceAction.CHECK_IN_OFF,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkInNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
+      if (existing?.checkIn && existing.checkOut) {
+        return res.status(409).json({
+          code: "PASSENGER_ATTENDANCE_ALREADY_COMPLETED",
+          message:
+            "Passenger has completed both check-in and check-out and cannot be added again.",
+          busId: existing.busId,
         });
       }
 
-      if (nextCheckOut && !existing?.checkOut) {
-        const at = incomingCheckOutAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: created.id,
-            action: AttendanceAction.CHECK_OUT_ON,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkOutNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
-        });
-        createdEvents.push({ action: "CHECK_OUT", at });
-      }
-
-      if (existing?.checkOut && !nextCheckOut) {
-        const at = incomingCheckOutAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: created.id,
-            action: AttendanceAction.CHECK_OUT_OFF,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkOutNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
-        });
-      }
-
-      // sync busRoundStatus using any created event timestamps
-      const checkInEventForSync = createdEvents.find(
-        (e) => e.action === "CHECK_IN",
-      );
-      const checkOutEventForSync = createdEvents.find(
-        (e) => e.action === "CHECK_OUT",
-      );
-
-      await syncBusRoundStatusTimes(
+      const activeAttendanceConflict = await getActiveAttendanceBusConflict(
+        existing?.id,
         busId,
         roundId,
-        checkInEventForSync ? checkInEventForSync.at : null,
-        checkOutEventForSync ? checkOutEventForSync.at : null,
       );
 
-      if (nextCheckIn || nextCheckOut) {
-        await publishAttendanceUpdate(created.id);
+      if (activeAttendanceConflict.blocked) {
+        return res.status(409).json({
+          code: activeAttendanceConflict.code,
+          message: activeAttendanceConflict.message,
+          busId: activeAttendanceConflict.busId,
+        });
       }
 
-      res.status(201).json(created);
-    } catch (error: any) {
-      res.status(500).json({ message: "Server error", detail: error?.message });
-    }
-  },
+      if (activeAttendanceConflict.allowTransferForCheckOut) {
+        const targetBusRoundStatus = await getTargetBusRoundCompletion(
+          busId,
+          roundId,
+        );
 
-  update: async (req: AuthRequest, res: Response) => {
-    try {
-      const tenantId = ensureTenant(req, res);
-      if (!tenantId) return;
-      if (!canAccessTransactions(req)) {
-        return res.status(403).json({ message: "Forbidden" });
-      }
-
-      const id = Number(req.params.id);
-      if (!id) {
-        return res.status(400).json({ message: "Invalid transaction id" });
-      }
-
-      const existing = await prisma.transaction.findFirst({
-        where: {
-          id,
-          bus: {
-            trip: {
-              tenantId,
-            },
-          },
-        },
-      });
-
-      if (!existing) {
-        return res.status(404).json({ message: "Transaction not found" });
-      }
-
-      const checkInInput = req.body?.checkIn;
-      const checkOutInput = req.body?.checkOut;
-      const incomingCheckInAt = req.body?.checkInAt
-        ? new Date(req.body.checkInAt)
-        : undefined;
-      const incomingCheckOutAt = req.body?.checkOutAt
-        ? new Date(req.body.checkOutAt)
-        : undefined;
-      const incomingCheckInNote = readTrimmedNote(req.body?.checkInNote);
-      const incomingCheckOutNote = readTrimmedNote(req.body?.checkOutNote);
-      const incomingLegacyNote = readTrimmedNote(req.body?.note);
-      const currentCheckInNote = readTrimmedNote(existing.checkInNote) ?? null;
-      const currentCheckOutNote = readTrimmedNote(existing.checkOutNote) ?? null;
-
-      let actorId = req.user?.id ?? null;
-      if (!actorId && req.firebaseUser?.uid) {
-        try {
-          const possibleUser = await prisma.user.findUnique({
-            where: { firebaseUid: req.firebaseUser.uid },
+        if (targetBusRoundStatus?.driverConfirmedBy) {
+          return res.status(403).json({
+            code: "TARGET_BUS_ROUND_COMPLETED",
+            message:
+              "Target bus has completed this round and cannot receive extra passengers.",
           });
-          if (possibleUser) actorId = possibleUser.id;
-        } catch (e) {
         }
-      }
 
-      // enforce BusRoundStatus locks
-      const brs = await prisma.busRoundStatus.findUnique({
-        where: {
-          busId_roundId: { busId: existing.busId, roundId: existing.roundId },
-        },
-      });
-      if (brs) {
-        if (
-          hasLockedAttendanceChange(
-            brs.checkInLocked,
-            existing.checkIn,
-            checkInInput !== undefined ? Boolean(checkInInput) : undefined,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-in for this bus/round is locked" });
+        if (targetBusRoundStatus?.checkOutLocked) {
+          return res.status(403).json({
+            code: "TARGET_BUS_CHECK_OUT_LOCKED",
+            message:
+              "Target bus check-out is locked and cannot receive extra passengers.",
+          });
         }
-        if (
-          hasLockedAttendanceNoteChange(
-            brs.checkInLocked,
-            currentCheckInNote,
-            incomingCheckInNote,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-in note for this bus/round is locked" });
-        }
-        if (
-          hasLockedAttendanceChange(
-            brs.checkOutLocked,
-            existing.checkOut,
-            checkOutInput !== undefined ? Boolean(checkOutInput) : undefined,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-out for this bus/round is locked" });
-        }
-        if (
-          hasLockedAttendanceNoteChange(
-            brs.checkOutLocked,
-            currentCheckOutNote,
-            incomingCheckOutNote,
-          )
-        ) {
-          return res
-            .status(403)
-            .json({ message: "Check-out note for this bus/round is locked" });
-        }
-      }
 
-      const nextCheckIn =
-        checkInInput !== undefined ? Boolean(checkInInput) : existing.checkIn;
-
-      const nextCheckOut =
-        checkOutInput !== undefined
-          ? Boolean(checkOutInput)
-          : existing.checkOut;
-      const now = new Date();
-
-      const roundOfExisting = await prisma.round.findFirst({
-        where: { id: existing.roundId, trip: { tenantId } },
-        select: { tripId: true },
-      });
-      if (!roundOfExisting) {
-        return res
-          .status(404)
-          .json({ message: "Round not found for transaction" });
-      }
-
-      const eventBusId = await resolveEventBusIdByActor(
-        actorId,
-        Number(roundOfExisting.tripId),
-        tenantId,
-        existing.busId,
-      );
-      const hasAnyNoteInput =
-        incomingCheckInNote !== undefined ||
-        incomingCheckOutNote !== undefined ||
-        incomingLegacyNote !== undefined;
-      const resolvedNotes = resolveTransactionNotes({
-        checkIn: nextCheckIn,
-        checkOut: nextCheckOut,
-        checkInNote: incomingCheckInNote,
-        checkOutNote: incomingCheckOutNote,
-        legacyNote: incomingLegacyNote,
-      });
-
-      const updated = await prisma.transaction.update({
-        where: { id },
-        data: {
-          ...(checkInInput !== undefined ? { checkIn: nextCheckIn } : {}),
-          ...(checkOutInput !== undefined ? { checkOut: nextCheckOut } : {}),
-          ...(hasAnyNoteInput && resolvedNotes.checkInNote !== undefined
-            ? { checkInNote: resolvedNotes.checkInNote }
-            : {}),
-          ...(hasAnyNoteInput && resolvedNotes.checkOutNote !== undefined
-            ? { checkOutNote: resolvedNotes.checkOutNote }
-            : {}),
-        },
-      });
-
-      // create attendance events for newly enabled actions
-      const createdEvents: { action: "CHECK_IN" | "CHECK_OUT"; at: Date }[] =
-        [];
-      if (checkInInput !== undefined && nextCheckIn && !existing.checkIn) {
-        const at = incomingCheckInAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: updated.id,
-            action: AttendanceAction.CHECK_IN_ON,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkInNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
+        const updatedForCheckOut = await prisma.transaction.update({
+          where: { id: existing!.id },
+          data: { busId },
         });
-        createdEvents.push({ action: "CHECK_IN", at });
+
+        return res.status(200).json(updatedForCheckOut);
       }
 
-      // OFF event for check-in if it was previously true and now false
-      if (checkInInput !== undefined && existing.checkIn && !nextCheckIn) {
-        const at = incomingCheckInAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: updated.id,
-            action: AttendanceAction.CHECK_IN_OFF,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkInNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
-        });
+      if (existing?.checkIn || existing?.checkOut) {
+        return res.status(200).json(existing);
       }
 
-      if (checkOutInput !== undefined && nextCheckOut && !existing.checkOut) {
-        const at = incomingCheckOutAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: updated.id,
-            action: AttendanceAction.CHECK_OUT_ON,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkOutNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
-        });
-        createdEvents.push({ action: "CHECK_OUT", at });
-      }
+      const transaction = existing
+        ? await prisma.transaction.update({
+            where: { id: existing.id },
+            data: {
+              busId,
+              checkIn: false,
+              checkOut: false,
+              checkInNote: null,
+              checkOutNote: null,
+            },
+          })
+        : await prisma.transaction.create({
+            data: {
+              busId,
+              roundId,
+              passengerId,
+              checkIn: false,
+              checkOut: false,
+              checkInNote: null,
+              checkOutNote: null,
+            },
+          });
 
-      // OFF event for check-out if it was previously true and now false
-      if (checkOutInput !== undefined && existing.checkOut && !nextCheckOut) {
-        const at = incomingCheckOutAt ?? now;
-        await prisma.attendanceEvent.create({
-          data: {
-            transactionId: updated.id,
-            action: AttendanceAction.CHECK_OUT_OFF,
-            actorId,
-            busId: eventBusId,
-            note: resolvedNotes.checkOutNote ?? incomingLegacyNote ?? null,
-            createdAt: at,
-          },
-        });
-      }
-
-      const checkInEventForSync = createdEvents.find(
-        (e) => e.action === "CHECK_IN",
-      );
-      const checkOutEventForSync = createdEvents.find(
-        (e) => e.action === "CHECK_OUT",
-      );
-
-      await syncBusRoundStatusTimes(
-        existing.busId,
-        existing.roundId,
-        checkInEventForSync ? checkInEventForSync.at : null,
-        checkOutEventForSync ? checkOutEventForSync.at : null,
-      );
-
-      if (checkInInput !== undefined || checkOutInput !== undefined) {
-        await publishAttendanceUpdate(updated.id);
-      }
-
-      res.json(updated);
+      res.status(existing ? 200 : 201).json(transaction);
     } catch (error: any) {
       res.status(500).json({ message: "Server error", detail: error?.message });
     }
@@ -956,6 +453,7 @@ export const transactionController = {
     try {
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
+
       if (!canAccessTransactions(req)) {
         return res.status(403).json({ message: "Forbidden" });
       }
@@ -969,8 +467,13 @@ export const transactionController = {
         where: {
           id,
           bus: {
-            trip: {
-              tenantId,
+            trip: { tenantId },
+          },
+        },
+        include: {
+          _count: {
+            select: {
+              events: true,
             },
           },
         },
@@ -978,6 +481,14 @@ export const transactionController = {
 
       if (!existing) {
         return res.status(404).json({ message: "Transaction not found" });
+      }
+
+      if (existing.checkIn || existing.checkOut) {
+        return res.status(409).json({
+          code: "TRANSACTION_HAS_ACTIVE_ATTENDANCE",
+          message:
+            "Không thể xóa khách đang có trạng thái điểm danh. Hãy bỏ tick điểm danh trước khi xóa khỏi bảng.",
+        });
       }
 
       await prisma.transaction.delete({ where: { id } });

@@ -19,6 +19,10 @@ import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChange
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const EMPTY_ROWS_COUNT = 1;
+const normalizePassengerTel = (value: unknown) => {
+  const text = String(value ?? '').trim();
+  return text.toLowerCase() === 'null' ? '' : text;
+};
 
 const PassengerPage: React.FC = () => {
   const { colors, effects, isDarkMode } = useTheme();
@@ -90,7 +94,7 @@ const PassengerPage: React.FC = () => {
 
   const passengersSignature = useMemo(() => {
     if (!passengers) return '';
-    return passengers.map((p: any) => `${p.id}-${p.name}-${p.tel}-${p.bus?.id}`).join('|');
+    return passengers.map((p: any) => `${p.id}-${p.name}-${normalizePassengerTel(p.tel)}-${p.bus?.id}`).join('|');
   }, [passengers]);
 
 useEffect(() => {
@@ -100,7 +104,7 @@ useEffect(() => {
       id: p.id,
       localId: `db_${p.id}`,
       name: p.name || '',
-      tel: p.tel || '',
+      tel: normalizePassengerTel(p.tel),
       note: p.note || '',
       tripId: p.bus?.trip?.id ? Number(p.bus.trip.id) : selectedTripId,
       busId: p.bus?.id ? Number(p.bus.id) : null,
@@ -152,6 +156,7 @@ useEffect(() => {
 
   const isAllTripsView = selectedTripId === null && selectedBusId === null;
   const isTargetSelectionReady = Boolean(selectedTripId && selectedBusId);
+  const isPassengerEditingLocked = !isTargetSelectionReady;
 
   const isSameRow = (current: PassengerRow, initial: PassengerRow) => {
     const currentNote = (current.note || '').trim();
@@ -232,6 +237,8 @@ useEffect(() => {
 
   // --- ACTIONS ---
   const handleCellChange = <K extends keyof PassengerRow>(localId: string, key: K, value: PassengerRow[K]) => {
+    if (isPassengerEditingLocked) return;
+
     setRows((prev) => prev.map((row) => {
       if (row.localId !== localId) return row;
       const nextRow = { ...row, [key]: value };
@@ -243,7 +250,7 @@ useEffect(() => {
   };
 
   const handleAddRow = () => {
-    if (isAllTripsView) return;
+    if (isPassengerEditingLocked) return;
     const emptyRow = rows.find((row) => !row.id && !isNewRowDirty(row));
 
     if (emptyRow) {
@@ -262,13 +269,13 @@ useEffect(() => {
   };
 
   const handleDeleteRow = (row: PassengerRow) => {
-    if (isAllTripsView) return;
+    if (isPassengerEditingLocked) return;
     if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
     setRows((prev) => prev.filter((item) => item.localId !== row.localId));
   };
 
   const handleSave = async () => {
-    if (isAllTripsView) return;
+    if (isPassengerEditingLocked) return;
     if (!selectedTripId || !selectedBusId) {
       enqueueSnackbar('Vui lòng chọn cả chuyến đi và xe trước khi lưu', { variant: 'warning' });
       return;
@@ -377,7 +384,7 @@ useEffect(() => {
 
   const columns = buildPassengerColumns({
     trips: selectedTripId ? trips.filter(t => t.id === selectedTripId) : trips,
-    busesByTrip, readOnly: isAllTripsView, handleCellChange, handleDeleteRow,
+    busesByTrip, readOnly: isPassengerEditingLocked, handleCellChange, handleDeleteRow,
   });
 
   const displayRows = useMemo(() => {
@@ -615,7 +622,7 @@ useEffect(() => {
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
         />
-        {!isAllTripsView && (
+        {!isPassengerEditingLocked && (
           <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
             <button 
               className="btn-add-row-bottom w-100 py-2" 

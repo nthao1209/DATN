@@ -76,10 +76,10 @@ export type MqttSubscriptionHandle = {
 const MQTT_WS_URL = import.meta.env.VITE_MQTT_WS_URL || 'wss://mqtt.toolhub.app:8084';
 const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || '';
 const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || '';
-const MQTT_ADMIN_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ADMIN_TOPIC_PREFIX || 'attendance/trips';
 const MQTT_LOCKS_TOPIC_PREFIX = import.meta.env.VITE_MQTT_LOCKS_TOPIC_PREFIX || 'attendance/trips';
 const MQTT_UI_TOPIC_PREFIX = import.meta.env.VITE_MQTT_UI_TOPIC_PREFIX || 'attendance/ui/trip';
 const MQTT_ATTENDANCE_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ATTENDANCE_TOPIC_PREFIX || 'attendance';
+const MQTT_ATTENDANCE_ACK_TOPIC_PREFIX = import.meta.env.VITE_MQTT_ATTENDANCE_ACK_TOPIC_PREFIX || 'attendance/ack/action';
 
 const getClientId = () => `web_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 
@@ -109,7 +109,6 @@ const ensureSharedClient = () => {
     connectTimeout: 10000,
     keepalive: 30,
   });
-  console.log('Connecting to MQTT broker...', { MQTT_WS_URL, MQTT_USERNAME: MQTT_USERNAME ? '***' : null });
 
   sharedClient.on('connect', () => {
     notifyStatus('connected');
@@ -128,12 +127,9 @@ const ensureSharedClient = () => {
     if (!handlers || handlers.size === 0) {
       return;
     }
-
-    try {
       const parsed = JSON.parse(payload.toString()) as Record<string, unknown>;
       handlers.forEach((handler) => handler(topic, parsed));
-    } catch (err) {
-    }
+    
   });
 
   notifyStatus('connecting');
@@ -239,6 +235,10 @@ export const subscribeMqttStatus = (listener: (status: MqttBrokerStatus) => void
 
 export const getMqttStatus = () => currentStatus;
 
+export const ensureMqttConnected = async () => {
+  await waitForClientConnection();
+};
+
 export const subscribeAttendanceUpdates = (
   tripId: number,
   onMessage: (event: AttendanceUpdateEvent) => void,
@@ -287,7 +287,7 @@ export const subscribeLockUpdates = (
   tripId: number,
   onMessage: (event: UnlockMqttEvent) => void,
 ): MqttSubscriptionHandle => {
-  return registerTopicHandlers([`${MQTT_LOCKS_TOPIC_PREFIX}/${tripId}/locks`], (_topic, parsed) => {
+  return registerTopicHandlers([`${MQTT_LOCKS_TOPIC_PREFIX}/${tripId}/locks`, 'attendance/ui/locks'], (_topic, parsed) => {
     if (
       (parsed.type === 'round.lock.changed' || parsed.type === 'bus.round.lock.updated') &&
       Number(parsed.tripId) === Number(tripId)
@@ -297,65 +297,51 @@ export const subscribeLockUpdates = (
   });
 };
 
-/**
- * @deprecated Use subscribeAdminUnlockRequests, subscribeRequesterUnlockResponse, subscribeLockUpdates instead
- */
-export const subscribeUnlockRequestEvents = (
-  tripId: number,
-  onMessage: (event: UnlockMqttEvent) => void,
-): MqttSubscriptionHandle => {
-  return registerTopicHandlers(
-    [`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, `${MQTT_ADMIN_TOPIC_PREFIX}/${tripId}/admin/unlock-requests`],
-    (_topic, parsed) => {
-      if (
-        (parsed.type === 'unlock.request.created' ||
-          parsed.type === 'unlock.request.created.self' ||
-          parsed.type === 'unlock.request.approved' ||
-          parsed.type === 'unlock.request.rejected' ||
-          parsed.type === 'round.lock.changed' ||
-          parsed.type === 'bus.round.lock.updated') &&
-        Number(parsed.tripId) === Number(tripId)
-      ) {
-        onMessage(parsed as UnlockMqttEvent);
-      }
-    },
-  );
-};
 
-export const publishAttendanceUpdate = async (tripId: number, payload?: Partial<AttendanceUpdateEvent>) => {
-  const client = await waitForClientConnection();
+const createAttendanceAckWaiter = (actionId: string, timeoutMs = 15000) => {
+  let timeoutId: number | undefined;
+  let subscription: MqttSubscriptionHandle | null = null;
 
-  const message: AttendanceUpdateEvent = {
-    type: 'attendance.changed',
-    tripId,
-    passengerId: payload?.passengerId || 0,
-    roundId: payload?.roundId || 0,
-    busId: payload?.busId || 0,
-    checkIn: payload?.checkIn || false,
-    checkOut: payload?.checkOut || false,
-    checkInNote: payload?.checkInNote,
-    checkOutNote: payload?.checkOutNote,
-    updatedAt: new Date().toISOString(),
-    project: payload?.project,
-  };
-
-  await new Promise<void>((resolve, reject) => {
-    client.publish(`${MQTT_UI_TOPIC_PREFIX}/${tripId}`, JSON.stringify(message), { qos: 1, retain: false }, (error) => {
-      if (error) {
-        reject(error);
-        return;
+  const promise = new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
       }
 
-      resolve();
-    });
+      subscription?.end(true);
+      subscription = null;
+    };
+
+    subscription = registerTopicHandlers(
+      [`${MQTT_ATTENDANCE_ACK_TOPIC_PREFIX}/${actionId}`],
+      (_topic, parsed) => {
+        if (
+          parsed.type === 'attendance.persisted' &&
+          parsed.status === 'ok' &&
+          parsed.actionId === actionId
+        ) {
+          cleanup();
+          resolve();
+        }
+      },
+    );
+
+    timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('Timed out waiting for attendance DB ack'));
+    }, timeoutMs);
   });
+
+  return promise;
 };
 
 export const publishAttendanceAction = async (action: OfflineAction) => {
   const client = await waitForClientConnection();
 
   const topic = `${MQTT_ATTENDANCE_TOPIC_PREFIX}/${action.tripId}/${action.busId}/${action.roundId}/check`;
+  const ackPromise = action.id ? createAttendanceAckWaiter(action.id) : Promise.resolve();
   const payload = {
+    actionId: action.id,
     passengerId: action.passengerId,
     roundId: action.roundId,
     busId: action.busId,
@@ -365,6 +351,10 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
     checkOutBy: action.checkOutBy,
     checkInNote: action.checkInNote || '',
     checkOutNote: action.checkOutNote || '',
+    checkInTouched: Boolean(action.checkInTouched),
+    checkOutTouched: Boolean(action.checkOutTouched),
+    checkInNoteTouched: Boolean(action.checkInNoteTouched),
+    checkOutNoteTouched: Boolean(action.checkOutNoteTouched),
     timestamp: action.timestamp,
   };
 
@@ -378,4 +368,6 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
       resolve();
     });
   });
+
+  await ackPromise;
 };

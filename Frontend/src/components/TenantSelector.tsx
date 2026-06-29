@@ -24,7 +24,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
   showCreateJoin = true 
 }) => {
   const SETUP_ORG_COMPLETE_KEY = 'bustrack-setup-org-complete';
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const { currentTenant, tenants: stateTenants } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
                 <Globe size={24} />
               </div>
               <div>
-                <h5 className="m-0 fw-bold text-white">Không gian làm việc</h5>
+                <h5 className="m-0 fw-bold" style={{ color: colors.textPrimary }}>Không gian làm việc</h5>
                 <p className="text-gray-500 small mb-0">Bạn đang tham gia {tenants?.length || 0} tổ chức</p>
               </div>
             </div>
@@ -87,7 +87,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
               <p className="text-gray-500 small mt-3">Đang đồng bộ dữ liệu...</p>
             </div>
           ) : tenants?.length === 0 ? (
-            <div className="text-center py-5 bg-dark-subtle rounded-4 border border-dashed border-gray-700">
+            <div className="text-center py-5 rounded-4 border border-dashed border-gray-700" style={{ backgroundColor: colors.surfaceLight }}>
               <Building2 size={48} className="text-gray-700 mb-3" />
               <p className="text-gray-400 mb-0 px-4">Chúng tôi không tìm thấy tổ chức nào liên kết với tài khoản của bạn.</p>
             </div>
@@ -134,7 +134,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
             {showCreateJoin && (
               <button 
                 onClick={() => { onClose(); navigate('/setup-org'); }}
-                className="btn btn-primary d-flex align-items-center justify-content-center gap-2 py-2.5 rounded-3 fw-semibold"
+                className="btn tenant-primary-action d-flex align-items-center justify-content-center gap-2 py-2.5 rounded-3 fw-semibold"
               >
                 <Plus size={18} /> Thêm tổ chức mới
               </button>
@@ -152,12 +152,14 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
       <style>{`
         .modal-overlay {
           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-          background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(8px);
+          background: ${isDarkMode ? 'rgba(2, 6, 23, 0.72)' : 'rgba(15, 23, 42, 0.36)'};
+          backdrop-filter: blur(8px);
           display: flex; align-items: center; justify-content: center; z-index: 2000;
         }
         .modal-container {
           background: ${colors.surface}; width: 100%; max-width: 480px;
           border-radius: 20px; border: 1px solid ${colors.border}; overflow: hidden;
+          box-shadow: ${isDarkMode ? '0 24px 70px rgba(0, 0, 0, 0.38)' : '0 24px 70px rgba(15, 23, 42, 0.18)'};
         }
         .tenant-card {
           padding: 1rem; border-radius: 12px; background: transparent;
@@ -165,11 +167,23 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
           display: flex; align-items: center; width: 100%;
         }
         .tenant-card:hover:not(.active) {
-          background: rgba(255, 255, 255, 0.03); border-color: ${colors.borderLight}; transform: translateX(5px);
+          background: ${colors.surfaceLight}; border-color: ${colors.borderLight}; transform: translateX(5px);
         }
         .tenant-card.active {
-          background: linear-gradient(135deg, ${colors.info} 0%, ${colors.primary} 100%);
-          border-color: ${colors.info}; box-shadow: 0 10px 20px ${colors.primaryGlow};
+          background: ${isDarkMode ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.08)'};
+          border-color: ${isDarkMode ? 'rgba(59, 130, 246, 0.38)' : 'rgba(37, 99, 235, 0.22)'};
+          box-shadow: ${isDarkMode ? `0 10px 22px ${colors.primaryGlow}` : '0 10px 22px rgba(37, 99, 235, 0.10)'};
+        }
+        .tenant-card.active .text-white {
+          color: ${colors.textPrimary} !important;
+        }
+        .tenant-card.active .text-primary-light {
+          color: ${colors.textSecondary} !important;
+        }
+        .tenant-card.active .tenant-icon,
+        .tenant-card.active .animate-bounce-in {
+          background: ${isDarkMode ? 'rgba(59, 130, 246, 0.18)' : 'rgba(37, 99, 235, 0.12)'} !important;
+          color: ${colors.primary} !important;
         }
         .tenant-icon {
           width: 44px; height: 44px; display: flex; align-items: center;
@@ -183,13 +197,24 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
         .border-gray-700 { border-color: ${colors.borderLight} !important; }
         
         .btn-close-dark {
-          background: ${colors.border}; border: none; color: ${colors.textSecondary}; width: 32px; height: 32px;
+          background: ${colors.surfaceLight}; border: none; color: ${colors.textSecondary}; width: 32px; height: 32px;
           border-radius: 50%; display: flex; align-items: center; justify-content: center;
           transition: 0.2s;
         }
-        .btn-close-dark:hover { background: ${colors.danger}; color: ${colors.textPrimary}; }
+        .btn-close-dark:hover { background: rgba(239, 68, 68, 0.12); color: ${colors.danger}; }
 
-        .shadow-primary-sm { box-shadow: 0 0 15px ${colors.primaryGlow}; }
+        .tenant-primary-action {
+          background: ${isDarkMode ? 'rgba(37, 99, 235, 0.22)' : 'rgba(37, 99, 235, 0.10)'} !important;
+          border: 1px solid ${isDarkMode ? 'rgba(59, 130, 246, 0.42)' : 'rgba(37, 99, 235, 0.22)'} !important;
+          color: ${colors.primary} !important;
+        }
+        .tenant-primary-action:hover {
+          background: ${isDarkMode ? 'rgba(37, 99, 235, 0.32)' : 'rgba(37, 99, 235, 0.16)'} !important;
+          border-color: ${colors.primary} !important;
+          color: ${colors.primary} !important;
+        }
+
+        .shadow-primary-sm { box-shadow: ${isDarkMode ? `0 0 15px ${colors.primaryGlow}` : '0 8px 24px rgba(37, 99, 235, 0.12)'}; }
 
         /* Animations */
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }

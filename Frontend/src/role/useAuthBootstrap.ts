@@ -6,6 +6,7 @@ import { auth as fbAuth, signOut } from '../config/firebase';
 import { api } from '../services/api';
 import { authSuccess, logout, resetAuthState } from '../redux/slice/authSlice';
 import { SETUP_ORG_COMPLETE_KEY } from './constants';
+import { appPath } from '../config/paths';
 
 export const useAuthBootstrap = () => {
   const dispatch = useDispatch();
@@ -75,11 +76,7 @@ export const useAuthBootstrap = () => {
         if (status?.user?.isDisabled) {
           hadAuthenticatedSessionRef.current = false;
           await signOutAndClear();
-          try {
-            window.location.replace('/account-disabled');
-          } catch (e) {
-            // ignore
-          }
+          window.location.replace(appPath('/account-disabled'));
           return;
         }
 
@@ -103,17 +100,12 @@ export const useAuthBootstrap = () => {
           hadAuthenticatedSessionRef.current = false;
           await signOutAndClear();
           if (error?.status === 403 && error?.code === 'ACCOUNT_DISABLED') {
-            try {
-              window.location.replace('/account-disabled');
-            } catch (e) {
-              // ignore
-            }
+              window.location.replace(appPath('/account-disabled'));
           }
           return;
         }
 
         if (isOfflineError(error)) {
-          // Keep the current UI/cache intact when the backend is temporarily unavailable.
           return;
         }
 

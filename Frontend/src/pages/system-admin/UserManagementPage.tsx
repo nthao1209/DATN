@@ -19,7 +19,7 @@ const UserManagementPage: React.FC = () => {
   const [rows, setRows] = useState<UserRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const initialRowsByIdRef = useRef<Record<number, UserRow>>({});
+  const initialRowsByLocalIdRef = useRef<Record<string, UserRow>>({});
 
   const initializedRef = useRef(false);
 
@@ -38,27 +38,35 @@ const UserManagementPage: React.FC = () => {
     if (isLoading) return;
     if (initializedRef.current) return;
 
-    const mapped: UserRow[] = users.map((user: any) => ({
+    const mapped: UserRow[] = users.flatMap((user: any) => {
+      const memberships = Array.isArray(user.userTenants) && user.userTenants.length
+        ? user.userTenants
+        : [null];
+
+      return memberships.map((membership: any) => ({
       id: Number(user.id),
-      localId: `db_${user.id}`,
+      localId: `db_${user.id}_${membership?.id ?? membership?.tenant?.id ?? 'no_tenant'}`,
       email: user.email || '',
       name: user.name || '',
       createdDate: user.createdDate ? format(new Date(user.createdDate), 'dd/MM/yyyy') : '',
       latestAccessDate: user.lastAccessAt ? format(new Date(user.lastAccessAt), 'dd/MM/yyyy HH:mm') : 'Chưa có',
-      latestRole: user.latestRole || user.userTenants?.[0]?.role?.name || 'N/A',
+      latestRole: membership?.role?.name || user.latestRole || 'N/A',
       description: user.description || '',
-      roleId: user.userTenants?.[0]?.role?.id ?? null,
-      tenantId: user.userTenants?.[0]?.tenant?.id ?? null,
+      roleId: membership?.role?.id ?? null,
+      tenantId: membership?.tenant?.id ?? null,
+      tenantName: membership?.tenant?.name || '',
+      userTenantId: membership?.id ?? null,
       isEdited: false,
       isDisabled: !!user.isDisabled,
       disabledAt: user.disabledAt ?? null,
     }));
-
-    const initialById: Record<number, UserRow> = {};
-    mapped.forEach((row) => {
-      if (row.id) initialById[row.id] = row;
     });
-    initialRowsByIdRef.current = initialById;
+
+    const initialByLocalId: Record<string, UserRow> = {};
+    mapped.forEach((row) => {
+      initialByLocalId[row.localId] = row;
+    });
+    initialRowsByLocalIdRef.current = initialByLocalId;
 
     const padded = [...mapped];
     while (padded.length < MIN_ROWS) {
@@ -72,6 +80,8 @@ const UserManagementPage: React.FC = () => {
         description: '',
         roleId: null,
         tenantId: null,
+        tenantName: '',
+        userTenantId: null,
       });
     }
 
@@ -90,7 +100,7 @@ const UserManagementPage: React.FC = () => {
 
   const isRowDirty = (row: UserRow) => {
     if (!row.id) return false;
-    const initial = initialRowsByIdRef.current[row.id];
+    const initial = initialRowsByLocalIdRef.current[row.localId];
     if (!initial) return true;
     return !isSameRow(row, initial);
   };
@@ -108,7 +118,7 @@ const UserManagementPage: React.FC = () => {
         if (row.localId !== localId) return row;
         const nextRow = { ...row, [key]: value };
         if (!row.id) return nextRow;
-        const initial = initialRowsByIdRef.current[row.id];
+        const initial = initialRowsByLocalIdRef.current[row.localId];
         const isEdited = initial ? !isSameRow(nextRow, initial) : true;
         return { ...nextRow, isEdited };
       })

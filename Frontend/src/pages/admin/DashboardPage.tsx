@@ -21,7 +21,7 @@ import {
 const formatCount = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
 
 const Dashboard: React.FC = () => {
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const [showTenantSelector, setShowTenantSelector] = useState(false);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
@@ -222,11 +222,11 @@ const Dashboard: React.FC = () => {
               <Users size={20} className="text-primary" />
             </div>
             <div>
-              <h6 className="m-0 text-white fw-bold">Mã mời tổ chức</h6>
+              <h6 className="m-0 join-code-title fw-bold">Mã mời tổ chức</h6>
               <p className="m-0 text-gray-500 small">Chia sẻ mã này để thành viên khác tham gia vào {currentTenant?.name}</p>
             </div>
           </div>
-          <div className="d-flex align-items-center gap-2 bg-dark p-1 ps-3 rounded-pill border border-gray-800">
+          <div className="join-code-pill d-flex align-items-center gap-2 p-1 ps-3 rounded-pill">
             <code className="text-info fw-bold fs-5 tracking-widest">{currentTenant.joinCode}</code>
             <button onClick={copyJoinCode} className="btn btn-primary btn-sm rounded-circle p-2 ms-2 shadow-primary">
               <Copy size={14} />
@@ -404,10 +404,22 @@ const Dashboard: React.FC = () => {
         }
 
         .join-code-banner {
-          background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(15, 23, 42, 0) 100%);
-          border: 1px solid rgba(59, 130, 246, 0.2);
+          background: ${isDarkMode
+            ? 'linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(15, 23, 42, 0) 100%)'
+            : 'linear-gradient(90deg, rgba(37, 99, 235, 0.12) 0%, rgba(255, 255, 255, 0.85) 100%)'};
+          border: 1px solid ${isDarkMode ? 'rgba(59, 130, 246, 0.2)' : '#bfdbfe'};
           padding: 20px 30px;
           border-radius: 20px;
+        }
+
+        .join-code-title {
+          color: ${colors.textPrimary};
+        }
+
+        .join-code-pill {
+          background: ${isDarkMode ? colors.background : '#ffffff'};
+          border: 1px solid ${colors.border};
+          box-shadow: ${isDarkMode ? 'none' : '0 10px 24px rgba(15, 23, 42, 0.08)'};
         }
 
         .icon-badge {

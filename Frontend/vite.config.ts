@@ -2,9 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  base: '/xe/',
   plugins: [react()],
   server: {
-    host: '0.0.0.0',
+    cors: {
+        origin: ['https://api.toolhub.app', 'https://build.toolhub.app'],
+        methods: ['GET', 'POST'],
+        allowedHeaders: ['Content-Type']
+      },
+    allowedHosts: ['toolhub.app'],
     port: 5173,
     strictPort: true,
 

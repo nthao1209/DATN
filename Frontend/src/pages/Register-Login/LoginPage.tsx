@@ -53,7 +53,7 @@ const Login: React.FC = () => {
   return (
     <AuthLayout>
           <div className="mb-4 text-center">
-            <h1 className="h3 fw-bold text-light mb-2">
+            <h1 className="h3 fw-bold auth-title mb-2">
               Chào mừng trở lại
             </h1>
         </div>

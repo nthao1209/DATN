@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, Plus, Filter, Mic, MicOff, X } from 'lucide-react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { useTheme } from '../theme/ThemeContext';
@@ -24,7 +24,11 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
   const { colors, effects } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false); 
   const [searchValue, setSearchValue] = useState('');
+  const [voicePreview, setVoicePreview] = useState('');
   const onSearchRef = useRef(onSearch);
+  const voiceSessionActiveRef = useRef(false);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressNextSearchEffectRef = useRef(false);
 
   const {
     transcript,
@@ -38,33 +42,95 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
   }, [onSearch]);
 
   useEffect(() => {
+    if (voiceSessionActiveRef.current) {
+      return;
+    }
+
+    if (suppressNextSearchEffectRef.current) {
+      suppressNextSearchEffectRef.current = false;
+      return;
+    }
+
     onSearchRef.current(searchValue);
   }, [searchValue]);
 
-  useEffect(() => {
-    if (listening) {
-      setSearchValue(transcript);
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
-  }, [listening, transcript]);
+  }, []);
+
+  const finishVoiceSearch = useCallback(
+    (value?: string) => {
+      const finalValue = (value ?? transcript).trim();
+
+      clearSilenceTimer();
+      voiceSessionActiveRef.current = false;
+
+      if (listening) {
+        SpeechRecognition.stopListening();
+      }
+
+      suppressNextSearchEffectRef.current = finalValue !== searchValue;
+      setSearchValue(finalValue);
+      setVoicePreview('');
+      onSearchRef.current(finalValue);
+      resetTranscript();
+    },
+    [clearSilenceTimer, listening, resetTranscript, searchValue, transcript]
+  );
+
+  useEffect(() => {
+    if (!listening || !voiceSessionActiveRef.current) {
+      return;
+    }
+
+    setVoicePreview(transcript);
+    clearSilenceTimer();
+
+    if (transcript.trim()) {
+      silenceTimerRef.current = setTimeout(() => {
+        finishVoiceSearch(transcript);
+      }, 900);
+    }
+  }, [clearSilenceTimer, finishVoiceSearch, listening, transcript]);
+
+  useEffect(() => {
+    if (!listening && voiceSessionActiveRef.current) {
+      finishVoiceSearch(transcript);
+    }
+  }, [finishVoiceSearch, listening, transcript]);
+
+  useEffect(() => {
+    return () => {
+      clearSilenceTimer();
+      if (voiceSessionActiveRef.current) {
+        SpeechRecognition.stopListening();
+      }
+    };
+  }, [clearSilenceTimer]);
 
   const handleVoiceSearchToggle = async () => {
     if (!browserSupportsSpeechRecognition) return;
 
     if (listening) {
-      SpeechRecognition.stopListening();
-      setSearchValue(transcript.trim());
+      finishVoiceSearch(transcript);
       return;
     }
 
+    voiceSessionActiveRef.current = true;
+    clearSilenceTimer();
     resetTranscript();
-    setSearchValue('');
+    setVoicePreview('');
 
     try {
       await SpeechRecognition.startListening({
-        continuous: true,
+        continuous: false,
         language: 'vi-VN',
       });
     } catch {
+      voiceSessionActiveRef.current = false;
     }
   };
 
@@ -130,7 +196,7 @@ const TableActionBar: React.FC<TableActionBarProps> = ({
               className="form-control ps-5 shadow-none custom-placeholder"
               placeholder="Tìm kiếm ..."
               style={mainSearchStyle}
-              value={searchValue}
+              value={listening ? voicePreview : searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               onFocus={(e) => (e.target.style.borderColor = colors.primary)}
               onBlur={(e) => (e.target.style.borderColor = colors.border)}

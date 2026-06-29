@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom';
 import type { RootState } from '../redux/store';
 import { ROLE_IDS, getFallbackPathForRole } from '../auth/rbac';
+import { BASE_PATH } from '../config/paths';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Layout from '../components/Layout';
 
@@ -15,7 +16,7 @@ const Register = React.lazy(() => import('../pages/Register-Login/RegisterPage')
 const ForgotPasswordPage = React.lazy(() => import('../pages/Register-Login/ForgotPasswordPage'));
 const AccountDisabledPage = React.lazy(() => import('../pages/Register-Login/AccountDisabledPage'));
 const SetupOrg = React.lazy(() => import('../pages/Register-Login/SetupOrgPage'));
-const SelectTenantPage = React.lazy(() => import('../pages/pulic/SelectTenantPage'));
+const SelectTenantPage = React.lazy(() => import('../pages/public/SelectTenantPage'));
 const Dashboard = React.lazy(() => import('../pages/admin/DashboardPage'));
 const TripPage = React.lazy(() => import('../pages/admin/TripPage'));
 const RoundPage = React.lazy(() => import('../pages/admin/RoundPage'));
@@ -156,13 +157,15 @@ export const createAppRouter = (
     </>
   );
 
+  const routerOptions = { basename: BASE_PATH };
+
   if (!user) {
-    return createBrowserRouter(publicRoutes);
+    return createBrowserRouter(publicRoutes, routerOptions);
   }
 
   if (roleId === ROLE_IDS.SYSTEM_ADMIN) {
-    return createBrowserRouter(systemAdminRoutes);
+    return createBrowserRouter(systemAdminRoutes, routerOptions);
   }
 
-  return createBrowserRouter(tenantRoutes);
+  return createBrowserRouter(tenantRoutes, routerOptions);
 };

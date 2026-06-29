@@ -59,14 +59,6 @@ const SetupOrgPage: React.FC = () => {
       <div className="container" style={{ maxWidth: '900px' }}>
         <div className="text-center mb-5 animate-fade-down">
           <div className="d-flex align-items-center justify-content-center gap-3 mb-3">
-            <div className="p-2 rounded-circle shadow-sm" 
-                 style={{ 
-                   backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.1)' : '#fff',
-                   border: `1px solid ${colors.border}` 
-                 }}>
-              <img src="/favicon.svg" alt="logo" width="50" height="50" />
-            </div>
-
             <h1 className="display-6 fw-bold mb-0" style={{ color: colors.textPrimary, letterSpacing: '-0.03em' }}>
               Bắt đầu với BusTrack
             </h1>

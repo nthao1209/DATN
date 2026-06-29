@@ -24,7 +24,7 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
   getCell,
   disabled
 }) => {
-  const { colors } = useTheme();
+  const { isDarkMode,colors } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
 
   const busLabelById = new Map(
@@ -54,7 +54,7 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
 
   const handleExportExcel = () => {
     if (!visiblePassengers.length) {
-      enqueueSnackbar('Không có dữ liệu để export', { variant: 'warning' });
+      enqueueSnackbar('Không có dữ liệu để xuất file', { variant: 'warning' });
       return;
     }
 
@@ -121,9 +121,9 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
       const fileName = `Bảng điểm danh_${safeTripName}_${timestamp}.xlsx`;
 
       XLSX.writeFile(workbook, fileName);
-      enqueueSnackbar('Đã export file Excel thành công', { variant: 'success' });
+      enqueueSnackbar('Đã xuất file Excel thành công', { variant: 'success' });
     } catch (error) {
-      enqueueSnackbar('Export Excel thất bại', { variant: 'error' });
+      enqueueSnackbar('Xuất file Excel thất bại', { variant: 'error' });
     }
   };
 
@@ -131,16 +131,35 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
 
   return (
     <button
-      className="btn-custom-action-save shadow-sm"
+      type="button"
+      className="btn-custom-export"
       onClick={handleExportExcel}
       disabled={isBtnDisabled}
-      style={{
-        backgroundColor: !isBtnDisabled ? colors.info : colors.surfaceLight,
-        color: !isBtnDisabled ? '#fff' : colors.textMuted,
-      }}
     >
-      <Download size={18} />
-      <span className="d-none d-sm-inline">Export Excel</span>
+      <Download size={14} />
+      <span className="d-none d-lg-inline">Xuất file Excel</span>
+
+      <style>{`
+        .btn-custom-export {
+          height: 34px !important;
+          padding: 0 12px !important;
+          font-size: 13px !important;
+          font-weight: 600 !important;
+          border-radius: 8px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          background-color: ${isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5'} !important;
+          border: 1px solid ${colors.success}44 !important;
+          color: ${colors.success} !important;
+          transition: all 0.2s;
+        }
+
+        .btn-custom-export:hover:not(:disabled) {
+          background-color: ${colors.success}15 !important;
+          transform: translateY(-1px);
+        }
+      `}</style>
     </button>
   );
 };

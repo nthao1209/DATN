@@ -114,7 +114,7 @@ const Register: React.FC = () => {
     <AuthLayout>
       <div className="w-100">
         <div className="mb-4 text-center">
-          <h1 className="h3 fw-bold text-light mb-2">
+          <h1 className="h3 fw-bold auth-title mb-2">
             Tạo tài khoản mới
           </h1>
           
