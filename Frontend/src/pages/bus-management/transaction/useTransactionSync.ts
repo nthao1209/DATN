@@ -28,6 +28,7 @@ type PendingSyncStatus = {
 };
 
 const buildEntrySignature = (entries: DraftCell[]) =>
+  // Signature giúp tránh enqueue lại cùng một tập thay đổi nhiều lần khi component re-render.
   entries
     .map((entry) =>
       [
@@ -63,6 +64,7 @@ export const useTransactionSync = ({
   const authUserId = useSelector((state: RootState) => state.auth.user?.id ?? null);
 
   useEffect(() => {
+    // Theo dõi trạng thái online/offline của browser để đổi banner sync.
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
 
@@ -76,6 +78,7 @@ export const useTransactionSync = ({
   }, []);
 
   useEffect(() => {
+    // Mỗi lần queue thay đổi thì ép hook tính lại pending count.
     const bumpQueueVersion = () => setQueueVersion((version) => version + 1);
 
     window.addEventListener(OFFLINE_QUEUE_UPDATED_EVENT, bumpQueueVersion);
@@ -88,6 +91,7 @@ export const useTransactionSync = ({
   }, []);
 
   useEffect(() => {
+    // Khi có ô dirty, chuyển chúng thành offline action để worker/sync manager gửi lên MQTT.
     if (!enabled) {
       return;
     }
@@ -113,6 +117,7 @@ export const useTransactionSync = ({
     const timestamp = Date.now();
 
     const queueActions = dirtyEntries.map<OfflineAction>((entry) => ({
+      // Mỗi DraftCell tương ứng một action điểm danh cho passenger-round.
       id: '',
       tripId: selectedTripId,
       passengerId: entry.passengerId,
@@ -145,6 +150,7 @@ export const useTransactionSync = ({
   }, [authUserId, dirtyEntries, enabled, isOnline, selectedTripId, storageKey]);
 
   useEffect(() => {
+    // Khi queue sync xong, hiện banner thành công ngắn rồi ẩn.
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const handleQueueSynced = (event: Event) => {
@@ -173,6 +179,7 @@ export const useTransactionSync = ({
 
   const pendingQueueCount = offlineService.getQueueByStorageKey(storageKey).length;
   const dirtyEntryCount = dirtyEntries.length;
+  // Ưu tiên trạng thái queue; nếu queue rỗng nhưng ô vẫn khác DB thì báo mismatch để debug.
   const pendingSyncStatus: PendingSyncStatus | null = pendingQueueCount > 0
     ? {
         label: isOnline

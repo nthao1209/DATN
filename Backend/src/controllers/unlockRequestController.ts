@@ -8,6 +8,7 @@ type UnlockRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 
 const buildUnlockTitle = (status: UnlockRequestStatus) => {
+  // Chuẩn hóa title notification theo trạng thái yêu cầu mở khóa.
   switch (status) {
     case 'PENDING':
       return 'Yêu cầu mở khóa mới';
@@ -24,6 +25,7 @@ const buildUnlockContent = (
   roundName?: string,
   extra?: string,
 ) => {
+  // Nội dung notification cần đủ xe, chặng, loại khóa và lý do nếu có.
   const actionLabel = request.type === 'check_in' ? 'điểm danh vào' : 'điểm danh ra';
 
   const base = `Xe ${busCode || request.bus?.busCode || request.busId} yêu cầu mở khóa ${actionLabel} cho chặng ${
@@ -42,6 +44,7 @@ const unlockRequestInclude = {
   round: true,
 }
 const notifyAdmin = async (tenantId: number, handledBy: number, payload: any) => {
+  // Gửi notification cho trưởng đoàn/admin của tenant, tránh tự gửi cho người vừa thao tác.
   const recipientId = await getTenantAdminRecipient(prisma, tenantId);
 
   if (!recipientId || recipientId === handledBy) return;
@@ -57,6 +60,7 @@ const getPendingRequests = async (
   res: Response
 ) => {
   try {
+    // Admin mở modal khóa lượt sẽ gọi endpoint này để lấy các yêu cầu đang chờ của đúng chặng.
     if (!req.tenantId) {
       return res.status(401).json({
         message: 'Unauthorized',
@@ -113,6 +117,7 @@ const getPendingRequests = async (
 
 const create = async (req: AuthRequest, res: Response) => {
   try {
+    // Tài xế/điều hành xe gửi yêu cầu mở khóa một chiều check-in hoặc check-out.
     const busId = Number(req.params.busId);
     const roundId = Number(req.params.roundId);
     const { type = 'check_in', reason } = req.body || {};
@@ -154,6 +159,7 @@ const create = async (req: AuthRequest, res: Response) => {
     });
 
     if (status?.driverConfirmedBy) {
+      // Chặng đã xác nhận hoàn tất thì không mở khóa nữa, tránh sửa dữ liệu sau khi chốt.
       return res.status(400).json({
         message: 'Không thể gửi yêu cầu mở khóa khi chặng đã được bạn xác nhận hoàn thành',
       });
@@ -165,6 +171,7 @@ const create = async (req: AuthRequest, res: Response) => {
     });
 
     const request = existingRequest
+      // Nếu từng gửi yêu cầu cùng bus/round/type thì mở lại request cũ thay vì tạo bản ghi trùng.
       ? await prisma.unlockRequest.update({
           where: { id: existingRequest.id },
           data: {
@@ -215,6 +222,7 @@ const create = async (req: AuthRequest, res: Response) => {
           },
         });
     const requesterTopic = `attendance/requester/${req.user.id}/unlock-response`;
+    // Phản hồi realtime cho người gửi để UI biết request đã được ghi nhận.
     publishJson(requesterTopic, {
       type: 'unlock.request.created.self',
       requestId: request.id,
@@ -259,6 +267,7 @@ const create = async (req: AuthRequest, res: Response) => {
 
 const approve = async (req: AuthRequest, res: Response) => {
   try {
+    // Admin duyệt request: vừa đổi trạng thái request vừa mở khóa field tương ứng.
     const requestId = Number(req.params.requestId);
 
     if (!requestId) return res.status(400).json({ message: 'Missing requestId' });
@@ -283,6 +292,7 @@ const approve = async (req: AuthRequest, res: Response) => {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Dùng transaction DB để request và trạng thái khóa luôn đồng bộ với nhau.
       const updatedRequest = await tx.unlockRequest.update({
         where: { id: requestId },
         data: {
@@ -329,18 +339,8 @@ const approve = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    publishJson(`attendance/requester/${requesterId}/unlock-response`, {
-      type: 'bus.round.lock.updated',
-      tripId: request.bus.trip.id,
-      busId: request.busId,
-      roundId: request.roundId,
-      checkInLocked: request.type === 'check_in' ? false : undefined,
-      checkOutLocked: request.type === 'check_out' ? false : undefined,
-      updatedAt: new Date().toISOString(),
-      handledBy: req.user.id,
-    });
-
     const lockPayload = {
+      // Broadcast trạng thái khóa mới để các màn đang mở tự cập nhật.
       type: 'bus.round.lock.updated',
       tripId: request.bus.trip.id,
       busId: request.busId,
@@ -366,15 +366,6 @@ const approve = async (req: AuthRequest, res: Response) => {
       handledBy: req.user.id,
     });
 
-    const adminTopic = `attendance/trips/${request.bus.trip.id}/admin/unlock-requests`;
-    publishJson(adminTopic, {
-      type: 'unlock.request.approved',
-      requestId,
-      busId: request.busId,
-      roundId: request.roundId,
-      handledBy: req.user.id,
-    });
-
     return res.json(updated);
   } catch (error: any) {
 
@@ -387,6 +378,7 @@ const approve = async (req: AuthRequest, res: Response) => {
  */
 const reject = async (req: AuthRequest, res: Response) => {
   try {
+    // Admin từ chối request: chỉ đổi trạng thái request, không thay đổi khóa điểm danh.
     const requestId = Number(req.params.requestId);
     const { rejectReason } = req.body;
 
@@ -450,16 +442,6 @@ const reject = async (req: AuthRequest, res: Response) => {
       rejectReason: rejectReason || '',
     });
     
-    const adminTopic = `attendance/trips/${request.bus.trip.id}/admin/unlock-requests`;
-    publishJson(adminTopic, {
-      type: 'unlock.request.rejected',
-      requestId,
-      busId: request.busId,
-      roundId: request.roundId,
-      handledBy: req.user.id,
-      rejectReason: rejectReason || '',
-    });
-
     return res.json(updated);
   } catch (error: any) {
 

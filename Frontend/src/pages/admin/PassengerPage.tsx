@@ -51,6 +51,7 @@ const PassengerPage: React.FC = () => {
   );
 
   const { data: allBuses = [] } = useQuery<PassengerBus[]>({
+    // PassengerPage cần bus của mọi chuyến để lọc, import và đổi xe cho khách.
     queryKey: ['buses-all-trips', tripIds],
     enabled: tripIds.length > 0,
     queryFn: async () => {
@@ -62,6 +63,7 @@ const PassengerPage: React.FC = () => {
   });
 
   const { data: passengers = [], isLoading, isError, refetch } = useQuery<any[]>({
+    // Nếu chưa chọn chuyến thì lấy khách của tất cả chuyến; chọn rồi thì lọc theo chuyến/xe.
     queryKey: ['passengers', selectedTripId, selectedBusId],
     enabled: trips.length > 0,
     queryFn: async () => {
@@ -72,6 +74,7 @@ const PassengerPage: React.FC = () => {
   });
 
   useEffect(() => {
+    // Khi đổi chuyến, nếu xe đang chọn không thuộc chuyến mới thì reset xe.
     if (selectedTripId == null) {
       if (selectedBusId !== null) {
         setSelectedBusId(null);
@@ -93,11 +96,23 @@ const PassengerPage: React.FC = () => {
   }, [selectedTripId, allBuses]);
 
   const passengersSignature = useMemo(() => {
+    // Signature gồm cả note để lưu ghi chú xong không còn bị coi là "chưa lưu".
     if (!passengers) return '';
-    return passengers.map((p: any) => `${p.id}-${p.name}-${normalizePassengerTel(p.tel)}-${p.bus?.id}`).join('|');
+    return passengers
+      .map((p: any) =>
+        [
+          p.id,
+          p.name,
+          normalizePassengerTel(p.tel),
+          p.note || '',
+          p.bus?.id,
+        ].join('-')
+      )
+      .join('|');
   }, [passengers]);
 
 useEffect(() => {
+    // Map passenger API thành rows edit được và lưu snapshot gốc để dirty-check.
     if (!passengers) return;
 
     const mapped: PassengerRow[] = passengers.map((p: any) => ({
@@ -135,6 +150,7 @@ useEffect(() => {
   }, [passengersSignature, selectedTripId, selectedBusId]);
 
   const busesByTrip = useMemo<BusesByTrip>(() => {
+    // Gom bus theo trip để dropdown xe chỉ hiện đúng xe của chuyến đang chọn.
     const map: BusesByTrip = {};
     allBuses.forEach((bus: any) => {
       const tId = Number(bus.trip?.id ?? selectedTripId ?? 0);
@@ -159,6 +175,7 @@ useEffect(() => {
   const isPassengerEditingLocked = !isTargetSelectionReady;
 
   const isSameRow = (current: PassengerRow, initial: PassengerRow) => {
+    // So sánh cả ghi chú và xe để biết row đã khác dữ liệu gốc hay chưa.
     const currentNote = (current.note || '').trim();
     const initialNote = (initial.note || '').trim();
     return (

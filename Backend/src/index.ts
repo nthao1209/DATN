@@ -10,18 +10,22 @@ dotenv.config()
 
 const app = express()
 
+// Middleware nền cho toàn bộ API: cho phép frontend gọi cross-origin và đọc body JSON.
 app.use(cors())
 app.use(express.json())
 
+// Gom route theo nhóm quyền/ngữ cảnh để controller phía dưới chỉ tập trung xử lý nghiệp vụ.
 app.use('/api', publicRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', systemAdminRoutes);
 app.use('/api', busManagementRoutes);
 
-app.get("/health", (req, res) => {
+// Endpoint nhẹ để kiểm tra server còn sống, thường dùng cho deploy/monitor.
+app.get("/health", (_req, res) => {
   res.status(200).send("ok");
 });
 
+// Endpoint debug nội bộ: liệt kê các route được mount trực tiếp trong Express app.
 app.get('/api/_routes', (_req, res) => {
   try {
     const routes: string[] = (app as any)._router.stack
@@ -38,5 +42,6 @@ app.get('/api/_routes', (_req, res) => {
 
 const PORT = process.env.PORT || 5000
 
+// Bắt đầu lắng nghe request HTTP.
 app.listen(PORT, () => {
 })

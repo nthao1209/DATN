@@ -92,9 +92,7 @@ export type TransactionRecord = {
   };
 };
 
-export type TransactionTableRow = PassengerRow & {
-  isSummary?: boolean;
-};
+export type TransactionTableRow = PassengerRow;
 
 export type BusRoundStatus = {
   busId: number;
@@ -104,19 +102,5 @@ export type BusRoundStatus = {
   driverConfirmedBy?: number | null;
   adminApprovedBy?: number | null;
 };
-
-
-export type RoundSummary = Record<
-  number,
-  {
-    checkIn: number;
-    checkOut: number;
-    total: number;
-    checkInMatched: number;
-    checkInMismatched: number;
-    checkOutMatched: number;
-    checkOutMismatched: number;
-  }
->;
 
 export const keyOf = (passengerId: number, roundId: number) => `${passengerId}_${roundId}`;

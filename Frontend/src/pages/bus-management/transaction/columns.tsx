@@ -1,13 +1,12 @@
 import PassengerActionButtons from '../../../components/PassengerActionButtons';
 import type { Column } from '../../../components/DataTable';
-import type { DraftCell, RoundOption, RoundSummary, TransactionTableRow } from './types';
+import type { DraftCell, RoundOption, TransactionTableRow } from './types';
 import { useTheme } from '../../../theme/ThemeContext';
 import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
 
 type BuildColumnsParams = {
   selectedRounds: RoundOption[];
   displayMode?: 'all' | 'checkIn' | 'checkOut';
-  roundSummary: RoundSummary;
   getCell: (passengerId: number, roundId: number) => DraftCell | null;
   setCell: (payload: Partial<DraftCell>) => void;
   isLocked: (
@@ -23,7 +22,6 @@ type BuildColumnsParams = {
 export const buildTransactionColumns = ({
   selectedRounds,
   displayMode = 'all',
-  roundSummary,
   getCell,
   setCell,
   isLocked,
@@ -41,25 +39,6 @@ export const buildTransactionColumns = ({
       key: `round_${roundId}_checkin`,
       width: '140px',
       render: (row) => {
-        if (row.isSummary) {
-          const stats = roundSummary[roundId] || {
-            checkIn: 0,
-            checkOut: 0,
-            total: 0,
-            checkInMatched: 0,
-            checkInMismatched: 0,
-            checkOutMatched: 0,
-            checkOutMismatched: 0,
-          };
-
-          return (
-            <div className="d-flex flex-column align-items-center text-center small lh-sm">
-              <span className="fw-bold text-success">Đúng xe: {stats.checkInMatched}</span>
-              <span className="fw-bold text-danger">Sai xe: {stats.checkInMismatched}</span>
-            </div>
-          );
-        }
-
         const current = getCell(row.id, roundId);
 
         const checkIn = Boolean(current?.checkIn);
@@ -133,25 +112,6 @@ export const buildTransactionColumns = ({
       key: `round_${roundId}_checkout`,
       width: '140px',
       render: (row) => {
-        if (row.isSummary) {
-          const stats = roundSummary[roundId] || {
-            checkIn: 0,
-            checkOut: 0,
-            total: 0,
-            checkInMatched: 0,
-            checkInMismatched: 0,
-            checkOutMatched: 0,
-            checkOutMismatched: 0,
-          };
-
-          return (
-            <div className="d-flex flex-column align-items-center text-center small lh-sm">
-              <span className="fw-bold text-success">Đúng xe: {stats.checkOutMatched}</span>
-              <span className="fw-bold text-danger">Sai xe: {stats.checkOutMismatched}</span>
-            </div>
-          );
-        }
-
         const current = getCell(row.id, roundId);
 
         const checkIn = Boolean(current?.checkIn);
@@ -231,19 +191,14 @@ export const buildTransactionColumns = ({
       header: 'STT',
       key: 'stt',
       width: '70px',
-      render: (row, idx) => (row.isSummary ? '' : idx + 1),
+      render: (_row, idx) => idx + 1,
     },
 
     {
       header: 'Họ và tên',
       key: 'name',
       width: '220px',
-      render: (row) =>
-        row.isSummary ? (
-          <span className="fw-bold">Tổng kết</span>
-        ) : (
-          <span className="fw-semibold">{row.name}</span>
-        ),
+      render: (row) => <span className="fw-semibold">{row.name}</span>,
     },
 
     {
@@ -251,10 +206,6 @@ export const buildTransactionColumns = ({
       key: 'contact',
       width: '180px',
       render: (row) => {
-        if (row.isSummary) {
-          return <span className="text-muted">-</span>;
-        }
-
         return (
           <div className="transaction-contact-cell d-flex align-items-center justify-content-between gap-2">
             <div className="d-flex flex-column gap-1 overflow-hidden">
@@ -307,10 +258,6 @@ export const buildTransactionColumns = ({
       key: 'passengerNote',
       width: '220px',
       render: (row) => {
-        if (row.isSummary) {
-          return <span className="text-muted">-</span>;
-        }
-
         const note = (row.note || '').trim();
 
         return note ? (
@@ -328,8 +275,6 @@ export const buildTransactionColumns = ({
       key: 'actions',
       width: '120px',
       render: (row) => {
-        if (row.isSummary) return null;
-
         const canRemove = canRemovePassenger
           ? canRemovePassenger(row)
           : true;

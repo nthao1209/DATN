@@ -47,6 +47,7 @@ const BusPage: React.FC = () => {
   const managers = managersData ?? EMPTY_MANAGERS;
 
   const { data: transactionsData, isLoading: isTransactionsLoading } = useQuery<TransactionRecord[]>({
+    // Dùng transactions để tính số khách check-in/check-out theo từng xe.
     queryKey: ['transactions', tripId],
     queryFn: api.getTransactions,
     enabled: !!tripId,
@@ -55,6 +56,7 @@ const BusPage: React.FC = () => {
   const transactions = transactionsData ?? EMPTY_TRANSACTIONS;
 
   useEffect(() => {
+    // Chuyển dữ liệu bus từ API thành rows có thể edit trực tiếp trong bảng.
     const mapped: BusRow[] = buses.map((b: any) => ({
       id: Number(b.id),
       localId: `db_${b.id}`,
@@ -81,6 +83,7 @@ const BusPage: React.FC = () => {
   }, [buses]);
 
   const isSameRow = (current: BusRow, initial: BusRow) => {
+    // So sánh row hiện tại với snapshot ban đầu để biết có thay đổi cần lưu không.
     return (
       current.busCode.trim() === initial.busCode.trim() &&
       current.registrationNumber.trim() === initial.registrationNumber.trim() &&
@@ -144,6 +147,7 @@ const BusPage: React.FC = () => {
   }, [hasValidationErrors, rows]);
 
   const dirtyCount = useMemo(() => {
+    // Tổng số thay đổi gồm row mới, row sửa và row đã đánh dấu xóa.
     const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
     const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
     return created + edited + deletedIds.length;
@@ -152,6 +156,7 @@ const BusPage: React.FC = () => {
   const canSave = dirtyCount > 0 && !hasValidationErrors;
 
   const busAttendanceSummary = useMemo(() => {
+    // Tính nhanh số check-in/check-out theo xe từ danh sách transaction của chuyến.
     if (!tripId) return [];
 
     const currentTripId = Number(tripId);

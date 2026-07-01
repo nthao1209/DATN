@@ -9,6 +9,7 @@ var Status;
     Status["DONE"] = "DONE";
 })(Status || (Status = {}));
 const getCompletedBusCounts = async (tripId, roundId, tenantId) => {
+    // Tính tiến độ hoàn thành chặng: bao nhiêu xe đã được tài xế xác nhận.
     const [busCount, completedBusCount] = await Promise.all([
         db_1.prisma.bus.count({
             where: {
@@ -38,6 +39,7 @@ const getCompletedBusCounts = async (tripId, roundId, tenantId) => {
 exports.roundController = {
     getAll: async (req, res) => {
         try {
+            // Lấy danh sách chặng kèm các số liệu tổng quan mà RoundPage cần hiển thị.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -50,13 +52,6 @@ exports.roundController = {
                     tripId,
                     trip: {
                         tenantId: req.tenantId
-                    }
-                },
-                include: {
-                    _count: {
-                        select: {
-                            transactions: true
-                        }
                     }
                 },
                 orderBy: {
@@ -84,6 +79,7 @@ exports.roundController = {
                 }),
             ]);
             const completedBusCountByRound = await db_1.prisma.busRoundStatus.groupBy({
+                // Group theo round để biết mỗi chặng đã có bao nhiêu xe hoàn thành.
                 by: ['roundId'],
                 where: {
                     round: {
@@ -119,6 +115,7 @@ exports.roundController = {
     // Tạo round mới
     create: async (req, res) => {
         try {
+            // Tạo chặng mới và trả kèm số hành khách/xe hiện tại để frontend cập nhật bảng ngay.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -150,16 +147,6 @@ exports.roundController = {
                     status: statusRaw,
                     time,
                     tripId
-                }
-            });
-            const createdRound = await db_1.prisma.round.findUnique({
-                where: { id: round.id },
-                include: {
-                    _count: {
-                        select: {
-                            transactions: true
-                        }
-                    }
                 }
             });
             const [passengerCount, busCount, completedBusCount] = await Promise.all([
@@ -195,9 +182,7 @@ exports.roundController = {
                     },
                 }),
             ]);
-            const createdRoundWithStats = createdRound
-                ? { ...createdRound, passengerCount, busCount, completedBusCount }
-                : { ...round, _count: { transactions: 0 }, passengerCount, busCount, completedBusCount };
+            const createdRoundWithStats = { ...round, passengerCount, busCount, completedBusCount };
             (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
                 type: 'dashboard.refresh',
                 entity: 'round',
@@ -218,6 +203,7 @@ exports.roundController = {
     // Update round
     update: async (req, res) => {
         try {
+            // Cập nhật thông tin chặng; nếu đổi status thì trả thêm tiến độ xe hoàn thành.
             const { id } = req.params;
             if (!id) {
                 return res.status(400).json({ message: 'Missing round id' });
@@ -271,6 +257,7 @@ exports.roundController = {
     // Xóa round
     delete: async (req, res) => {
         try {
+            // Xóa chặng thuộc tenant hiện tại và phát sự kiện refresh dashboard.
             const { id } = req.params;
             if (!id) {
                 return res.status(400).json({ message: 'Missing round id' });

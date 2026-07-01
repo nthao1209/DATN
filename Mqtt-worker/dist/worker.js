@@ -3,7 +3,9 @@ import { workerData, parentPort } from 'node:worker_threads';
 import mqtt from 'mqtt';
 import pkg from 'pg';
 const { Pool } = pkg;
-const ATTENDANCE_TOPIC_REGEX = /^attendance\/[^/]+\/[^/]+\/[^/]+\/check$/;
+const ATTENDANCE_TOPIC_REGEX = 
+// Chỉ xử lý topic dạng attendance/{trip}/{bus}/{round}/check, bỏ qua topic MQTT khác.
+/^attendance\/[^/]+\/[^/]+\/[^/]+\/check$/;
 const parseInteger = (value) => {
     if (value === undefined || value === null || value === '') {
         return null;
@@ -30,6 +32,7 @@ const parseBoolean = (value) => {
     return false;
 };
 const readTrimmedNote = (value) => {
+    // undefined nghĩa là không gửi field; null nghĩa là chủ động xóa ghi chú.
     if (value === undefined) {
         return undefined;
     }
@@ -38,33 +41,6 @@ const readTrimmedNote = (value) => {
     }
     const trimmed = String(value).trim();
     return trimmed ? trimmed : null;
-};
-const resolveTransactionNotes = ({ checkIn, checkOut, checkInNote, checkOutNote, legacyNote, }) => {
-    const hasExplicitCheckInNote = checkInNote !== undefined;
-    const hasExplicitCheckOutNote = checkOutNote !== undefined;
-    if (hasExplicitCheckInNote || hasExplicitCheckOutNote) {
-        return {
-            ...(hasExplicitCheckInNote
-                ? { checkInNote: checkInNote ?? null }
-                : {}),
-            ...(hasExplicitCheckOutNote
-                ? { checkOutNote: checkOutNote ?? null }
-                : {}),
-        };
-    }
-    if (legacyNote === undefined) {
-        return {};
-    }
-    if (checkIn && !checkOut) {
-        return { checkInNote: legacyNote ?? null };
-    }
-    if (checkOut && !checkIn) {
-        return { checkOutNote: legacyNote ?? null };
-    }
-    return {
-        checkInNote: legacyNote ?? null,
-        checkOutNote: legacyNote ?? null,
-    };
 };
 const readEventAt = (timestamp) => {
     if (!timestamp) {
@@ -83,6 +59,7 @@ const pickEarlierDate = (current, incoming) => {
     return current < incoming ? current : incoming;
 };
 const syncBusRoundStatusTimes = async (db, busId, roundId, checkInAt, checkOutAt) => {
+    // Lưu mốc check-in/check-out đầu tiên của bus-round để admin theo dõi thời điểm bắt đầu/kết thúc.
     if (!checkInAt && !checkOutAt) {
         return;
     }
@@ -117,6 +94,7 @@ const syncBusRoundStatusTimes = async (db, busId, roundId, checkInAt, checkOutAt
         `, [busId, roundId, nextCheckInAt, nextCheckOutAt]);
 };
 const createNotification = async (db, userId, type, title, content, payload) => {
+    // Tạo notification sai xe nhưng chống trùng theo transaction/passenger/eventType.
     if (!Number.isInteger(userId) || userId <= 0) {
         return;
     }
@@ -157,6 +135,7 @@ const createNotification = async (db, userId, type, title, content, payload) => 
 async function init() {
     let config;
     try {
+        // Worker nhận đường dẫn config từ master để có thể chạy nhiều project nếu cần.
         const rawConfig = fs.readFileSync(workerData.configPath, 'utf8');
         config = JSON.parse(rawConfig);
     }
@@ -167,6 +146,7 @@ async function init() {
     const prj = config.project_name;
     const mqttQos = Math.min(Math.max(Number(config.mqtt.qos ?? 1), 0), 2);
     const pool = new Pool({
+        // Pool PostgreSQL dùng cho toàn bộ message, mỗi message lấy một client riêng và release sau.
         host: config.postgres.host,
         port: config.postgres.port,
         user: config.postgres.user,
@@ -190,6 +170,7 @@ async function init() {
         return busRes.rows[0]?.busCode || busId;
     };
     const resolveEventBusIdByActor = async (db, actorId, tripId, fallbackBusId) => {
+        // Nếu actor là quản lý xe khác, event phải ghi nhận xe của actor thay vì xe fallback.
         if (!actorId) {
             return fallbackBusId;
         }
@@ -204,12 +185,14 @@ async function init() {
         return actorBusRes.rows[0]?.id ?? fallbackBusId;
     };
     const clearRetainedTopic = (topic) => {
+        // Xóa retained message sau khi xử lý để worker restart không ghi lại cùng action.
         mqttClient.publish(topic, '', {
             qos: mqttQos,
             retain: true,
         });
     };
     const handleAttendanceMessage = async (topic, data) => {
+        // Luồng chính: nhận payload attendance từ MQTT, validate, ghi Transaction/Event, publish UI update.
         if (!ATTENDANCE_TOPIC_REGEX.test(topic)) {
             return;
         }
@@ -224,30 +207,26 @@ async function init() {
         const eventAt = readEventAt(data.timestamp);
         const incomingCheckInNote = readTrimmedNote(data.checkInNote);
         const incomingCheckOutNote = readTrimmedNote(data.checkOutNote);
-        const incomingLegacyNote = readTrimmedNote(data.note);
         const actionId = typeof data.actionId === 'string' && data.actionId.trim()
             ? data.actionId.trim()
             : null;
-        const candidateIn = data.checkInBy ?? data.user ?? data.operator;
-        const candidateOut = data.checkOutBy ?? data.user ?? data.operator;
-        const checkInBy = incomingCheckIn ? parseInteger(candidateIn) : null;
+        const checkInBy = incomingCheckIn
+            ? parseInteger(data.checkInBy)
+            : null;
         const checkOutBy = incomingCheckOut
-            ? parseInteger(candidateOut)
+            ? parseInteger(data.checkOutBy)
             : null;
         const db = await pool.connect();
         try {
             await db.query('BEGIN');
+            // Validate bus/passenger/round cùng chuyến trước khi ghi transaction.
             const busRes = await db.query(`
                 SELECT
                     b.id,
                     b."busCode",
                     b."registrationNumber",
-                    b."managerId",
-                    b."tripId",
-                    t."tenantId"
+                    b."tripId"
                 FROM "Bus" b
-                JOIN "Trip" t
-                    ON t.id = b."tripId"
                 WHERE b.id = $1
                 `, [busId]);
             const bus = busRes.rows[0];
@@ -284,10 +263,13 @@ async function init() {
             const eventCheckInBusId = await resolveEventBusIdByActor(db, checkInBy, bus.tripId, busId);
             const eventCheckOutBusId = await resolveEventBusIdByActor(db, checkOutBy, bus.tripId, busId);
             const [checkInBusCode, checkOutBusCode] = await Promise.all([
+                // Lấy tên xe thực tế để tự sinh ghi chú khi khách bị điểm danh sai xe.
                 loadBusCode(db, eventCheckInBusId),
                 loadBusCode(db, eventCheckOutBusId),
             ]);
-            const existingRes = await db.query(`
+            const existingRes = await db.query(
+            // Một passenger chỉ có một transaction cho mỗi round.
+            `
                 SELECT *
                 FROM "Transaction"
                 WHERE "passengerId" = $1
@@ -308,24 +290,18 @@ async function init() {
             const autoCheckOutNote = Number(passenger.busId) !== Number(eventCheckOutBusId)
                 ? `Khách đang ở trên xe ${checkOutBusCode}`
                 : null;
-            const resolvedNotes = resolveTransactionNotes({
-                checkIn: incomingCheckIn,
-                checkOut: incomingCheckOut,
-                checkInNote: incomingCheckInNote,
-                checkOutNote: incomingCheckOutNote,
-                legacyNote: incomingLegacyNote,
-            });
             const nextCheckInNote = checkInStatusChanged
                 ? incomingCheckIn
                     ? incomingCheckInNote ?? autoCheckInNote
                     : null
-                : resolvedNotes.checkInNote ?? existing?.checkInNote;
+                : incomingCheckInNote ?? existing?.checkInNote;
             const nextCheckOutNote = checkOutStatusChanged
                 ? incomingCheckOut
                     ? incomingCheckOutNote ?? autoCheckOutNote
                     : null
-                : resolvedNotes.checkOutNote ?? existing?.checkOutNote;
+                : incomingCheckOutNote ?? existing?.checkOutNote;
             const transactionRes = existing
+                // Update nếu transaction đã tồn tại, insert nếu đây là lần đầu khách xuất hiện ở round.
                 ? await db.query(`
                       UPDATE "Transaction"
                       SET
@@ -373,6 +349,7 @@ async function init() {
             const result = transactionRes.rows[0];
             let eventType = null;
             if (checkInStatusChanged) {
+                // Ghi event lịch sử mỗi khi trạng thái check-in đổi.
                 eventType = incomingCheckIn
                     ? 'CHECK_IN_ON'
                     : 'CHECK_IN_OFF';
@@ -397,6 +374,7 @@ async function init() {
                 ]);
             }
             if (checkOutStatusChanged) {
+                // Ghi event lịch sử mỗi khi trạng thái check-out đổi.
                 eventType = incomingCheckOut
                     ? 'CHECK_OUT_ON'
                     : 'CHECK_OUT_OFF';
@@ -461,7 +439,9 @@ async function init() {
             else if (checkInStatusChanged) {
                 latestEventBusId = eventCheckInBusId;
             }
-            const isWrongBus = Number(passenger.busId) !== Number(latestEventBusId);
+            const isWrongBus = 
+            // Sai xe khi xe của event mới nhất khác xe biên chế của khách.
+            Number(passenger.busId) !== Number(latestEventBusId);
             const latestBusCode = await loadBusCode(db, latestEventBusId);
             const targetManagerId = passenger.managerId ?? null;
             const shouldNotifyWrongBus = hasAttendanceStatusChanged &&
@@ -470,6 +450,7 @@ async function init() {
                 ((checkInStatusChanged && incomingCheckIn) ||
                     (checkOutStatusChanged && incomingCheckOut));
             if (shouldNotifyWrongBus) {
+                // Gửi notification cho quản lý xe biên chế của khách để họ biết khách đi nhầm xe.
                 const content = `Khách ${passenger.name || `#${passengerId}`} của xe ${passenger.busCode ||
                     passenger.registrationNumber ||
                     passenger.busId} vừa được điểm danh trên xe ${latestBusCode} ở chặng ${round.name || roundId}.`;
@@ -490,6 +471,7 @@ async function init() {
             }
             await db.query('COMMIT');
             if (hasAttendanceStatusChanged) {
+                // Publish realtime cho frontend refetch/hiển thị cảnh báo mà không cần reload.
                 mqttClient.publish(`${uiTopicPrefix}/${bus.tripId}`, JSON.stringify({
                     type: shouldNotifyWrongBus
                         ? 'attendance.wrong_bus'
@@ -524,6 +506,7 @@ async function init() {
                 }), { qos: mqttQos });
             }
             if (actionId) {
+                // ACK theo actionId để frontend/offline queue biết action đã được worker ghi DB.
                 mqttClient.publish(`${ackTopicPrefix}/${actionId}`, JSON.stringify({
                     type: 'attendance.persisted',
                     status: 'ok',
@@ -550,10 +533,12 @@ async function init() {
         }
     };
     mqttClient.on('connect', () => {
+        // Kết nối broker xong thì subscribe topic attendance cấu hình trong JSON.
         parentPort?.postMessage(`[${prj}] Connected.`);
         mqttClient.subscribe(config.mqtt.topic, { qos: mqttQos });
     });
     mqttClient.on('message', async (topic, msg) => {
+        // Mỗi message được parse JSON rồi đưa vào handler; lỗi sẽ log về master.
         const rawMessage = msg.toString().trim();
         if (!rawMessage) {
             return;
@@ -567,6 +552,7 @@ async function init() {
         }
     });
     setInterval(async () => {
+        // Log định kỳ tình trạng pool DB để phát hiện rò rỉ connection khi chạy lâu.
         const total = pool.totalCount;
         const idle = pool.idleCount;
         if (total > 0) {

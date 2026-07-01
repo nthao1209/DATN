@@ -3,7 +3,7 @@ import admin from '../config/firebaseAdmin';
 import { AuthRequest } from '../types/auth';
 import { prisma } from '../config/db';
 
-const logVerifyAttempt = (label: string, req: AuthRequest) => {
+const readBearerToken = (req: AuthRequest) => {
   const rawAuth = req.headers.authorization;
   const hasBearer = Boolean(rawAuth?.startsWith('Bearer '));
   const token = hasBearer ? rawAuth?.slice(7) : '';
@@ -11,6 +11,7 @@ const logVerifyAttempt = (label: string, req: AuthRequest) => {
   return token;
 };
 
+// Xác thực Firebase token, sau đó tìm hoặc tạo user tương ứng trong database nội bộ.
 const getOrCreatePrismaUser = async (token: string) => {
   const decodedToken = await admin
     .auth()
@@ -56,6 +57,7 @@ const getOrCreatePrismaUser = async (token: string) => {
   };
 };
 
+// Chặn tài khoản bị vô hiệu hóa trước khi request đi vào controller.
 const rejectDisabledUser = (
   res: Response,
   user: NonNullable<Awaited<ReturnType<typeof getOrCreatePrismaUser>>['user']>
@@ -72,6 +74,7 @@ const rejectDisabledUser = (
   return false;
 };
 
+// Một số route yêu cầu email Firebase đã verify, ví dụ các luồng sau đăng ký.
 const rejectUnverifiedEmail = (
   res: Response,
   decodedToken: any
@@ -93,7 +96,8 @@ export const verifyFirebaseTokenOnly = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token = logVerifyAttempt('verifyFirebaseTokenOnly', req);
+  // Chỉ cần token Firebase hợp lệ; không bắt buộc email verified hay tenant.
+  const token = readBearerToken(req);
 
   if (!token) {
     return res.status(401).json({
@@ -125,7 +129,8 @@ export const verifyVerifiedFirebaseTokenOnly = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token = logVerifyAttempt('verifyVerifiedFirebaseTokenOnly', req);
+  // Dùng cho route cần user thật sự xác minh email nhưng chưa cần tenant.
+  const token = readBearerToken(req);
 
   if (!token) {
     return res.status(401).json({
@@ -161,7 +166,8 @@ export const verifyFirebaseToken = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token = logVerifyAttempt('verifyFirebaseToken', req);
+  // Middleware chính cho các route nghiệp vụ: token hợp lệ, email verified, có tenant và role.
+  const token = readBearerToken(req);
 
   if (!token) {
     return res.status(401).json({

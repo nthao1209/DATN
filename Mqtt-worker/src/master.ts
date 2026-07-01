@@ -22,6 +22,7 @@ if (!fs.existsSync(CONFIG_PATH)) {
 }
 
 function startProject(configPath: string) {
+  // Master chỉ có nhiệm vụ khởi chạy worker và tự restart nếu worker lỗi/crash.
   const worker = new Worker(
     new URL(isProd ? './worker.js' : './worker.ts', import.meta.url),
     {
@@ -39,6 +40,7 @@ function startProject(configPath: string) {
   });
 
   worker.on('exit', (code) => {
+    // Worker xử lý MQTT liên tục; nếu chết thì đợi 5s rồi chạy lại để không mất service.
     console.error(`Worker exited with code ${code}. Restarting in 5s.`);
     setTimeout(() => {
       startProject(configPath);

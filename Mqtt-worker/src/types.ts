@@ -1,4 +1,5 @@
 export interface AppConfig {
+    // File config quyết định worker nghe broker nào, ghi DB nào và topic attendance nào.
     project_name: string;
     mqtt: {
         host: string;

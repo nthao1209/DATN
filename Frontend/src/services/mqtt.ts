@@ -4,7 +4,6 @@ import type { OfflineAction } from './offlineSync';
 export type AttendanceUpdateEvent = {
   type:
     | 'attendance.updated'
-    | 'attendance.changed'
     | 'attendance.wrong_bus';
 
   tripId: number;
@@ -91,11 +90,13 @@ let sharedClient: MqttClient | null = null;
 let currentStatus: MqttBrokerStatus = 'connecting';
 
 const notifyStatus = (status: MqttBrokerStatus) => {
+  // Đẩy trạng thái broker ra UI để hiện connected/reconnecting/error.
   currentStatus = status;
   statusListeners.forEach((listener) => listener(status));
 };
 
 const ensureSharedClient = () => {
+  // Toàn app dùng một MQTT client duy nhất để tránh mở nhiều websocket không cần thiết.
   if (sharedClient) {
     return sharedClient;
   }
@@ -112,6 +113,7 @@ const ensureSharedClient = () => {
 
   sharedClient.on('connect', () => {
     notifyStatus('connected');
+    // Khi reconnect, subscribe lại toàn bộ topic đang có listener.
     for (const topic of activeTopics) {
       sharedClient?.subscribe(topic, { qos: 1 });
     }
@@ -123,6 +125,7 @@ const ensureSharedClient = () => {
   sharedClient.on('error', () => notifyStatus('error'));
 
   sharedClient.on('message', (topic, payload) => {
+    // Mỗi topic có thể có nhiều component nghe, nên dispatch tới toàn bộ handler đã đăng ký.
     const handlers = topicHandlers.get(topic);
     if (!handlers || handlers.size === 0) {
       return;
@@ -137,6 +140,7 @@ const ensureSharedClient = () => {
 };
 
 const waitForClientConnection = async () => {
+  // Dùng trước khi publish để đảm bảo client đã kết nối broker.
   const client = ensureSharedClient();
 
   if (client.connected) {
@@ -174,6 +178,7 @@ const registerTopicHandlers = (
   topics: string[],
   handler: (topic: string, message: Record<string, unknown>) => void,
 ): MqttSubscriptionHandle => {
+  // Quản lý subscribe/unsubscribe theo số lượng listener thực sự còn dùng topic.
   const client = ensureSharedClient();
 
   topics.forEach((topic) => {
@@ -243,11 +248,10 @@ export const subscribeAttendanceUpdates = (
   tripId: number,
   onMessage: (event: AttendanceUpdateEvent) => void,
 ): MqttSubscriptionHandle => {
+  // Màn transaction nghe event điểm danh theo trip để refetch bảng.
   return registerTopicHandlers([`${MQTT_UI_TOPIC_PREFIX}/${tripId}`], (_topic, parsed) => {
     if (
       (parsed.type === 'attendance.updated' ||
-        parsed.type === 'attendance.changed' ||
-        parsed.type === 'attendance.requires_review' ||
         parsed.type === 'attendance.wrong_bus') &&
       Number(parsed.tripId) === Number(tripId)
     ) {
@@ -351,10 +355,6 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
     checkOutBy: action.checkOutBy,
     checkInNote: action.checkInNote || '',
     checkOutNote: action.checkOutNote || '',
-    checkInTouched: Boolean(action.checkInTouched),
-    checkOutTouched: Boolean(action.checkOutTouched),
-    checkInNoteTouched: Boolean(action.checkInNoteTouched),
-    checkOutNoteTouched: Boolean(action.checkOutNoteTouched),
     timestamp: action.timestamp,
   };
 

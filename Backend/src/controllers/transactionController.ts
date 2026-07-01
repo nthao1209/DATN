@@ -3,6 +3,7 @@ import { Response } from "express";
 import { prisma } from "../config/db";
 import { AuthRequest } from "../types/auth";
 
+// Tất cả transaction phải nằm trong tenant hiện tại để tránh lộ dữ liệu giữa tổ chức.
 const ensureTenant = (req: AuthRequest, res: Response): number | null => {
   if (!req.tenantId) {
     res.status(401).json({ message: "Unauthorized" });
@@ -12,6 +13,7 @@ const ensureTenant = (req: AuthRequest, res: Response): number | null => {
   return req.tenantId;
 };
 
+// Role 1/2/3 được thao tác điểm danh, các role khác bị chặn.
 const canAccessTransactions = (req: AuthRequest) =>
   req.roleId === 1 || req.roleId === 2 || req.roleId === 3;
 
@@ -36,6 +38,7 @@ const readTrimmedString = (value: unknown): string | null => {
   return trimmed ? trimmed : null;
 };
 
+// Nếu body có tick điểm danh hoặc ghi chú thì request này được xem là thao tác attendance.
 const hasAttendanceMutationInput = (body: any) =>
   parseBoolean(body?.checkIn) ||
   parseBoolean(body?.checkOut) ||
@@ -54,6 +57,7 @@ const getBusDisplayName = async (busId: number) => {
   return bus?.busCode || bus?.registrationNumber || `xe ${busId}`;
 };
 
+// Kiểm tra một khách có đang được điểm danh ở xe khác trong cùng chặng hay không.
 const getActiveAttendanceBusConflict = async (
   transactionId: number | undefined,
   targetBusId: number,
@@ -181,6 +185,7 @@ const getActiveAttendanceBusConflict = async (
   };
 };
 
+// Không cho thêm/chuyển khách vào xe-chặng đã được tài xế xác nhận hoàn tất.
 const getTargetBusRoundCompletion = async (busId: number, roundId: number) =>
   prisma.busRoundStatus.findUnique({
     where: {
@@ -198,6 +203,7 @@ const getTargetBusRoundCompletion = async (busId: number, roundId: number) =>
 export const transactionController = {
   getAll: async (req: AuthRequest, res: Response) => {
     try {
+      // Lấy transaction kèm passenger/round/bus/events để frontend dựng bảng điểm danh đầy đủ.
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
 
@@ -206,6 +212,7 @@ export const transactionController = {
       }
 
       const managerCondition =
+        // Role quản lý xe chỉ thấy xe mình quản lý hoặc hành khách/event liên quan đến xe đó.
         req.roleId === 3 && req.user?.id
           ? {
               OR: [
@@ -278,6 +285,7 @@ export const transactionController = {
 
   create: async (req: AuthRequest, res: Response) => {
     try {
+      // Endpoint này chỉ thêm khách vào bảng; tick điểm danh thật đi qua MQTT worker.
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
 
@@ -379,6 +387,7 @@ export const transactionController = {
       );
 
       if (activeAttendanceConflict.blocked) {
+        // Chặn trường hợp cùng hành khách đang được điểm danh ở xe khác không hợp lệ.
         return res.status(409).json({
           code: activeAttendanceConflict.code,
           message: activeAttendanceConflict.message,
@@ -387,6 +396,7 @@ export const transactionController = {
       }
 
       if (activeAttendanceConflict.allowTransferForCheckOut) {
+        // Cho phép chuyển bus khi hành khách cần check-out ở xe khác và xe đích chưa khóa.
         const targetBusRoundStatus = await getTargetBusRoundCompletion(
           busId,
           roundId,
@@ -421,6 +431,7 @@ export const transactionController = {
       }
 
       const transaction = existing
+        // Nếu đã có transaction passenger-round thì cập nhật xe, không tạo bản ghi trùng.
         ? await prisma.transaction.update({
             where: { id: existing.id },
             data: {

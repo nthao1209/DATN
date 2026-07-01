@@ -86,7 +86,7 @@ export const joinTenant = async (req: AuthRequest,res:Response) =>{
 
     if(!tenant) return res.status(400).json({message:"Not information"});
 
-    const membership = await prisma.userTenant.create({
+    await prisma.userTenant.create({
       data: {
         userId : user.id,
         tenantId: tenant.id,

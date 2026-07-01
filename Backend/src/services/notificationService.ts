@@ -3,7 +3,6 @@ import { Prisma, PrismaClient } from '@prisma/client';
 export type NotificationPayload = Prisma.InputJsonValue | null;
 
 type NotificationWriteClient = Pick<PrismaClient, 'notification'>;
-type NotificationBatchClient = NotificationWriteClient & Pick<PrismaClient, '$transaction'>;
 
 export interface NotificationCreateInput {
   userId: number;
@@ -25,32 +24,6 @@ export const createNotification = (prisma: NotificationWriteClient, input: Notif
   });
 };
 
-export const createNotificationsForUsers = async (
-  prisma: NotificationBatchClient,
-  userIds: number[],
-  input: Omit<NotificationCreateInput, 'userId'>,
-) => {
-  const uniqueUserIds = Array.from(new Set(userIds)).filter((userId) => Number.isInteger(userId) && userId > 0);
-
-  if (!uniqueUserIds.length) {
-    return [];
-  }
-
-  return prisma.$transaction(
-    uniqueUserIds.map((userId) =>
-      prisma.notification.create({
-        data: {
-          userId,
-          type: input.type,
-          title: input.title,
-          content: input.content,
-          ...(input.payload === null ? {} : { payload: input.payload }),
-        },
-      }),
-    ),
-  );
-};
-
 export const getTenantAdminRecipient = async (
   prisma: PrismaClient,
   tenantId: number,
@@ -70,22 +43,4 @@ export const getTenantAdminRecipient = async (
   });
 
   return recipient?.userId ?? null;
-};
-
-export const getTenantNotificationRecipients = async (
-  prisma: PrismaClient,
-  tenantId: number,
-  roleIds: number[] = [1, 2, 3],
-) => {
-  const rows = await prisma.userTenant.findMany({
-    where: {
-      tenantId,
-      roleId: {
-        in: roleIds,
-      },
-    },
-    select: { userId: true },
-  });
-
-  return rows.map((row) => row.userId);
 };

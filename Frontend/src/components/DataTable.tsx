@@ -54,6 +54,7 @@ function DataTable<T extends object>({
   const { colors, effects, isDarkMode } = useTheme();
 
   const normalizeText = (text: string) => {
+    // Tìm kiếm không dấu để người dùng gõ "nguyen" vẫn ra "Nguyễn".
     return text
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -77,6 +78,7 @@ function DataTable<T extends object>({
   const [pageSize, setPageSize] = useState(initialPageSize);
 
   const queryResult = fetchFn
+    // DataTable có thể tự fetch bằng React Query hoặc nhận data đã fetch sẵn từ page.
     ? useQuery({ queryKey, queryFn: fetchFn })
     : { data: undefined, isLoading: false, isError: false, refetch: () => {}, isFetching: false };
 
@@ -87,6 +89,7 @@ function DataTable<T extends object>({
   const isError = externalError ?? queryError;
 
   const filteredData = useMemo(() => {
+    // Search toàn dòng bằng JSON và filter từng cột nếu TableActionBar truyền filter.
     if (!tableData) return [];
     return tableData.filter((item: any) => {
       const matchesSearch = debouncedSearchText === '' || smartMatch(JSON.stringify(item), debouncedSearchText);
@@ -102,11 +105,13 @@ function DataTable<T extends object>({
 
   const totalPages = Math.ceil(filteredData.length / pageSize);
   const paginatedData = useMemo(() => {
+    // Cắt dữ liệu theo trang hiện tại sau khi đã search/filter.
     const start = (currentPage - 1) * pageSize;
     return filteredData.slice(start, start + pageSize);
   }, [filteredData, currentPage, pageSize]);
 
   useEffect(() => {
+    // Khi page vừa thêm/sửa dòng, focusRowKey giúp nhảy tới đúng trang chứa dòng đó.
     if (focusRowKey == null) return;
 
     const targetIndex = filteredData.findIndex((item, index) => {

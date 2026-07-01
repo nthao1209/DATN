@@ -4,6 +4,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/types';
 
 const rawApiBaseUrl = import.meta.env.VITE_API_URL;
+// Axios client dùng chung cho toàn frontend; mọi endpoint bên dưới đều tự gắn /api.
 const axiosClient = axios.create({
   baseURL: `${rawApiBaseUrl.replace(/\/$/, '')}/api`,
   timeout: 15000,
@@ -13,6 +14,7 @@ const axiosClient = axios.create({
 });
 
 const AUTH_ENDPOINT_HINTS = [
+  // Các endpoint auth tự xử lý token riêng nên không retry 401 để tránh vòng lặp đăng nhập.
   '/auth/sync',
   '/auth/status',
   '/auth/delete-account',
@@ -26,6 +28,7 @@ const isAuthRelatedEndpoint = (url?: string) =>
 let authInitPromise: Promise<User | null> | null = null;
 
 const waitForAuthInit = (): Promise<User | null> => {
+  // Firebase khởi tạo bất đồng bộ; chờ xong để lấy token trước khi gọi API cần đăng nhập.
   if (fbAuth.currentUser) return Promise.resolve(fbAuth.currentUser);
   if (authInitPromise) return authInitPromise;
 
@@ -41,6 +44,7 @@ const waitForAuthInit = (): Promise<User | null> => {
 };
 
 axiosClient.interceptors.request.use(async (config: any) => {
+  // Upload FormData cần để browser tự set multipart boundary.
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     if (config.headers) {
       delete config.headers['Content-Type'];
@@ -55,6 +59,7 @@ axiosClient.interceptors.request.use(async (config: any) => {
 
   const user = fbAuth.currentUser ?? (await waitForAuthInit());
   if (user) {
+    // Gắn Firebase ID token vào mọi request nghiệp vụ.
     const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -69,6 +74,7 @@ axiosClient.interceptors.response.use(
     const requestUrl = String(originalRequest?.url || '');
 
     if (isUnauthorized && !originalRequest?._retry && originalRequest && !isAuthRelatedEndpoint(requestUrl)) {
+      // Token có thể hết hạn; thử refresh một lần rồi gọi lại request cũ.
       originalRequest._retry = true;
       const user = fbAuth.currentUser ?? (await waitForAuthInit());
       if (user) {
@@ -92,6 +98,7 @@ axiosClient.interceptors.response.use(
 
     let message = '';
 
+    // Chuẩn hóa lỗi API thành message dễ debug, có method + endpoint + status.
     if (error.code === 'ECONNABORTED') {
       message = `Timeout khi gọi API ${method} ${endpoint}. Vui lòng kiểm tra server hoặc mạng.`;
     } else if (!error.response) {
@@ -117,6 +124,7 @@ axiosClient.interceptors.response.use(
  * TẤT CẢ API CỦA HỆ THỐNG
  */
 export const api = {
+  // Wrapper thấp tầng cho các chỗ cần gọi endpoint chưa được đặt tên riêng.
   get: <T = any>(url: string) => axiosClient.get<T, T>(url),
   post: <T = any>(url: string, data?: any) => axiosClient.post<T, T>(url, data),
   put: <T = any>(url: string, data?: any) => axiosClient.put<T, T>(url, data),
@@ -220,6 +228,7 @@ export const api = {
     ),
 
   getAttendancePassengers: (tripId: string) =>
+    // Scope attendance cho phép backend lọc theo quyền quản lý xe khi mở bảng điểm danh.
     axiosClient.get<any[], any[]>(`/trips/${tripId}/passengers?scope=attendance`),
 
   searchPassengersByNameForAttendance: (tripId: string, keyword: string) =>
@@ -254,6 +263,7 @@ export const api = {
     },
 
     importPassengersPreview: (tripId: string, file: File, sheetName: string) => {
+      // Gửi file Excel lên backend để preview/map cột trước khi người dùng lưu thật.
       const formData = new FormData();
       formData.append('file', file);
       formData.append('sheetName', sheetName);

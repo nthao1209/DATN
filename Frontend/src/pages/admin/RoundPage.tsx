@@ -47,6 +47,7 @@ const RoundPage: React.FC = () => {
   const rounds = roundsData ?? EMPTY_ROUNDS;
 
   const { data: transactionsData } = useQuery<any[]>({
+    // RoundPage tự đếm check-in/check-out theo chặng từ transaction, không lấy _count từ backend.
     queryKey: ['round-transactions', tripId],
     queryFn: () => api.getTransactions(),
     enabled: !!tripId,
@@ -79,7 +80,7 @@ const RoundPage: React.FC = () => {
 
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
-  // Realtime updates MQTT
+  // Nghe MQTT để cập nhật trạng thái khóa/yêu cầu mở khóa ngay khi admin hoặc tài xế thao tác.
   useEffect(() => {
     const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
       if (Number(message?.tripId) !== Number(tripId)) return;
@@ -114,6 +115,7 @@ const RoundPage: React.FC = () => {
   }, [queryClient, tripId, refetchLocks, refetchUnlockRequests]);
 
   useEffect(() => {
+    // Map round API thành row hiển thị, kèm số check-in/check-out và số xe đã khóa/hoàn thành.
     const mapped: RoundRow[] = rounds.map((r: any) => {
       const roundId = Number(r.id);
       const checkInTxCount = (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === roundId && Boolean(tx.checkIn)).length;
@@ -164,6 +166,7 @@ const RoundPage: React.FC = () => {
   }, [rounds, transactions, lockStatuses, buses]);
 
   const isSameRow = (current: RoundRow, initial: RoundRow) => {
+    // Chỉ name/time/status là field user sửa trực tiếp trên RoundPage.
     return (
       current.name.trim() === initial.name.trim() &&
       current.time.trim() === initial.time.trim() &&

@@ -8,6 +8,7 @@ type ImportField = 'name' | 'tel' | 'note' | 'bus';
 type SheetCell = string | number | boolean | Date | null | undefined;
 
 const HEADER_ALIASES: Record<ImportField, string[]> = {
+  // Cho phép file Excel dùng nhiều tên cột khác nhau nhưng vẫn map về field chuẩn.
   name: ['name', 'hoten', 'ten', 'fullname', 'full name', 'ho va ten', 'hova ten','Họ và tên'],
   tel: ['tel', 'phone', 'phonenumber', 'sodienthoai', 'sdt', 'mobile', 'dien thoai', 'Số điện thoại'],
   note: ['note', 'ghichu', 'ghi chu', 'remark', 'remarks', 'description', 'mo ta', 'Ghi chú'],
@@ -15,6 +16,7 @@ const HEADER_ALIASES: Record<ImportField, string[]> = {
 };
 
 const normalizeText = (value: unknown): string =>
+  // Bỏ dấu, bỏ ký tự đặc biệt để so khớp header/bus code mềm hơn.
   String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -95,6 +97,7 @@ const scoreHeaderRow = (cells: SheetCell[]): number => {
 };
 
 const parseRowsFromWorksheet = (worksheet: XLSX.WorkSheet): Record<string, unknown>[] => {
+  // Tự dò dòng header trong 10 dòng đầu để hỗ trợ file Excel có tiêu đề/phần mô tả phía trên.
   const matrix = XLSX.utils.sheet_to_json<SheetCell[]>(worksheet, {
     header: 1,
     raw: false,
@@ -137,6 +140,7 @@ const parseRowsFromWorksheet = (worksheet: XLSX.WorkSheet): Record<string, unkno
 };
 
 const buildHeaderMap = (headers: string[]): Record<ImportField, string | undefined> => ({
+  // Map header thật trong file Excel về các field hệ thống cần: name/tel/note/bus.
   name: findMatchedHeader(headers, HEADER_ALIASES.name),
   tel: findMatchedHeader(headers, HEADER_ALIASES.tel),
   note: findMatchedHeader(headers, HEADER_ALIASES.note),
@@ -159,6 +163,7 @@ export const passengerController = {
 
   getAll: async (req: AuthRequest, res: Response) => {
     try {
+      // Lấy hành khách theo chuyến, có thể lọc theo xe/keyword/scope attendance.
       const tripId = Number(req.params.tripId);
       const busIdQuery = req.query.busId;
       const scope = String(req.query.scope || '');
@@ -235,6 +240,7 @@ export const passengerController = {
 
   create: async (req: AuthRequest, res: Response) => {
     try {
+      // Tạo hành khách mới và đảm bảo xe được chọn thuộc đúng chuyến/tenant.
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
@@ -298,6 +304,7 @@ export const passengerController = {
 
   getImportSheets: async (req: AuthRequest, res: Response) => {
     try {
+      // Đọc tên các sheet để frontend cho người dùng chọn sheet cần import.
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
@@ -321,6 +328,7 @@ export const passengerController = {
   },
   importPreview: async (req: AuthRequest, res: Response) => {
     try {
+      // Chỉ preview dữ liệu import: map cột, chuẩn hóa SĐT, dò xe, báo lỗi dòng chưa hợp lệ.
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
@@ -387,6 +395,7 @@ export const passengerController = {
       });
 
       const busLookup = new Map<string, number>();
+      // Cho phép dò xe bằng id, mã xe hoặc biển số trong file Excel.
       buses.forEach((bus) => {
         normalizeBusLookupKeys(bus.id).forEach((key) => busLookup.set(key, bus.id));
         normalizeBusLookupKeys(bus.busCode).forEach((key) => busLookup.set(key, bus.id));
@@ -442,6 +451,7 @@ export const passengerController = {
 
   update: async (req: AuthRequest, res: Response) => {
     try {
+      // Cập nhật hồ sơ khách; nếu đổi xe thì xác thực xe mới vẫn thuộc tenant hiện tại.
       const { id } = req.params;
 
       if (!req.tenantId) {
@@ -530,6 +540,7 @@ export const passengerController = {
 
   delete: async (req: AuthRequest, res: Response) => {
     try {
+      // Xóa hành khách theo tenant và phát sự kiện refresh cho dashboard/trang liên quan.
       const { id } = req.params;
 
       if (!req.tenantId) {

@@ -84,22 +84,4 @@ export function getFirebaseErrorMessage(error: any): string {
   return 'Đã xảy ra lỗi không xác định. Vui lòng thử lại';
 }
 
-/**
- * Get specific Firebase error code
- * @param error - Firebase error object or string
- * @returns Firebase error code or null
- */
-export function getFirebaseErrorCode(error: any): string | null {
-  if (typeof error === 'string') {
-    const match = error.match(/auth\/[\w-]+/);
-    return match ? match[0] : null;
-  } else if (error?.code) {
-    return error.code;
-  } else if (error?.message) {
-    const match = error.message.match(/auth\/[\w-]+/);
-    return match ? match[0] : null;
-  }
-  return null;
-}
-
 export default FIREBASE_AUTH_ERRORS;

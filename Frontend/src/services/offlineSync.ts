@@ -25,9 +25,11 @@ export const OFFLINE_QUEUE_SYNCED_EVENT = 'attendance-offline-sync-complete';
 
 const isBrowser = () => typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 const queueMatchKey = (action: Pick<OfflineAction, 'tripId' | 'passengerId' | 'roundId' | 'storageKey'>) =>
+  // Một ô điểm danh chỉ cần một action mới nhất trong queue, tránh gửi nhiều bản cũ.
   `${action.storageKey || ''}:${action.tripId}:${action.passengerId}:${action.roundId}`;
 
 const migrateOfflineAction = (action: OfflineAction & { note?: string }): OfflineAction => {
+  // Hỗ trợ queue cũ từng dùng field note chung trước khi tách checkInNote/checkOutNote.
   if (!action.note || action.checkInNote || action.checkOutNote) {
     return action;
   }
@@ -40,6 +42,7 @@ const migrateOfflineAction = (action: OfflineAction & { note?: string }): Offlin
 };
 
 const readQueue = (): OfflineAction[] => {
+  // Đọc queue từ localStorage; lỗi parse thì coi như queue rỗng để UI không crash.
   if (!isBrowser()) return [];
 
   try {
@@ -53,6 +56,7 @@ const readQueue = (): OfflineAction[] => {
 };
 
 const writeQueue = (queue: OfflineAction[]) => {
+  // Mọi thay đổi queue đều phát event để các component sync badge/trạng thái.
   if (!isBrowser()) return;
   localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
   window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_UPDATED_EVENT));
@@ -80,6 +84,7 @@ export const offlineService = {
   },
 
   upsertQueue: (action: Omit<OfflineAction, 'id' | 'status'>) => {
+    // Ghi đè action cũ của cùng passenger-round để chỉ sync trạng thái mới nhất.
     const queue = readQueue();
     const matchKey = queueMatchKey(action);
     const existingIndex = queue.findIndex((item) => queueMatchKey(item) === matchKey);
@@ -116,6 +121,7 @@ export const offlineService = {
   },
 
   removeFromQueue: (id: string) => {
+    // Khi action cuối cùng của một draft được sync xong, báo cho page dọn draft local.
     const queue = readQueue();
     const current = queue.find((item) => item.id === id);
     const nextQueue = queue.filter((item) => item.id !== id);

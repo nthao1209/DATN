@@ -204,7 +204,18 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
                               {busName} gửi yêu cầu mở khóa
                             </div>
                             {req.reason && (
-                              <div className="small mt-1 text-muted fst-italic" style={{ opacity: 0.9 }}>
+                              <div
+                                className="unlock-reason mt-2"
+                                style={{
+                                  backgroundColor: isDarkMode
+                                    ? 'rgba(245, 158, 11, 0.14)'
+                                    : '#fff7ed',
+                                  borderColor: isDarkMode
+                                    ? 'rgba(251, 191, 36, 0.42)'
+                                    : '#fed7aa',
+                                  color: isDarkMode ? '#fde68a' : '#7c2d12',
+                                }}
+                              >
                                 "Lý do: {req.reason}"
                               </div>
                             )}
@@ -405,6 +416,27 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
         
         .badge-status { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
         .badge-status.locked { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .unlock-reason {
+          display: inline-flex;
+          max-width: 100%;
+          align-items: flex-start;
+          gap: 6px;
+          padding: 6px 10px;
+          border: 1px solid;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          line-height: 1.35;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .unlock-reason-label {
+          flex: 0 0 auto;
+          font-weight: 800;
+        }
         
         .transition-all { transition: all 0.2s ease-in-out; }
         .tracking-wider { letter-spacing: 0.05em; }

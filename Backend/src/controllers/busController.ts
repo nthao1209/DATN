@@ -1,18 +1,10 @@
 import { Response } from 'express';
 import { prisma } from '../config/db';
 import { AuthRequest } from '../types/auth';
-import mqtt from 'mqtt';
-import { publishDashboardRefresh } from '../services/mqtt';
-
-
-const mqttClient = mqtt.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
-  username: process.env.MQTT_USERNAME,
-  password: process.env.MQTT_PASSWORD,
-  clean: true,
-  clientId: `backend_bus_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-});
+import { publishDashboardRefresh, publishJson } from '../services/mqtt';
 
 const publishLockUpdate = (tripId: number, busId: number, roundId: number, checkInLocked: boolean, checkOutLocked: boolean) => {
+  // Khi khóa/mở khóa lượt, broadcast cho cả màn admin và màn transaction theo trip.
   const payload = {
     type: 'bus.round.lock.updated',
     tripId,
@@ -24,12 +16,13 @@ const publishLockUpdate = (tripId: number, busId: number, roundId: number, check
   };
 
   ['attendance/ui/locks', `attendance/trips/${tripId}/locks`].forEach((topic) => {
-    mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+    publishJson(topic, payload);
   });
 
 };
 
 const resolveActorId = async (req: AuthRequest): Promise<number | null> => {
+  // Một số request chỉ có Firebase uid, nên cần quy đổi về user id nội bộ trước khi ghi DB.
   if (req.user?.id) return req.user.id;
 
   if (req.firebaseUser?.uid) {
@@ -46,6 +39,7 @@ const resolveActorId = async (req: AuthRequest): Promise<number | null> => {
 
 export const busController = {
   getAll: async (req: AuthRequest, res: Response) => {
+    // Role quản lý xe chỉ được thấy xe mình phụ trách; admin thấy toàn bộ xe trong chuyến.
     const tripId = Number(req.params.tripId);
     if (!tripId) {
       return res.status(400).json({ message: 'Missing tripId' });
@@ -284,6 +278,7 @@ export const busController = {
   ,
   getRoundStatuses: async (req: AuthRequest, res: Response) => {
     try {
+      // Trả trạng thái khóa/xác nhận của từng cặp bus-round cho các màn transaction/round.
       const tripId = Number(req.query.tripId);
       if (!tripId) {
         return res.status(400).json({ message: 'Missing tripId' });
@@ -312,6 +307,7 @@ export const busController = {
 
   confirmCompletion: async (req: AuthRequest, res: Response) => {
     try {
+      // Tài xế xác nhận xe đã hoàn thành một chặng, sau đó không cho thêm khách mới vào chặng đó.
       const busId = Number(req.params.busId);
       const roundId = Number(req.params.roundId);
 
@@ -389,6 +385,7 @@ export const busController = {
 
   confirmChecks: async (req: AuthRequest, res: Response) => {
     try {
+      // Admin khóa hoặc mở khóa check-in/check-out cho một xe ở một chặng cụ thể.
       const busId = Number(req.params.busId);
       const roundId = Number(req.params.roundId);
 
@@ -448,13 +445,10 @@ export const busController = {
         },
       });
 
-      const [busInfo, roundInfo] = await Promise.all([
-        prisma.bus.findFirst({
-          where: { id: busId, trip: { tenantId: req.tenantId } },
-          include: { trip: true },
-        }),
-        prisma.round.findFirst({ where: { id: roundId } }),
-      ]);
+      const busInfo = await prisma.bus.findFirst({
+        where: { id: busId, trip: { tenantId: req.tenantId } },
+        include: { trip: true },
+      });
 
       if (busInfo?.trip?.id) {
         publishLockUpdate(busInfo.trip.id, busId, roundId, up.checkInLocked, up.checkOutLocked);

@@ -5,6 +5,7 @@ const notificationService_1 = require("../services/notificationService");
 const mqtt_1 = require("../services/mqtt");
 const db_1 = require("../config/db");
 const buildUnlockTitle = (status) => {
+    // Chuẩn hóa title notification theo trạng thái yêu cầu mở khóa.
     switch (status) {
         case 'PENDING':
             return 'Yêu cầu mở khóa mới';
@@ -15,6 +16,7 @@ const buildUnlockTitle = (status) => {
     }
 };
 const buildUnlockContent = (request, busCode, roundName, extra) => {
+    // Nội dung notification cần đủ xe, chặng, loại khóa và lý do nếu có.
     const actionLabel = request.type === 'check_in' ? 'điểm danh vào' : 'điểm danh ra';
     const base = `Xe ${busCode || request.bus?.busCode || request.busId} yêu cầu mở khóa ${actionLabel} cho chặng ${roundName || request.round?.name || request.roundId}`;
     return extra ? `${base}. ${extra}` : `${base}.`;
@@ -28,6 +30,7 @@ const unlockRequestInclude = {
     round: true,
 };
 const notifyAdmin = async (tenantId, handledBy, payload) => {
+    // Gửi notification cho trưởng đoàn/admin của tenant, tránh tự gửi cho người vừa thao tác.
     const recipientId = await (0, notificationService_1.getTenantAdminRecipient)(db_1.prisma, tenantId);
     if (!recipientId || recipientId === handledBy)
         return;
@@ -38,6 +41,7 @@ const notifyAdmin = async (tenantId, handledBy, payload) => {
 };
 const getPendingRequests = async (req, res) => {
     try {
+        // Admin mở modal khóa lượt sẽ gọi endpoint này để lấy các yêu cầu đang chờ của đúng chặng.
         if (!req.tenantId) {
             return res.status(401).json({
                 message: 'Unauthorized',
@@ -83,6 +87,7 @@ const getPendingRequests = async (req, res) => {
 };
 const create = async (req, res) => {
     try {
+        // Tài xế/điều hành xe gửi yêu cầu mở khóa một chiều check-in hoặc check-out.
         const busId = Number(req.params.busId);
         const roundId = Number(req.params.roundId);
         const { type = 'check_in', reason } = req.body || {};
@@ -117,6 +122,7 @@ const create = async (req, res) => {
             },
         });
         if (status?.driverConfirmedBy) {
+            // Chặng đã xác nhận hoàn tất thì không mở khóa nữa, tránh sửa dữ liệu sau khi chốt.
             return res.status(400).json({
                 message: 'Không thể gửi yêu cầu mở khóa khi chặng đã được bạn xác nhận hoàn thành',
             });
@@ -126,6 +132,7 @@ const create = async (req, res) => {
             include: unlockRequestInclude,
         });
         const request = existingRequest
+            // Nếu từng gửi yêu cầu cùng bus/round/type thì mở lại request cũ thay vì tạo bản ghi trùng.
             ? await db_1.prisma.unlockRequest.update({
                 where: { id: existingRequest.id },
                 data: {
@@ -174,6 +181,7 @@ const create = async (req, res) => {
             },
         });
         const requesterTopic = `attendance/requester/${req.user.id}/unlock-response`;
+        // Phản hồi realtime cho người gửi để UI biết request đã được ghi nhận.
         (0, mqtt_1.publishJson)(requesterTopic, {
             type: 'unlock.request.created.self',
             requestId: request.id,
@@ -213,6 +221,7 @@ const create = async (req, res) => {
 };
 const approve = async (req, res) => {
     try {
+        // Admin duyệt request: vừa đổi trạng thái request vừa mở khóa field tương ứng.
         const requestId = Number(req.params.requestId);
         if (!requestId)
             return res.status(400).json({ message: 'Missing requestId' });
@@ -234,6 +243,7 @@ const approve = async (req, res) => {
             return res.status(400).json({ message: 'Request already processed' });
         }
         const updated = await db_1.prisma.$transaction(async (tx) => {
+            // Dùng transaction DB để request và trạng thái khóa luôn đồng bộ với nhau.
             const updatedRequest = await tx.unlockRequest.update({
                 where: { id: requestId },
                 data: {
@@ -275,17 +285,8 @@ const approve = async (req, res) => {
                 handledBy: req.user.id,
             },
         });
-        (0, mqtt_1.publishJson)(`attendance/requester/${requesterId}/unlock-response`, {
-            type: 'bus.round.lock.updated',
-            tripId: request.bus.trip.id,
-            busId: request.busId,
-            roundId: request.roundId,
-            checkInLocked: request.type === 'check_in' ? false : undefined,
-            checkOutLocked: request.type === 'check_out' ? false : undefined,
-            updatedAt: new Date().toISOString(),
-            handledBy: req.user.id,
-        });
         const lockPayload = {
+            // Broadcast trạng thái khóa mới để các màn đang mở tự cập nhật.
             type: 'bus.round.lock.updated',
             tripId: request.bus.trip.id,
             busId: request.busId,
@@ -308,14 +309,6 @@ const approve = async (req, res) => {
             lockType: request.type,
             handledBy: req.user.id,
         });
-        const adminTopic = `attendance/trips/${request.bus.trip.id}/admin/unlock-requests`;
-        (0, mqtt_1.publishJson)(adminTopic, {
-            type: 'unlock.request.approved',
-            requestId,
-            busId: request.busId,
-            roundId: request.roundId,
-            handledBy: req.user.id,
-        });
         return res.json(updated);
     }
     catch (error) {
@@ -327,6 +320,7 @@ const approve = async (req, res) => {
  */
 const reject = async (req, res) => {
     try {
+        // Admin từ chối request: chỉ đổi trạng thái request, không thay đổi khóa điểm danh.
         const requestId = Number(req.params.requestId);
         const { rejectReason } = req.body;
         if (!requestId)
@@ -380,15 +374,6 @@ const reject = async (req, res) => {
             busCode: request.bus.busCode,
             roundName: request.round?.name,
             lockType: request.type,
-            handledBy: req.user.id,
-            rejectReason: rejectReason || '',
-        });
-        const adminTopic = `attendance/trips/${request.bus.trip.id}/admin/unlock-requests`;
-        (0, mqtt_1.publishJson)(adminTopic, {
-            type: 'unlock.request.rejected',
-            requestId,
-            busId: request.busId,
-            roundId: request.roundId,
             handledBy: req.user.id,
             rejectReason: rejectReason || '',
         });

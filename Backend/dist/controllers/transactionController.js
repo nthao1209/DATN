@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.transactionController = void 0;
 const client_1 = require("@prisma/client");
 const db_1 = require("../config/db");
+// Tất cả transaction phải nằm trong tenant hiện tại để tránh lộ dữ liệu giữa tổ chức.
 const ensureTenant = (req, res) => {
     if (!req.tenantId) {
         res.status(401).json({ message: "Unauthorized" });
@@ -10,6 +11,7 @@ const ensureTenant = (req, res) => {
     }
     return req.tenantId;
 };
+// Role 1/2/3 được thao tác điểm danh, các role khác bị chặn.
 const canAccessTransactions = (req) => req.roleId === 1 || req.roleId === 2 || req.roleId === 3;
 const parseBoolean = (value) => {
     if (typeof value === "boolean")
@@ -31,6 +33,7 @@ const readTrimmedString = (value) => {
     const trimmed = String(value).trim();
     return trimmed ? trimmed : null;
 };
+// Nếu body có tick điểm danh hoặc ghi chú thì request này được xem là thao tác attendance.
 const hasAttendanceMutationInput = (body) => parseBoolean(body?.checkIn) ||
     parseBoolean(body?.checkOut) ||
     Boolean(readTrimmedString(body?.checkInNote)) ||
@@ -45,6 +48,7 @@ const getBusDisplayName = async (busId) => {
     });
     return bus?.busCode || bus?.registrationNumber || `xe ${busId}`;
 };
+// Kiểm tra một khách có đang được điểm danh ở xe khác trong cùng chặng hay không.
 const getActiveAttendanceBusConflict = async (transactionId, targetBusId, roundId) => {
     if (!transactionId) {
         return {
@@ -149,6 +153,7 @@ const getActiveAttendanceBusConflict = async (transactionId, targetBusId, roundI
         message: `Passenger is already checked in on ${await getBusDisplayName(Number(latestCheckInEvent.busId))}. Lock check-in on that bus before adding this passenger to another bus for check-out.`,
     };
 };
+// Không cho thêm/chuyển khách vào xe-chặng đã được tài xế xác nhận hoàn tất.
 const getTargetBusRoundCompletion = async (busId, roundId) => db_1.prisma.busRoundStatus.findUnique({
     where: {
         busId_roundId: {
@@ -164,13 +169,16 @@ const getTargetBusRoundCompletion = async (busId, roundId) => db_1.prisma.busRou
 exports.transactionController = {
     getAll: async (req, res) => {
         try {
+            // Lấy transaction kèm passenger/round/bus/events để frontend dựng bảng điểm danh đầy đủ.
             const tenantId = ensureTenant(req, res);
             if (!tenantId)
                 return;
             if (!canAccessTransactions(req)) {
                 return res.status(403).json({ message: "Forbidden" });
             }
-            const managerCondition = req.roleId === 3 && req.user?.id
+            const managerCondition = 
+            // Role quản lý xe chỉ thấy xe mình quản lý hoặc hành khách/event liên quan đến xe đó.
+            req.roleId === 3 && req.user?.id
                 ? {
                     OR: [
                         {
@@ -240,6 +248,7 @@ exports.transactionController = {
     },
     create: async (req, res) => {
         try {
+            // Endpoint này chỉ thêm khách vào bảng; tick điểm danh thật đi qua MQTT worker.
             const tenantId = ensureTenant(req, res);
             if (!tenantId)
                 return;
@@ -318,6 +327,7 @@ exports.transactionController = {
             }
             const activeAttendanceConflict = await getActiveAttendanceBusConflict(existing?.id, busId, roundId);
             if (activeAttendanceConflict.blocked) {
+                // Chặn trường hợp cùng hành khách đang được điểm danh ở xe khác không hợp lệ.
                 return res.status(409).json({
                     code: activeAttendanceConflict.code,
                     message: activeAttendanceConflict.message,
@@ -325,6 +335,7 @@ exports.transactionController = {
                 });
             }
             if (activeAttendanceConflict.allowTransferForCheckOut) {
+                // Cho phép chuyển bus khi hành khách cần check-out ở xe khác và xe đích chưa khóa.
                 const targetBusRoundStatus = await getTargetBusRoundCompletion(busId, roundId);
                 if (targetBusRoundStatus?.driverConfirmedBy) {
                     return res.status(403).json({
@@ -348,6 +359,7 @@ exports.transactionController = {
                 return res.status(200).json(existing);
             }
             const transaction = existing
+                // Nếu đã có transaction passenger-round thì cập nhật xe, không tạo bản ghi trùng.
                 ? await db_1.prisma.transaction.update({
                     where: { id: existing.id },
                     data: {

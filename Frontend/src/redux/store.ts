@@ -14,4 +14,3 @@ export const store = configureStore({
 sagaMiddleware.run(authSaga);
 
 export type RootState = ReturnType< typeof store.getState>;
-export type AppDispatch = typeof store.dispatch;

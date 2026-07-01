@@ -16,6 +16,7 @@ export const useRoundLocks = (
   tripId: number | null,
   getActualBusId: (passengerId: number, roundId: number, assignedBusId?: number | null) => number | null
 ) => {
+  // Lấy trạng thái khóa/xác nhận theo từng cặp bus-round của chuyến hiện tại.
   const { data: lockStatusesData, refetch: refetchLocks } = useQuery<BusRoundStatus[]>({
     queryKey: ['bus-round-locks', tripId],
     queryFn: async () => {
@@ -34,6 +35,7 @@ export const useRoundLocks = (
     roundId: number,
     type: 'checkIn' | 'checkOut'
   ) => {
+    // Một ô điểm danh có thể dùng bus thực tế khác bus biên chế, nên phải resolve bus trước khi check lock.
     const actualBusId = getActualBusId(
       passengerId,
       roundId,

@@ -1,19 +1,10 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.busController = void 0;
 const db_1 = require("../config/db");
-const mqtt_1 = __importDefault(require("mqtt"));
-const mqtt_2 = require("../services/mqtt");
-const mqttClient = mqtt_1.default.connect(process.env.MQTT_URL || 'wss://mqtt.toolhub.app:8084', {
-    username: process.env.MQTT_USERNAME,
-    password: process.env.MQTT_PASSWORD,
-    clean: true,
-    clientId: `backend_bus_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-});
+const mqtt_1 = require("../services/mqtt");
 const publishLockUpdate = (tripId, busId, roundId, checkInLocked, checkOutLocked) => {
+    // Khi khóa/mở khóa lượt, broadcast cho cả màn admin và màn transaction theo trip.
     const payload = {
         type: 'bus.round.lock.updated',
         tripId,
@@ -24,10 +15,11 @@ const publishLockUpdate = (tripId, busId, roundId, checkInLocked, checkOutLocked
         updatedAt: new Date().toISOString(),
     };
     ['attendance/ui/locks', `attendance/trips/${tripId}/locks`].forEach((topic) => {
-        mqttClient.publish(topic, JSON.stringify(payload), { qos: 1 });
+        (0, mqtt_1.publishJson)(topic, payload);
     });
 };
 const resolveActorId = async (req) => {
+    // Một số request chỉ có Firebase uid, nên cần quy đổi về user id nội bộ trước khi ghi DB.
     if (req.user?.id)
         return req.user.id;
     if (req.firebaseUser?.uid) {
@@ -41,6 +33,7 @@ const resolveActorId = async (req) => {
 };
 exports.busController = {
     getAll: async (req, res) => {
+        // Role quản lý xe chỉ được thấy xe mình phụ trách; admin thấy toàn bộ xe trong chuyến.
         const tripId = Number(req.params.tripId);
         if (!tripId) {
             return res.status(400).json({ message: 'Missing tripId' });
@@ -103,7 +96,7 @@ exports.busController = {
                     manager: true,
                 }
             });
-            (0, mqtt_2.publishDashboardRefresh)(req.tenantId, {
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
                 type: 'dashboard.refresh',
                 entity: 'bus',
                 action: 'create',
@@ -154,7 +147,7 @@ exports.busController = {
                     managerId: Number(managerId)
                 }
             });
-            (0, mqtt_2.publishDashboardRefresh)(req.tenantId, {
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
                 type: 'dashboard.refresh',
                 entity: 'bus',
                 action: 'update',
@@ -191,7 +184,7 @@ exports.busController = {
             await db_1.prisma.bus.delete({
                 where: { id: Number(id) }
             });
-            (0, mqtt_2.publishDashboardRefresh)(req.tenantId, {
+            (0, mqtt_1.publishDashboardRefresh)(req.tenantId, {
                 type: 'dashboard.refresh',
                 entity: 'bus',
                 action: 'delete',
@@ -237,6 +230,7 @@ exports.busController = {
     },
     getRoundStatuses: async (req, res) => {
         try {
+            // Trả trạng thái khóa/xác nhận của từng cặp bus-round cho các màn transaction/round.
             const tripId = Number(req.query.tripId);
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -262,6 +256,7 @@ exports.busController = {
     },
     confirmCompletion: async (req, res) => {
         try {
+            // Tài xế xác nhận xe đã hoàn thành một chặng, sau đó không cho thêm khách mới vào chặng đó.
             const busId = Number(req.params.busId);
             const roundId = Number(req.params.roundId);
             if (!busId || !roundId) {
@@ -327,6 +322,7 @@ exports.busController = {
     },
     confirmChecks: async (req, res) => {
         try {
+            // Admin khóa hoặc mở khóa check-in/check-out cho một xe ở một chặng cụ thể.
             const busId = Number(req.params.busId);
             const roundId = Number(req.params.roundId);
             if (!busId || !roundId) {
@@ -377,13 +373,10 @@ exports.busController = {
                         : {}),
                 },
             });
-            const [busInfo, roundInfo] = await Promise.all([
-                db_1.prisma.bus.findFirst({
-                    where: { id: busId, trip: { tenantId: req.tenantId } },
-                    include: { trip: true },
-                }),
-                db_1.prisma.round.findFirst({ where: { id: roundId } }),
-            ]);
+            const busInfo = await db_1.prisma.bus.findFirst({
+                where: { id: busId, trip: { tenantId: req.tenantId } },
+                include: { trip: true },
+            });
             if (busInfo?.trip?.id) {
                 publishLockUpdate(busInfo.trip.id, busId, roundId, up.checkInLocked, up.checkOutLocked);
             }

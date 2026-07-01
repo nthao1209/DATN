@@ -8,12 +8,15 @@ const xlsx_1 = __importDefault(require("xlsx"));
 const db_1 = require("../config/db");
 const mqtt_1 = require("../services/mqtt");
 const HEADER_ALIASES = {
+    // Cho phép file Excel dùng nhiều tên cột khác nhau nhưng vẫn map về field chuẩn.
     name: ['name', 'hoten', 'ten', 'fullname', 'full name', 'ho va ten', 'hova ten', 'Họ và tên'],
     tel: ['tel', 'phone', 'phonenumber', 'sodienthoai', 'sdt', 'mobile', 'dien thoai', 'Số điện thoại'],
     note: ['note', 'ghichu', 'ghi chu', 'remark', 'remarks', 'description', 'mo ta', 'Ghi chú'],
     bus: ['bus', 'buscode', 'maxe', 'ma xe', 'xe', 'bien so', 'bienso', 'registration', 'registrationnumber', 'Mã xe']
 };
-const normalizeText = (value) => String(value ?? '')
+const normalizeText = (value) => 
+// Bỏ dấu, bỏ ký tự đặc biệt để so khớp header/bus code mềm hơn.
+String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -76,6 +79,7 @@ const scoreHeaderRow = (cells) => {
     return score;
 };
 const parseRowsFromWorksheet = (worksheet) => {
+    // Tự dò dòng header trong 10 dòng đầu để hỗ trợ file Excel có tiêu đề/phần mô tả phía trên.
     const matrix = xlsx_1.default.utils.sheet_to_json(worksheet, {
         header: 1,
         raw: false,
@@ -112,6 +116,7 @@ const parseRowsFromWorksheet = (worksheet) => {
         .filter((row) => Object.values(row).some((value) => String(value ?? '').trim() !== ''));
 };
 const buildHeaderMap = (headers) => ({
+    // Map header thật trong file Excel về các field hệ thống cần: name/tel/note/bus.
     name: findMatchedHeader(headers, HEADER_ALIASES.name),
     tel: findMatchedHeader(headers, HEADER_ALIASES.tel),
     note: findMatchedHeader(headers, HEADER_ALIASES.note),
@@ -127,6 +132,7 @@ const readMappedValue = (row, fieldMap, field) => {
 exports.passengerController = {
     getAll: async (req, res) => {
         try {
+            // Lấy hành khách theo chuyến, có thể lọc theo xe/keyword/scope attendance.
             const tripId = Number(req.params.tripId);
             const busIdQuery = req.query.busId;
             const scope = String(req.query.scope || '');
@@ -196,6 +202,7 @@ exports.passengerController = {
     },
     create: async (req, res) => {
         try {
+            // Tạo hành khách mới và đảm bảo xe được chọn thuộc đúng chuyến/tenant.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -248,6 +255,7 @@ exports.passengerController = {
     },
     getImportSheets: async (req, res) => {
         try {
+            // Đọc tên các sheet để frontend cho người dùng chọn sheet cần import.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -268,6 +276,7 @@ exports.passengerController = {
     },
     importPreview: async (req, res) => {
         try {
+            // Chỉ preview dữ liệu import: map cột, chuẩn hóa SĐT, dò xe, báo lỗi dòng chưa hợp lệ.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
                 return res.status(400).json({ message: 'Missing tripId' });
@@ -314,6 +323,7 @@ exports.passengerController = {
                 }
             });
             const busLookup = new Map();
+            // Cho phép dò xe bằng id, mã xe hoặc biển số trong file Excel.
             buses.forEach((bus) => {
                 normalizeBusLookupKeys(bus.id).forEach((key) => busLookup.set(key, bus.id));
                 normalizeBusLookupKeys(bus.busCode).forEach((key) => busLookup.set(key, bus.id));
@@ -363,6 +373,7 @@ exports.passengerController = {
     },
     update: async (req, res) => {
         try {
+            // Cập nhật hồ sơ khách; nếu đổi xe thì xác thực xe mới vẫn thuộc tenant hiện tại.
             const { id } = req.params;
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });
@@ -438,6 +449,7 @@ exports.passengerController = {
     },
     delete: async (req, res) => {
         try {
+            // Xóa hành khách theo tenant và phát sự kiện refresh cho dashboard/trang liên quan.
             const { id } = req.params;
             if (!req.tenantId) {
                 return res.status(401).json({ message: 'Unauthorized' });

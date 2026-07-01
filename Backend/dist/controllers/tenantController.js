@@ -76,7 +76,7 @@ const joinTenant = async (req, res) => {
         });
         if (!tenant)
             return res.status(400).json({ message: "Not information" });
-        const membership = await db_1.prisma.userTenant.create({
+        await db_1.prisma.userTenant.create({
             data: {
                 userId: user.id,
                 tenantId: tenant.id,
