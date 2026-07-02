@@ -171,15 +171,15 @@ export const passengerController = {
       const busId = busIdQuery ? Number(busIdQuery) : undefined;
 
       if (!tripId) {
-        return res.status(400).json({ message: 'Missing tripId' });
+        return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
       }
 
       if (busIdQuery !== undefined && !busId) {
-        return res.status(400).json({ message: 'Invalid busId query' });
+        return res.status(400).json({ message: 'Query busId không hợp lệ' });
       }
 
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const managerFilter = scope === 'attendance'
@@ -234,7 +234,7 @@ export const passengerController = {
       })));
 
     } catch (error) {
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   },
 
@@ -244,11 +244,11 @@ export const passengerController = {
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
-        return res.status(400).json({ message: 'Missing tripId' });
+        return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
       }
 
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const { name, note, busId } = req.body;
@@ -256,11 +256,11 @@ export const passengerController = {
       const busIdNumber = Number(busId);
 
       if (!name) {
-        return res.status(400).json({ message: 'Missing name' });
+        return res.status(400).json({ message: 'Thiếu tên' });
       }
 
       if (!busIdNumber) {
-        return res.status(400).json({ message: 'Missing busId' });
+        return res.status(400).json({ message: 'Thiếu mã xe (busId)' });
       }
 
       const bus = await prisma.bus.findFirst({
@@ -274,7 +274,7 @@ export const passengerController = {
       });
 
       if (!bus) {
-        return res.status(404).json({ message: 'Bus not found' });
+        return res.status(404).json({ message: 'Không tìm thấy xe' });
       }
 
       const passenger = await prisma.passenger.create({
@@ -298,7 +298,7 @@ export const passengerController = {
       res.status(201).json(passenger);
 
     } catch (error) {
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   },
 
@@ -308,11 +308,11 @@ export const passengerController = {
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
-        return res.status(400).json({ message: 'Missing tripId' });
+        return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
       }
 
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const file = req.file;
@@ -323,7 +323,7 @@ export const passengerController = {
       return res.json({ sheets: workbook.SheetNames });
 
     } catch (error) {
-      return res.status(500).json({ message: 'Server error' });
+      return res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   },
   importPreview: async (req: AuthRequest, res: Response) => {
@@ -332,11 +332,11 @@ export const passengerController = {
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
-        return res.status(400).json({ message: 'Missing tripId' });
+        return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
       }
 
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const file = req.file;
@@ -358,7 +358,7 @@ export const passengerController = {
 
       if (!actualSheetName) {
         return res.status(400).json({
-          message: `Sheet "${requestedSheet}" not found`
+          message: `Không tìm thấy Sheet "${requestedSheet}"`
         });
       }
 
@@ -445,7 +445,7 @@ export const passengerController = {
         matchedColumns: headerMap
       });
     } catch (error) {
-      return res.status(500).json({ message: 'Server error' });
+      return res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   },
 
@@ -455,7 +455,7 @@ export const passengerController = {
       const { id } = req.params;
 
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const { name, note, busId } = req.body;
@@ -485,7 +485,7 @@ export const passengerController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: 'Passenger not found' });
+        return res.status(404).json({ message: 'Không tìm thấy hành khách' });
       }
 
       let nextBusId: number | undefined;
@@ -493,7 +493,7 @@ export const passengerController = {
       if (busId !== undefined && busId !== null) {
         const busIdNumber = Number(busId);
         if (!busIdNumber) {
-          return res.status(400).json({ message: 'Invalid busId' });
+          return res.status(400).json({ message: 'Mã xe không hợp lệ' });
         }
 
         const bus = await prisma.bus.findFirst({
@@ -506,7 +506,7 @@ export const passengerController = {
         });
 
         if (!bus) {
-          return res.status(404).json({ message: 'Bus not found' });
+          return res.status(404).json({ message: 'Không tìm thấy xe' });
         }
 
         nextBusId = busIdNumber;
@@ -534,7 +534,7 @@ export const passengerController = {
       res.json(updated);
 
     } catch (error) {
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   },
 
@@ -544,7 +544,7 @@ export const passengerController = {
       const { id } = req.params;
 
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const existing = await prisma.passenger.findFirst({
@@ -571,7 +571,7 @@ export const passengerController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: 'Passenger not found' });
+        return res.status(404).json({ message: 'Không tìm thấy hành khách' });
       }
 
       await prisma.passenger.delete({
@@ -587,10 +587,10 @@ export const passengerController = {
         updatedAt: new Date().toISOString(),
       });
 
-      res.json({ message: 'Deleted successfully' });
+      res.json({ message: 'Đã xóa thành công' });
 
     } catch (error) {
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   }
 };

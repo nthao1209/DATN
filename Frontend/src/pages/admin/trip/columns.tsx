@@ -26,7 +26,7 @@ export const buildTripColumns = ({
     header: 'Tên chuyến',
     key: 'name',
     render: (row) => (
-      <div className="td-content d-flex align-items-center" style={{ minHeight: '60px' }}>
+      <div className="td-content d-flex align-items-center table-cell-compact">
         <AutoResizeTextarea
           className="form-control form-control-sm"
           value={row.name}
@@ -48,15 +48,11 @@ export const buildTripColumns = ({
       return (
         <div className="td-content">
           <select
-            className="form-select form-select-sm"
+            className={`form-select form-select-sm ${isLocked ? 'table-control-muted' : ''}`}
             value={row.status}
             disabled={isLocked}
             title={lockMessage}
             onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as TripStatus)}
-            style={{
-              opacity: isLocked ? 0.55 : 1,
-              cursor: isLocked ? 'not-allowed' : 'pointer',
-            }}
           >
             <option value="DOING">Đang diễn ra</option>
             <option value="DONE">Hoàn thành</option>

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { type RootState } from '../redux/store';
 import { logout } from '../redux/slice/authSlice';
 import { 
-  LogOut, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert
+  LogOut, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert, Copy
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 import api from '../services/api';
@@ -21,6 +21,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import {enqueueSnackbar} from 'notistack';
 import { useUnsavedChanges } from './common/UnsavedChangesContext';
 import NotificationBell from './NotificationBell';
+import TenantSelector from './TenantSelector';
 
 const schema = yup.object({
   currentPassword : yup.string().required("Mật khẩu hiện tại không được để trống"),
@@ -44,6 +45,7 @@ const TopBar: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isDisablingAccount, setIsDisablingAccount] = useState(false);
+  const [showTenantSelector, setShowTenantSelector] = useState(false);
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
@@ -201,7 +203,14 @@ const TopBar: React.FC = () => {
             
             {/* Quick Actions Group */}
             <div className="d-flex align-items-center gap-1 border-end pe-3 me-2" style={{ borderColor: colors.border }}>
-              
+              <button 
+                className="btn-icon-topbar theme-toggle-btn me-1 px-3 d-flex align-items-center gap-2" 
+                onClick={() => setShowTenantSelector(true)}
+                title="Chuyển tổ chức"
+                style={{ width: 'auto', borderRadius: '8px' }}
+              >
+                <Copy size={16} /> <span className="d-none d-md-inline small fw-bold">Chuyển tổ chức</span>
+              </button>
               <NotificationBell />
               
               <button 
@@ -375,6 +384,8 @@ const TopBar: React.FC = () => {
           </div>
         </div>
       )}
+
+      <TenantSelector isOpen={showTenantSelector} onClose={() => setShowTenantSelector(false)} />
 
       <style>{`
         .status-badge-container {

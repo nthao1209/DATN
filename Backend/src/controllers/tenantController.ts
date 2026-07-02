@@ -34,7 +34,7 @@ export const createTenant = async (req:AuthRequest,res: Response) => {
   const {name} = req.body;
 
    if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Không có quyền truy cập" });
   }
 
   if (!name) {
@@ -77,14 +77,16 @@ export const joinTenant = async (req: AuthRequest,res:Response) =>{
   const {joinCode} = req.body;
   const user = req.user;
 
-  if(!user) return res.status(401).json({message:"User not identified"});
+  if(!user) return res.status(401).json({message:"Không xác định được người dùng"});
+
+  const normalizedJoinCode = String(joinCode || '').trim().toUpperCase();
 
   try{
     const tenant = await prisma.tenant.findUnique({
-      where: {joinCode}
+      where: {joinCode: normalizedJoinCode}
     });
 
-    if(!tenant) return res.status(400).json({message:"Not information"});
+    if(!tenant) return res.status(400).json({message:"Không tìm thấy thông tin"});
 
     await prisma.userTenant.create({
       data: {
@@ -93,7 +95,7 @@ export const joinTenant = async (req: AuthRequest,res:Response) =>{
         roleId: 3
       }
     });
-    res.json({message:"Succesful",tenant});
+    res.json({message:"Thành công",tenant});
   }catch(error){
     res.status(400).json({message:"Bạn đã là thành viên của tổ chức này"})
   }

@@ -27,27 +27,17 @@ export default function useAutoResize(value?: string | number) {
   return { ref, onInput, adjust };
 }
 
-export const AutoResizeTextarea: React.FC<AutoResizeProps> = ({ value, style, ...rest }) => {
+export const AutoResizeTextarea: React.FC<AutoResizeProps> = ({ value, className = '', style, ...rest }) => {
   const { ref, onInput } = useAutoResize(value);
-
-  const mergedStyle: React.CSSProperties = {
-    whiteSpace: 'normal',
-    wordBreak: 'break-word',
-    resize: 'none',
-    overflow: 'hidden',
-    width: '100%',
-    padding: '8px 12px',
-    lineHeight: '1.2',
-    ...(style as object || {}),
-  };
 
   return (
     <textarea
       {...(rest as React.TextareaHTMLAttributes<HTMLTextAreaElement>)}
+      className={`auto-resize-textarea ${className}`.trim()}
       ref={ref}
       value={value as any}
       onInput={(e) => { onInput(e); if ((rest as any).onInput) (rest as any).onInput(e); }}
-      style={mergedStyle}
+      style={style}
       rows={1}
     />
   );

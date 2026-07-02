@@ -45,10 +45,10 @@ export const roundController = {
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
-        return res.status(400).json({ message: 'Missing tripId' });
+        return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
       }
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const rounds = await prisma.round.findMany({
@@ -117,7 +117,7 @@ export const roundController = {
       res.json(roundsWithStats);
     } catch (error: any) {      
       res.status(500).json({
-        message: 'Server error',
+        message: 'Lỗi hệ thống',
         detail: error.message
       });
     }
@@ -130,10 +130,10 @@ export const roundController = {
       const tripId = Number(req.params.tripId);
 
       if (!tripId) {
-        return res.status(400).json({ message: 'Missing tripId' });
+        return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
       }
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
 
@@ -142,11 +142,11 @@ export const roundController = {
       const statusRaw = String(req.body?.status ?? '').trim().toUpperCase();
 
       if (!name || !time || !statusRaw) {
-        return res.status(400).json({ message: 'Missing required fields: name, time, status' });
+        return res.status(400).json({ message: 'Thiếu các trường bắt buộc: name, time, status' });
       }
 
       if (statusRaw !== Status.DOING && statusRaw !== Status.DONE) {
-        return res.status(400).json({ message: 'Invalid status. Allowed values: DOING, DONE' });
+        return res.status(400).json({ message: 'Trạng thái không hợp lệ. Chỉ cho phép: DOING, DONE' });
       }
 
       const trip = await prisma.trip.findFirst({
@@ -157,7 +157,7 @@ export const roundController = {
       });
 
       if (!trip) {
-        return res.status(404).json({ message: 'Trip not found' });
+        return res.status(404).json({ message: 'Không tìm thấy chuyến xe' });
       }
 
       const round = await prisma.round.create({
@@ -219,10 +219,10 @@ export const roundController = {
 
 
       if (error.code === 'P2000' || error.code === 'P2002') {
-        return res.status(400).json({ message: 'Invalid data' });
+        return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
       }
 
-      res.status(500).json({ message: 'Server error', detail: error?.message });
+      res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
   },
 
@@ -233,10 +233,10 @@ export const roundController = {
       const { id } = req.params;
 
       if (!id) {
-        return res.status(400).json({ message: 'Missing round id' });
+        return res.status(400).json({ message: 'Thiếu mã chặng (roundId)' });
       }
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const { name, time, status } = req.body;
@@ -252,7 +252,7 @@ export const roundController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: 'Round not found' });
+        return res.status(404).json({ message: 'Không tìm thấy vòng' });
       }
 
       if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
@@ -290,7 +290,7 @@ export const roundController = {
       res.json(updated);
     } catch (error) {
 
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   },
 
@@ -301,10 +301,10 @@ export const roundController = {
       const { id } = req.params;
 
       if (!id) {
-        return res.status(400).json({ message: 'Missing round id' });
+        return res.status(400).json({ message: 'Thiếu mã chặng (roundId)' });
       }
       if (!req.tenantId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Không có quyền truy cập' });
       }
 
       const existing = await prisma.round.findFirst({
@@ -317,7 +317,7 @@ export const roundController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: 'Round not found' });
+        return res.status(404).json({ message: 'Không tìm thấy vòng' });
       }
 
       await prisma.round.delete({
@@ -333,10 +333,10 @@ export const roundController = {
         updatedAt: new Date().toISOString(),
       });
 
-      res.json({ message: 'Deleted successfully' });
+      res.json({ message: 'Đã xóa thành công' });
     } catch (error) {
 
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Lỗi hệ thống' });
     }
   }
 };

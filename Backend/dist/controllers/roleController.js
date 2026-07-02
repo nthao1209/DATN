@@ -23,18 +23,18 @@ exports.roleController = {
             res.json(roles);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     create: async (req, res) => {
         try {
             if (!isSuperAdmin(req)) {
-                return res.status(403).json({ message: 'Forbidden. SuperAdmin only.' });
+                return res.status(403).json({ message: 'Từ chối truy cập. Chỉ dành cho SuperAdmin.' });
             }
             const name = String(req.body?.name ?? '').trim();
             const description = String(req.body?.description ?? '').trim();
             if (!name) {
-                return res.status(400).json({ message: 'Role name is required' });
+                return res.status(400).json({ message: 'Thiếu tên vai trò' });
             }
             const role = await db_1.prisma.role.create({
                 data: {
@@ -45,17 +45,17 @@ exports.roleController = {
             res.status(201).json(role);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     update: async (req, res) => {
         try {
             if (!isSuperAdmin(req)) {
-                return res.status(403).json({ message: 'Forbidden. SuperAdmin only.' });
+                return res.status(403).json({ message: 'Từ chối truy cập. Chỉ dành cho SuperAdmin.' });
             }
             const roleId = Number(req.params.id);
             if (!roleId) {
-                return res.status(400).json({ message: 'Invalid role id' });
+                return res.status(400).json({ message: 'ID vai trò không hợp lệ' });
             }
             const name = req.body?.name;
             const description = req.body?.description;
@@ -69,27 +69,27 @@ exports.roleController = {
             res.json(updated);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     delete: async (req, res) => {
         try {
             if (!isSuperAdmin(req)) {
-                return res.status(403).json({ message: 'Forbidden. SuperAdmin only.' });
+                return res.status(403).json({ message: 'Từ chối truy cập. Chỉ dành cho SuperAdmin.' });
             }
             const roleId = Number(req.params.id);
             if (!roleId) {
-                return res.status(400).json({ message: 'Invalid role id' });
+                return res.status(400).json({ message: 'ID vai trò không hợp lệ' });
             }
             const usageCount = await db_1.prisma.userTenant.count({ where: { roleId } });
             if (usageCount > 0) {
-                return res.status(400).json({ message: 'Role is in use and cannot be deleted' });
+                return res.status(400).json({ message: 'Vai trò đang được sử dụng và không thể xóa' });
             }
             await db_1.prisma.role.delete({ where: { id: roleId } });
-            res.json({ message: 'Deleted successfully' });
+            res.json({ message: 'Đã xóa thành công' });
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     }
 };

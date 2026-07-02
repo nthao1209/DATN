@@ -1,13 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../redux/store';
 import { 
   TrendingUp, Users, MapPinned, Route, Bus,
-  Copy, RefreshCw, LayoutDashboard, Calendar
+  Copy, LayoutDashboard, Calendar
 } from 'lucide-react';
 import StatCard from '../../components/StatCard';
-import TenantSelector from '../../components/TenantSelector';
 import { useTheme } from '../../theme/ThemeContext';
 import { useSnackbar } from 'notistack';
 import api from '../../services/api';
@@ -23,14 +22,13 @@ const formatCount = (value: number) => new Intl.NumberFormat('vi-VN').format(val
 const Dashboard: React.FC = () => {
   const { colors, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
-  const [showTenantSelector, setShowTenantSelector] = useState(false);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   const { currentTenant, roleId } = useSelector((state: RootState) => state.auth);
   const canSeeJoinCode = canViewJoinCode(roleId);
   const tenantKey = currentTenant?.id ? String(currentTenant.id) : 'no-tenant';
   const tenantDashboardTopic = currentTenant?.id ? `dashboard/tenant/${currentTenant.id}` : null;
 
-  const { data: trips = [], isLoading: tripsLoading, refetch: refetchTrips } = useQuery<any[]>({
+  const { data: trips = [], refetch: refetchTrips } = useQuery<any[]>({
     queryKey: ['dashboard-trips', tenantKey],
     queryFn: api.getTrips,
   });
@@ -40,7 +38,7 @@ const Dashboard: React.FC = () => {
     [trips]
   );
 
-  const { data: buses = [], isLoading: busesLoading, refetch: refetchBuses } = useQuery<any[]>({
+  const { data: buses = [], refetch: refetchBuses } = useQuery<any[]>({
     queryKey: ['dashboard-buses', tenantKey, tripIds.join(',')],
     enabled: tripIds.length > 0,
     queryFn: async () => {
@@ -49,7 +47,7 @@ const Dashboard: React.FC = () => {
     },
   });
 
-  const { data: rounds = [], isLoading: roundsLoading, refetch: refetchRounds } = useQuery<any[]>({
+  const { data: rounds = [], refetch: refetchRounds } = useQuery<any[]>({
     queryKey: ['dashboard-rounds', tenantKey, tripIds.join(',')],
     enabled: tripIds.length > 0,
     queryFn: async () => {
@@ -58,7 +56,7 @@ const Dashboard: React.FC = () => {
     },
   });
 
-  const { data: passengers = [], isLoading: passengersLoading, refetch: refetchPassengers } = useQuery<any[]>({
+  const { data: passengers = [], refetch: refetchPassengers } = useQuery<any[]>({
     queryKey: ['dashboard-passengers', tenantKey, tripIds.join(',')],
     enabled: tripIds.length > 0,
     queryFn: async () => {
@@ -67,7 +65,7 @@ const Dashboard: React.FC = () => {
     },
   });
 
-  const { data: transactions = [], isLoading: transactionsLoading, refetch: refetchTransactions } = useQuery<any[]>({
+  const { data: transactions = [], refetch: refetchTransactions } = useQuery<any[]>({
     queryKey: ['dashboard-transactions', tenantKey],
     queryFn: api.getTransactions,
   });
@@ -105,10 +103,7 @@ const Dashboard: React.FC = () => {
     ]);
   };
 
-  const handleRefresh = async () => {
-    await refetchDashboardData();
-    enqueueSnackbar('Đã tải lại dữ liệu thật', { variant: 'success' });
-  };
+
 
   useEffect(() => {
     if (!tenantDashboardTopic) return;
@@ -140,7 +135,7 @@ const Dashboard: React.FC = () => {
     refetchTransactions,
   ]);
 
-  const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
+
 
   const copyJoinCode = () => {
     if (currentTenant?.joinCode) {
@@ -198,20 +193,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="d-flex gap-2">
-          <button 
-            className="btn-glass d-flex align-items-center gap-2" 
-            onClick={handleRefresh}
-          >
-            <RefreshCw size={16} className={isLoading ? 'spin' : ''} /> Làm mới dữ liệu
-          </button>
-          <button 
-            className="btn-glass d-flex align-items-center gap-2" 
-            onClick={() => setShowTenantSelector(true)}
-          >
-            <Copy size={16} /> Chuyển tổ chức
-          </button>
-        </div>
+
       </div>
 
       {/* Join Code Banner (Nếu có quyền) */}
@@ -382,7 +364,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
-      <TenantSelector isOpen={showTenantSelector} onClose={() => setShowTenantSelector(false)} />
+
 
       <style>{`
         .text-gray-500 { color: ${colors.textMuted}; }

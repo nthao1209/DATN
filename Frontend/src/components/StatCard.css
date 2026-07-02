@@ -1,0 +1,24 @@
+.stat-card {
+  border-color: var(--page-border);
+  border-top: 3px solid var(--stat-card-accent);
+  background-color: var(--page-surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--stat-card-accent) 14%, transparent),
+    0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.stat-card-icon {
+  color: var(--stat-card-accent);
+}
+
+.stat-card-title {
+  margin-bottom: 0.5rem;
+  color: var(--page-text-secondary);
+  font-style: italic;
+}
+
+.stat-card-value {
+  margin: 0;
+  color: var(--stat-card-accent);
+  font-size: 1.75rem;
+  font-weight: 700;
+}

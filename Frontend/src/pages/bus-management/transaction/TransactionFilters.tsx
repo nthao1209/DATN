@@ -1,7 +1,7 @@
 import React , {useEffect, useRef} from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import type { BusOption, RoundOption, TripOption } from './types';
-import { useTheme } from '../../../theme/ThemeContext';
+import './TransactionFilters.css';
 
 type TransactionFiltersProps = {
   trips: TripOption[];
@@ -41,7 +41,6 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
   toggleRound,
   onTripChange,
 }) => {
-  const { colors, isDarkMode } = useTheme();
   const tripMenuRef = useRef<HTMLDivElement>(null);
   const busMenuRef = useRef<HTMLDivElement>(null);
   const roundMenuRef = useRef<HTMLDivElement>(null);
@@ -65,14 +64,14 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
  return (
     <div className="row g-3 align-items-end">
       {/* 1. CHUYẾN ĐI */}
-      <div ref={tripMenuRef} className="col-12 col-md-4 position-relative" style={{ minWidth: 0 }}>
+      <div ref={tripMenuRef} className="col-12 col-md-4 position-relative transaction-filter-column">
         <label className="filter-label">Chuyến đi</label>
         <button
           type="button"
           className={`custom-filter-input d-flex align-items-center justify-content-between w-100 ${tripDropdownOpen ? 'active' : ''}`}
           onClick={() => setTripDropdownOpen((v) => !v)}
         >
-          <span className="text-start pe-2 text-wrap" style={{ flex: 1, minWidth: 0, lineHeight: '1.4' }}>
+          <span className="trip-filter-text text-start pe-2">
             {selectedTripName}
           </span>
           <ChevronDown size={16} className={`flex-shrink-0 transition-all ${tripDropdownOpen ? 'rotate-180' : ''}`} />
@@ -95,8 +94,8 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                       onTripChange?.();
                     }}
                   >
-                    <span className="text-wrap" style={{ lineHeight: '1.4' }}>{trip.name}</span>
-                    {isSelected && <Check size={16} className="ms-auto flex-shrink-0" color={colors.primary} />}
+                    <span className="trip-menu-text">{trip.name}</span>
+                    {isSelected && <Check size={16} className="ms-auto flex-shrink-0 transaction-filter-check" />}
                   </div>
                 );
               })}
@@ -197,122 +196,6 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
         )}
       </div>
 
-      <style>{`
-        .filter-label {
-          font-size: 12px;
-          font-weight: 700;
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-          text-transform: uppercase;
-          letter-spacing: 0.025em;
-          margin-bottom: 6px;
-          display: block;
-        }
-
-        .custom-filter-input {
-          background-color: ${isDarkMode ? '#1e293b' : '#ffffff'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          color: ${isDarkMode ? '#f1f5f9' : '#1e293b'};
-          border-radius: 10px;
-          padding: 8px 12px;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s ease;
-          text-align: left;
-          height: 40px;
-        }
-
-        .custom-filter-input, 
-        .form-select {
-          display: flex !important;
-          width: 100% !important;
-          max-width: 100% !important;
-        }
-
-        .custom-filter-input:hover {
-          border-color: ${colors.primary};
-          box-shadow: 0 0 0 3px ${colors.primary}15;
-        }
-
-        .custom-filter-input.active {
-          border-color: ${colors.primary};
-          box-shadow: 0 0 0 3px ${colors.primary}25;
-        }
-
-        .custom-multi-menu {
-          position: absolute;
-          top: calc(100% + 8px);
-          left: 0;
-          right: 0;
-          background: ${isDarkMode ? '#1e293b' : '#ffffff'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          border-radius: 12px;
-          z-index: 1000;
-          overflow: hidden;
-          min-width: 220px;
-        }
-
-        .menu-header {
-          padding: 10px 15px;
-          background: ${isDarkMode ? '#0f172a' : '#f8fafc'};
-          font-size: 11px;
-          font-weight: 700;
-          color: ${isDarkMode ? '#64748b' : '#94a3b8'};
-          text-transform: uppercase;
-          border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-        }
-
-        .menu-body {
-          max-height: 250px;
-          overflow-y: auto;
-          padding: 6px;
-        }
-
-        .multi-item-custom {
-          display: flex;
-          align-items: center;
-          padding: 8px 10px;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          color: ${isDarkMode ? '#cbd5e1' : '#475569'};
-          font-size: 14px;
-        }
-
-        .multi-item-custom:hover {
-          background: ${isDarkMode ? '#334155' : '#f1f5f9'};
-        }
-
-        .multi-item-custom.selected {
-          background: ${colors.primary}10;
-          color: ${colors.primary};
-          font-weight: 600;
-        }
-
-        .checkbox-custom {
-          width: 18px;
-          height: 18px;
-          border: 2px solid ${isDarkMode ? '#475569' : '#cbd5e1'};
-          border-radius: 5px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-
-        .selected .checkbox-custom {
-          background: ${colors.primary};
-          border-color: ${colors.primary};
-        }
-
-        .rotate-180 { transform: rotate(180deg); }
-        .transition-all { transition: all 0.3s ease; }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in { animation: fadeIn 0.2s ease-out; }
-      `}</style>
     </div>
   );
 };

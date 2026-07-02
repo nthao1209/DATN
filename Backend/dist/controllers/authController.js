@@ -49,7 +49,7 @@ const getMyStatus = async (req, res) => {
         const userId = req.user?.id;
         if (!userId) {
             return res.status(401).json({
-                message: 'Unauthorized',
+                message: 'Không có quyền truy cập',
             });
         }
         const isSystemSuperAdmin = (!!req.user?.email &&
@@ -81,7 +81,7 @@ const getMyStatus = async (req, res) => {
     }
     catch (error) {
         return res.status(500).json({
-            message: 'Internal server error',
+            message: 'Lỗi hệ thống',
         });
     }
 };
@@ -91,7 +91,7 @@ const deleteUser = async (req, res) => {
     const firebaseUid = req.user?.firebaseUid;
     if (!userId || !firebaseUid) {
         return res.status(401).json({
-            message: 'Unauthorized',
+            message: 'Không có quyền truy cập',
         });
     }
     try {

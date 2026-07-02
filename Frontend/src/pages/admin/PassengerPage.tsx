@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Users, Bus,ChevronDown, MapPin  } from 'lucide-react';
-import DataTable from '../../components/DataTable';
+import { Users, Bus, ChevronDown, MapPin, RotateCcw } from 'lucide-react';
 import { PassengerExcelImport, PassengerExcelExport } from '../../components/passenger-import';
 import api from '../../services/api';
 import { normalizePhoneNumber } from '../../utils/phone';
 import { buildPassengerColumns } from './passenger/columns';
-import { useTheme } from '../../theme/ThemeContext';
 import './PassengerPage.css';
 import type {
   BusesByTrip,
@@ -16,6 +14,10 @@ import type {
 } from './passenger/types';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
+import EditableTableCard from '../../components/admin/EditableTableCard';
+import PageTitle from '../../components/admin/PageTitle';
+import SaveChangesAction from '../../components/admin/SaveChangesAction';
+import { usePageThemeVars } from '../../hooks/usePageThemeVars';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const EMPTY_ROWS_COUNT = 1;
@@ -25,8 +27,8 @@ const normalizePassengerTel = (value: unknown) => {
 };
 
 const PassengerPage: React.FC = () => {
-  const { colors, effects, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
+  const pageThemeVars = usePageThemeVars();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusId, setSelectedBusId] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
@@ -95,6 +97,46 @@ const PassengerPage: React.FC = () => {
     }
   }, [selectedTripId, allBuses]);
 
+  const buildRowsFromPassengers = (sourcePassengers: any[]) => {
+    const mapped: PassengerRow[] = sourcePassengers.map((p: any) => ({
+      id: p.id,
+      localId: `db_${p.id}`,
+      name: p.name || '',
+      tel: normalizePassengerTel(p.tel),
+      note: p.note || '',
+      tripId: p.bus?.trip?.id ? Number(p.bus.trip.id) : selectedTripId,
+      busId: p.bus?.id ? Number(p.bus.id) : null,
+      busCode: p.bus?.busCode || p.bus?.registrationNumber || '',
+    }));
+
+    const initialById: Record<number, PassengerRow> = {};
+    mapped.forEach((row) => {
+      if (row.id) initialById[row.id] = row;
+    });
+
+    const padded = [...mapped];
+    while (padded.length < EMPTY_ROWS_COUNT) {
+      padded.push({
+        localId: makeLocalId(),
+        name: '',
+        tel: '',
+        note: '',
+        tripId: selectedTripId,
+        busId: selectedBusId,
+        busCode: '',
+      });
+    }
+
+    return { rows: padded, initialById };
+  };
+
+  const resetRowsFromPassengers = (sourcePassengers: any[] = passengers) => {
+    const next = buildRowsFromPassengers(sourcePassengers);
+    initialRowsByIdRef.current = next.initialById;
+    setRows(next.rows);
+    setDeletedIds([]);
+  };
+
   const passengersSignature = useMemo(() => {
     // Signature gồm cả note để lưu ghi chú xong không còn bị coi là "chưa lưu".
     if (!passengers) return '';
@@ -115,38 +157,10 @@ useEffect(() => {
     // Map passenger API thành rows edit được và lưu snapshot gốc để dirty-check.
     if (!passengers) return;
 
-    const mapped: PassengerRow[] = passengers.map((p: any) => ({
-      id: p.id,
-      localId: `db_${p.id}`,
-      name: p.name || '',
-      tel: normalizePassengerTel(p.tel),
-      note: p.note || '',
-      tripId: p.bus?.trip?.id ? Number(p.bus.trip.id) : selectedTripId,
-      busId: p.bus?.id ? Number(p.bus.id) : null,
-      busCode: p.bus?.busCode || p.bus?.registrationNumber || '',
-    }));
-
-    const initialById: Record<number, PassengerRow> = {};
-    mapped.forEach((row) => {
-      if (row.id) initialById[row.id] = row;
-    });
-    initialRowsByIdRef.current = initialById;
-
-    const padded = [...mapped];
-    while (padded.length < EMPTY_ROWS_COUNT) {
-      padded.push({ 
-        localId: makeLocalId(), 
-        name: '', 
-        tel: '', 
-        note: '', 
-        tripId: selectedTripId, 
-        busId: selectedBusId, 
-        busCode: '' 
-      });
-    }
-
-    setRows(padded);
-    setDeletedIds([]); // Đồng bộ làm sạch hàng đợi đã xóa khi dữ liệu gốc tải lại
+    const next = buildRowsFromPassengers(passengers);
+    initialRowsByIdRef.current = next.initialById;
+    setRows(next.rows);
+    setDeletedIds([]);
   }, [passengersSignature, selectedTripId, selectedBusId]);
 
   const busesByTrip = useMemo<BusesByTrip>(() => {
@@ -188,7 +202,7 @@ useEffect(() => {
 
   const isNewRowDirty = (row: PassengerRow) => {
     const note = (row.note || '').trim();
-    return Boolean(row.name.trim() || row.tel.trim() || note || row.busId);
+    return Boolean(row.name.trim() || row.tel.trim() || note);
   };
 
   useEffect(() => {
@@ -229,28 +243,8 @@ useEffect(() => {
   }, [rows, deletedIds]);
 
   const canSave = dirtyCount > 0 && !hasValidationErrors && isTargetSelectionReady;
-  const pageThemeVars = {
-    '--page-primary': colors.primary,
-    '--page-primary-11': `${colors.primary}11`,
-    '--page-primary-15': `${colors.primary}15`,
-    '--page-primary-22': `${colors.primary}22`,
-    '--page-primary-33': `${colors.primary}33`,
-    '--page-primary-66': `${colors.primary}66`,
-    '--page-surface': colors.surface,
-    '--page-surface-light': colors.surfaceLight,
-    '--page-background': colors.background,
-    '--page-border': colors.border,
-    '--page-border-light': colors.borderLight,
-    '--page-text-primary': colors.textPrimary,
-    '--page-text-secondary': colors.textSecondary,
-    '--page-warning': colors.warning,
-    '--page-filter-bg': isDarkMode ? 'rgba(255,255,255,0.05)' : '#ffffff',
-    '--page-filter-hover-bg': isDarkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
-    '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
-    '--page-table-header-text': isDarkMode ? colors.textSecondary : '#64748b',
-  };
-
-  useRegisterUnsavedChanges(dirtyCount > 0);
+  const hasUnsavedChanges = dirtyCount > 0;
+  useRegisterUnsavedChanges(hasUnsavedChanges);
 
   // --- ACTIONS ---
   const handleCellChange = <K extends keyof PassengerRow>(localId: string, key: K, value: PassengerRow[K]) => {
@@ -289,6 +283,46 @@ useEffect(() => {
     if (isPassengerEditingLocked) return;
     if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
     setRows((prev) => prev.filter((item) => item.localId !== row.localId));
+  };
+
+  const warnUnsavedSelectionChange = () => {
+    enqueueSnackbar('Bạn có dữ liệu chưa lưu. Vui lòng lưu hoặc bấm "Bỏ thay đổi" trước khi đổi chuyến/xe.', { variant: 'warning' });
+  };
+
+  const handleTripChange = (tripId: number | null) => {
+    if (tripId === selectedTripId) {
+      setOpen(false);
+      return;
+    }
+
+    if (hasUnsavedChanges) {
+      warnUnsavedSelectionChange();
+      setOpen(false);
+      return;
+    }
+
+    setSelectedTripId(tripId);
+    setOpen(false);
+  };
+
+  const handleBusChange = (busId: number | null) => {
+    if (busId === selectedBusId) return;
+
+    if (hasUnsavedChanges) {
+      warnUnsavedSelectionChange();
+      return;
+    }
+
+    setSelectedBusId(busId);
+  };
+
+  const handleDiscardChanges = async () => {
+    resetRowsFromPassengers(passengers);
+    setImportResetToken((value) => value + 1);
+    setFocusRowKey(null);
+    setFocusRowSignal((value) => value + 1);
+    await refetch();
+    enqueueSnackbar('Đã bỏ thay đổi chưa lưu', { variant: 'info' });
   };
 
   const handleSave = async () => {
@@ -450,90 +484,39 @@ useEffect(() => {
   }, [rows, isAllTripsView]);
 
   return (
-    <div className="animate-fade-in p-0 p-md-3 passenger-page" style={pageThemeVars as React.CSSProperties}>
-      {/* Header Section */}
-      <div className="d-flex align-items-center justify-content-between mb-4 px-2">
-        <div className="d-flex align-items-center gap-3">
-          <div 
-            className="d-flex align-items-center justify-content-center rounded-circle shadow-sm"
-            style={{ 
-                width: '42px', 
-                height: '42px', 
-                backgroundColor: isDarkMode ? colors.primaryGlow : `${colors.primary}15`,
-                border: `1px solid ${colors.primary}33`
-            }}
-          >
-            <Users size={22} style={{ color: colors.primary }} />
-          </div>
-          <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Quản lý Hành khách</h1>
-        </div>
-        
-        {/* refresh button removed */}
-      </div>
+    <div className="animate-fade-in p-0 p-md-3 passenger-page" style={pageThemeVars}>
+      <PageTitle icon={<Users size={22} />} title="Quản lý Hành khách" />
 
       
-      <div 
-        className="p-2 mb-4 d-flex align-items-center flex-wrap gap-3 px-3 shadow-sm"
-        style={{ 
-          background: colors.surface, 
-          borderRadius: effects.borderRadius.md,
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-       <div className="dropdown-custom-container" style={{ position: 'relative', width: '280px' }}>
-        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" style={{ minWidth: '0', flexBasis: '280px' }}>
-          <MapPin size={16} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+      <div className="passenger-filter-bar p-2 mb-4 d-flex align-items-center flex-wrap gap-3 px-3 shadow-sm">
+       <div className="passenger-trip-shell dropdown-custom-container">
+        <div className="passenger-trip-filter d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
+          <MapPin size={16} className="passenger-filter-icon flex-shrink-0" />
           
-          <div className="dropdown-custom-container" style={{ position: 'relative', width: '100%' }}>
+          <div className="passenger-trip-dropdown dropdown-custom-container">
             <div 
               className={`custom-filter-input d-flex align-items-center justify-content-between cursor-pointer ${open ? 'active' : ''}`}
               onClick={() => setOpen(!open)}
-              style={{ 
-                whiteSpace: 'normal', 
-                minHeight: '38px', 
-                height: 'auto', 
-                padding: '8px 12px',
-                lineHeight: '1.4',
-                backgroundColor: isDarkMode ? colors.background : '#fff',
-                borderRadius: '10px',
-                border: `1px solid ${open ? colors.primary : colors.border}`,
-                transition: 'all 0.2s ease',
-                color: colors.textPrimary,
-              }}
             >
-              <span style={{ fontSize: '13px', fontWeight: '500' }}>
+              <span className="trip-filter-text">
                 {trips.find(t => t.id === selectedTripId)?.name || "Tất cả chuyến đi"}
               </span>
               <ChevronDown 
                 size={14} 
-                className={`ms-2 transition-all flex-shrink-0 ${open ? 'rotate-180' : ''}`} 
-                style={{ color: colors.textSecondary }}
+                className={`passenger-filter-icon ms-2 transition-all flex-shrink-0 ${open ? 'rotate-180' : ''}`}
               />
             </div>
 
             {open && (
-              <div className="custom-multi-menu shadow-lg animate-fade-in" style={{ 
-                position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 1000, 
-                backgroundColor: isDarkMode ? colors.background : '#ffffff', borderRadius: '12px', border: `1px solid ${colors.border}`, overflow: 'hidden'
-              }}>
-                <div className="menu-header" style={{ padding: '10px 15px', fontSize: '11px', fontWeight: '700', opacity: 0.8, borderBottom: `1px solid ${colors.border}55`, color: colors.textPrimary, backgroundColor: isDarkMode ? colors.surface : '#f0f0ed'}}>
+              <div className="passenger-trip-menu custom-multi-menu shadow-lg animate-fade-in">
+                <div className="passenger-trip-menu-header menu-header">
                   DANH SÁCH CHUYẾN ĐI
                 </div>
-                <div style={{ maxHeight: '250px', overflowY: 'auto', padding: '6px' }}>
+                <div className="passenger-trip-menu-body">
                   
                   <div 
                     className={`multi-item-custom ${selectedTripId === null ? 'selected' : ''}`}
-                    onClick={() => { setSelectedTripId(null); setOpen(false); }}
-                    style={{ 
-                      whiteSpace: 'normal', 
-                      fontSize: '13px', 
-                      padding: '10px 12px', 
-                      borderRadius: '8px', 
-                      marginBottom: '2px', 
-                      cursor: 'pointer', 
-                      lineHeight: '1.4',
-                      fontWeight: selectedTripId === null ? '600' : '500'
-                    }}
+                    onClick={() => handleTripChange(null)}
                   >
                     Tất cả chuyến đi
                   </div>
@@ -542,10 +525,9 @@ useEffect(() => {
                     <div 
                       key={trip.id} 
                       className={`multi-item-custom ${selectedTripId === trip.id ? 'selected' : ''}`}
-                      onClick={() => { setSelectedTripId(trip.id); setOpen(false); }}
-                      style={{ whiteSpace: 'normal', fontSize: '13px', padding: '10px 12px', borderRadius: '8px', marginBottom: '2px', cursor: 'pointer', lineHeight: '1.4' }}
+                      onClick={() => handleTripChange(trip.id)}
                     >
-                      {trip.name}
+                      <span className="trip-menu-text">{trip.name}</span>
                     </div>
                   ))}
                 </div>
@@ -555,22 +537,14 @@ useEffect(() => {
         </div>
       </div>
 
-        <div className="d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0" 
-             style={{ minWidth: '200px' }}
-        >
-          <Bus size={14} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+        <div className="passenger-bus-filter d-flex align-items-center gap-2 flex-grow-1 flex-md-grow-0">
+          <Bus size={14} className="passenger-filter-icon flex-shrink-0" />
           <select
             className="form-select-custom-toolbar w-100"
             value={selectedBusId ?? ''}
-            onChange={(e) => setSelectedBusId(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) => handleBusChange(e.target.value ? Number(e.target.value) : null)}
             disabled={!selectedTripId}
             title={!selectedTripId ? "Bạn cần chọn Chuyến đi trước" : ""}
-            style={{ 
-              backgroundColor: isDarkMode ? colors.background : '#fff',
-              color: colors.textPrimary, 
-              border: `1px solid ${colors.border}`,
-              opacity: !selectedTripId ? 0.6 : 1
-            }}
           >
             <option value="">Tất cả xe</option>
             {busOptions.map((bus: any) => (
@@ -602,33 +576,28 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Main Table Card */}
-      <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
-        <DataTable
+      <EditableTableCard
           title="Danh sách hành khách"
-          titleActions={dirtyCount > 0 ? (
-            <div className="d-flex flex-column align-items-end gap-1">
+          titleActions={
+            <SaveChangesAction
+              dirtyCount={dirtyCount}
+              isSaving={isSaving}
+              canSave={canSave}
+              onSave={handleSave}
+              validationMessage={saveValidationMessage}
+              leadingAction={
               <button
-                className="btn-custom-action-save shadow-sm save-floating-action"
-                onClick={handleSave}
-                disabled={isSaving || !canSave}
-                title={saveValidationMessage || undefined}
-                style={{ 
-                  backgroundColor: canSave ? colors.success : colors.surfaceLight, 
-                  color: canSave ? '#fff' : colors.textMuted
-                }}
+                className="btn-custom-action-small shadow-sm"
+                onClick={handleDiscardChanges}
+                disabled={isSaving}
+                title="Bỏ các thay đổi chưa lưu"
               >
-                <Save size={16} />
-                <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-                <span className="d-inline d-sm-none">{dirtyCount}</span>
+                <RotateCcw size={16} />
+                <span className="d-none d-sm-inline">Bỏ thay đổi</span>
               </button>
-              {saveValidationMessage && (
-                <div className="small text-end" style={{ color: colors.warning, maxWidth: '320px', lineHeight: 1.2 }}>
-                  {saveValidationMessage}
-                </div>
-              )}
-            </div>
-          ) : null}         
+              }
+            />
+          }         
           columns={columns}
           queryKey={['passengers-local', selectedTripId, selectedBusId]}
           data={displayRows}
@@ -638,28 +607,14 @@ useEffect(() => {
           initialPageSize={50}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
+          showAddRow={!isPassengerEditingLocked}
+          onAddRow={handleAddRow}
         />
-        {!isPassengerEditingLocked && (
-          <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
-            <button 
-              className="btn-add-row-bottom w-100 py-2" 
-              onClick={handleAddRow}
-              style={{ 
-                color: colors.primary, 
-                border: `1px dashed ${colors.primary}66`,
-                borderRadius: '8px',
-                backgroundColor: `${colors.primary}08`
-              }}
-            >
-              <Plus size={18} />
-              <span className="fw-bold ms-2">Thêm dòng mới</span>
-            </button>
-          </div>
-        )}
-      </div>
 
     </div>
   );
 };
 
 export default PassengerPage;
+
+

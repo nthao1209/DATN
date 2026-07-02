@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { UserPlus } from 'lucide-react';
-import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { buildTransactionColumns } from './transaction/columns';
 import type {
@@ -16,9 +15,9 @@ import { useTransactionDraftStorage } from './transaction/useTransactionDraftSto
 import { useTransactionMap } from './transaction/useTransactionMap';
 import { useTransactionRealtime } from './transaction/useTransactionRealtime';
 import { areNumberArraysEqual, buildLockedAttendanceMessage, isSameCell, normalizeNote } from './transaction/helpers';
-import { useTheme } from '../../theme/ThemeContext';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
 import { useSnackbar } from 'notistack';
+import { useSelector } from 'react-redux';
 import ExtraPassengerPanel from './transaction/ExtraPassengerPanel';  
 import ExportExcelButton from './transaction/ExportExcelButton';
 import TransactionHeader from './transaction/TransactionHeader';
@@ -26,13 +25,17 @@ import ConfirmRoundPanel from './transaction/ConfirmRoundPanel';
 import { useRoundLocks } from '../../hooks/useRoundLocks';
 import CompleteRoundPanel from './transaction/CompleteRoundPanel';
 import './TransactionPage.css';
+import EditableTableCard from '../../components/admin/EditableTableCard';
+import { usePageThemeVars } from '../../hooks/usePageThemeVars';
+import type { RootState } from '../../redux/store';
 
 type AttendanceDisplayMode = 'all' | 'checkIn' | 'checkOut';
 
 
 const TransactionPage: React.FC = () => {
-  const { colors, effects, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
+  const currentTenantId = useSelector((state: RootState) => state.auth.currentTenant?.id ?? null);
+  const pageThemeVars = usePageThemeVars();
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
   const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
@@ -46,18 +49,15 @@ const TransactionPage: React.FC = () => {
   const [showAddPassengerPanel, setShowAddPassengerPanel] = useState(false);
   const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
-  // Gom màu theme thành CSS variables để phần CSS của trang dùng lại thống nhất.
-  const pageThemeVars = {
-      '--page-primary': colors.primary,
-      '--page-primary-11': `${colors.primary}11`,
-      '--page-primary-22': `${colors.primary}22`,
-      '--page-surface-light': colors.surfaceLight,
-      '--page-background': colors.background,
-      '--page-border': colors.border,
-      '--page-border-light': colors.borderLight,
-      '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
-      '--page-table-header-text': isDarkMode ? colors.textSecondary : '#475569',
-    };
+
+  useEffect(() => {
+    setSelectedTripId(null);
+    setSelectedBusIds([]);
+    setSelectedRoundIds([]);
+    setDraftMap({});
+    setExtraPassengers([]);
+    setShowAddPassengerPanel(false);
+  }, [currentTenantId]);
 
   // Đóng các dropdown filter khi click ra ngoài vùng toolbar.
   useEffect(() => {
@@ -650,20 +650,13 @@ const TransactionPage: React.FC = () => {
     } 
   };
   return (
-    <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5" style={pageThemeVars as React.CSSProperties}>
+    <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5" style={pageThemeVars}>
       
           <TransactionHeader>{null}</TransactionHeader>
 
 
       {/* Filters Toolbar - Đã gọn hóa */}
-      <div 
-        className="p-3 mb-4 shadow-sm"
-        style={{ 
-          background: colors.surface, 
-          borderRadius: effects.borderRadius.lg,
-          border: `1px solid ${colors.border}`,
-        }}
-      >
+      <div className="transaction-filter-card p-3 mb-4 shadow-sm">
         <div ref={filterDropdownRef}>
         <TransactionFilters
             trips={trips} 
@@ -685,18 +678,12 @@ const TransactionPage: React.FC = () => {
           />
         </div>
         
-        <div className="mt-3 pt-3 border-top d-flex flex-column gap-3" style={{ borderColor: colors.border }}>
+        <div className="transaction-filter-extra mt-3 pt-3 border-top d-flex flex-column gap-3">
             <div className="d-flex flex-wrap align-items-center gap-3">
               
               <button 
                 className="btn-outline-custom flex-grow-1 flex-md-grow-0" 
                 onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
-                style={{ 
-                  border: `1px solid ${colors.primary}44`, 
-                  color: colors.primary,
-                  padding: '8px 16px',
-                  minWidth: '200px' 
-                }}
               >
                 <UserPlus size={16} /> <span className="ms-1">Khách ngoài biên chế</span>
               </button>
@@ -704,21 +691,13 @@ const TransactionPage: React.FC = () => {
               <div className="col-12 col-lg flex-grow-1">
                <div className="row g-2">
                 <div className="col-12 col-sm-6 d-flex align-items-center gap-2">
-                  <label className="text-nowrap small fw-bold mb-0" style={{ color: colors.textSecondary }}>
+                  <label className="transaction-round-filter-label text-nowrap small fw-bold mb-0">
                     Lượt đi:
                   </label>
                   <select 
                     className="form-select-custom-toolbar flex-grow-1" 
                     value={departureRoundFilter ?? ''} 
                     onChange={(e) => setDepartureRoundFilter(e.target.value ? Number(e.target.value) : null)}
-                    style={{ 
-                      backgroundColor: isDarkMode ? colors.background : '#fff', 
-                      color: colors.textPrimary, 
-                      border: `1px solid ${colors.border}`,
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      width: '100%' 
-                    }}
                   >
                     <option value="">Tất cả</option>
                     {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -726,21 +705,13 @@ const TransactionPage: React.FC = () => {
                 </div>
 
                 <div className="col-12 col-sm-6 d-flex align-items-center gap-2">
-                  <label className="text-nowrap small fw-bold mb-0" style={{ color: colors.textSecondary }}>
+                  <label className="transaction-round-filter-label text-nowrap small fw-bold mb-0">
                     Lượt về:
                   </label>
                   <select 
                     className="form-select-custom-toolbar flex-grow-1" 
                     value={returnRoundFilter ?? ''} 
                     onChange={(e) => setReturnRoundFilter(e.target.value ? Number(e.target.value) : null)}
-                    style={{ 
-                      backgroundColor: isDarkMode ? colors.background : '#fff', 
-                      color: colors.textPrimary, 
-                      border: `1px solid ${colors.border}`,
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      width: '100%'
-                    }}
                   >
                     <option value="">Tất cả</option>
                     {selectedRounds.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -767,9 +738,7 @@ const TransactionPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Table Container */}
-      <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
-        <DataTable<TransactionTableRow>
+      <EditableTableCard<TransactionTableRow>
           title="Danh sách điểm danh"
           titleActions={
             <>
@@ -787,11 +756,6 @@ const TransactionPage: React.FC = () => {
                       type="button"
                       className={`attendance-display-option ${active ? 'active' : ''}`}
                       onClick={() => setAttendanceDisplayMode(option.value as AttendanceDisplayMode)}
-                      style={{
-                        backgroundColor: active ? colors.primary : colors.surface,
-                        color: active ? '#fff' : colors.textSecondary,
-                        borderColor: active ? colors.primary : colors.border,
-                      }}
                     >
                       {option.label}
                     </button>
@@ -822,12 +786,8 @@ const TransactionPage: React.FC = () => {
           isLoading={isLoading}
           initialPageSize={50}
           onRefresh={() => { refetchTransactions(); refetchPassengers(); refetchLocks(); }}
-        />
-      <div className="bento-action-hub shadow-sm" 
-           style={{ 
-            backgroundColor: isDarkMode ? 'rgba(20, 27, 49, 0.4)' : '#f8fafc',
-            border: `1px solid ${colors.border}`, 
-            borderRadius: effects.borderRadius.lg }}>
+        >
+      <div className="bento-action-hub shadow-sm">
         <div className="d-flex flex-column gap-2">
         <ConfirmRoundPanel 
             selectedRounds={selectedRounds} 
@@ -841,9 +801,9 @@ const TransactionPage: React.FC = () => {
             busRoundStatuses={busRoundStatuses}
             onSuccess={() => { refetchTransactions(); refetchLocks(); refetchBusRoundStatuses(); }}
           />
-        </div>
       </div>
       </div>
+      </EditableTableCard>
     </div>
   );
 };

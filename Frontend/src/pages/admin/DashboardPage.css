@@ -1,0 +1,149 @@
+.dashboard-page .text-gray-500,
+.dashboard-page .text-gray-600 {
+  color: var(--page-text-muted);
+}
+
+.dashboard-page .extra-small {
+  font-size: 11px;
+}
+
+.dashboard-page .btn-glass {
+  padding: 8px 20px;
+  border: 1px solid color-mix(in srgb, var(--page-border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--page-surface-light) 62%, transparent);
+  color: var(--page-text-primary);
+  font-weight: 600;
+  transition: 0.3s;
+}
+
+.dashboard-page .btn-glass:hover {
+  border-color: var(--bs-primary);
+  background: color-mix(in srgb, var(--page-surface-light) 82%, transparent);
+}
+
+.dashboard-page .join-code-banner {
+  padding: 20px 30px;
+  border: 1px solid color-mix(in srgb, var(--page-primary) 24%, var(--page-border) 76%);
+  border-radius: 20px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--page-primary) 12%, transparent) 0%,
+    color-mix(in srgb, var(--page-background) 85%, transparent) 100%
+  );
+}
+
+.dashboard-page .join-code-title {
+  color: var(--page-text-primary);
+}
+
+.dashboard-page .join-code-pill {
+  border: 1px solid var(--page-border);
+  background: var(--page-background);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-page .icon-badge {
+  display: flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--page-primary) 10%, transparent);
+}
+
+.dashboard-page .card-glass {
+  border: 1px solid var(--page-border);
+  border-radius: 24px;
+  background: var(--page-surface);
+}
+
+.dashboard-page .dashboard-trend-text {
+  color: var(--page-text-primary);
+}
+
+.dashboard-page .dashboard-trend-card {
+  min-height: 400px;
+}
+
+.dashboard-page .dashboard-chart-area {
+  width: 100%;
+  height: 300px;
+}
+
+.dashboard-page .dashboard-pie-area {
+  width: 100%;
+  height: 250px;
+}
+
+.dashboard-page .dashboard-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dashboard-page .dashboard-status-dot-0 {
+  background-color: var(--bs-primary);
+}
+
+.dashboard-page .dashboard-status-dot-1 {
+  background-color: var(--bs-success);
+}
+
+.dashboard-page .trip-summary-row {
+  padding: 14px 16px;
+  border: 1px solid var(--page-border);
+  border-radius: 18px;
+  background: var(--page-surface-light);
+}
+
+.dashboard-page .trip-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--page-surface);
+}
+
+.dashboard-page .timeline-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--bs-primary);
+  box-shadow: 0 0 10px var(--bs-primary);
+}
+
+.dashboard-page .spin {
+  animation: dashboard-spin 1s linear infinite;
+}
+
+.dashboard-page.animate-fade-in {
+  animation: dashboard-fade-in 0.8s ease-out;
+}
+
+.dashboard-page .shadow-primary {
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+@keyframes dashboard-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dashboard-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

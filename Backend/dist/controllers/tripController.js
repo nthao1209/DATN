@@ -34,10 +34,22 @@ exports.tripController = {
     getAll: async (req, res) => {
         const tenantId = req.tenantId;
         if (!tenantId) {
-            return res.status(400).json({ message: 'Missing tenantId' });
+            return res.status(400).json({ message: 'Thiếu thông tin tổ chức (tenantId)' });
         }
+        const managerTripFilter = req.roleId === 3 && req.user?.id
+            ? {
+                buses: {
+                    some: {
+                        managerId: req.user.id,
+                    },
+                },
+            }
+            : {};
         const trips = await db_1.prisma.trip.findMany({
-            where: { tenantId },
+            where: {
+                tenantId,
+                ...managerTripFilter,
+            },
             include: {
                 _count: { select: { buses: true, rounds: true } },
                 rounds: {
@@ -53,7 +65,7 @@ exports.tripController = {
     create: async (req, res) => {
         const tenantId = req.tenantId;
         if (!tenantId) {
-            return res.status(400).json({ message: 'Missing tenantId' });
+            return res.status(400).json({ message: 'Thiếu thông tin tổ chức (tenantId)' });
         }
         const { name, status } = req.body;
         const trip = await db_1.prisma.trip.create({
@@ -72,7 +84,7 @@ exports.tripController = {
         const { id } = req.params;
         const { name, status } = req.body;
         if (!req.tenantId) {
-            return res.status(401).json({ message: 'Missing tenantId' });
+            return res.status(401).json({ message: 'Thiếu thông tin tổ chức (tenantId)' });
         }
         const existing = await db_1.prisma.trip.findFirst({
             where: {
@@ -81,7 +93,7 @@ exports.tripController = {
             },
         });
         if (!existing) {
-            return res.status(404).json({ message: 'Trip not found' });
+            return res.status(404).json({ message: 'Không tìm thấy chuyến xe' });
         }
         if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
             const { roundCount, completedRoundCount } = await getTripCompletionCounts(existing.id, req.tenantId);
@@ -109,10 +121,10 @@ exports.tripController = {
             const tripId = Number(req.params.id);
             const tenantId = req.tenantId;
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing trip id' });
+                return res.status(400).json({ message: 'Thiếu mã chuyến xe (tripId)' });
             }
             if (!tenantId) {
-                return res.status(401).json({ message: 'Missing tenantId' });
+                return res.status(401).json({ message: 'Thiếu thông tin tổ chức (tenantId)' });
             }
             const existing = await db_1.prisma.trip.findFirst({
                 where: {
@@ -130,7 +142,7 @@ exports.tripController = {
                 },
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Trip not found' });
+                return res.status(404).json({ message: 'Không tìm thấy chuyến xe' });
             }
             const busIds = existing.buses.map((bus) => bus.id);
             const roundIds = existing.rounds.map((round) => round.id);
@@ -200,7 +212,7 @@ exports.tripController = {
                 tripId,
                 updatedAt: new Date().toISOString(),
             });
-            res.json({ message: "Deleted" });
+            res.json({ message: "Đã xóa" });
         }
         catch (error) {
             res.status(500).json({

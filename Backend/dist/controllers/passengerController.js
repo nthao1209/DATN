@@ -139,13 +139,13 @@ exports.passengerController = {
             const keyword = String(req.query.keyword || '').trim();
             const busId = busIdQuery ? Number(busIdQuery) : undefined;
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing tripId' });
+                return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
             }
             if (busIdQuery !== undefined && !busId) {
-                return res.status(400).json({ message: 'Invalid busId query' });
+                return res.status(400).json({ message: 'Query busId không hợp lệ' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const managerFilter = scope === 'attendance'
                 ? {}
@@ -197,7 +197,7 @@ exports.passengerController = {
             })));
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error' });
+            res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     },
     create: async (req, res) => {
@@ -205,19 +205,19 @@ exports.passengerController = {
             // Tạo hành khách mới và đảm bảo xe được chọn thuộc đúng chuyến/tenant.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing tripId' });
+                return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const { name, note, busId } = req.body;
             const tel = normalizeOptionalPhoneText(req.body?.tel);
             const busIdNumber = Number(busId);
             if (!name) {
-                return res.status(400).json({ message: 'Missing name' });
+                return res.status(400).json({ message: 'Thiếu tên' });
             }
             if (!busIdNumber) {
-                return res.status(400).json({ message: 'Missing busId' });
+                return res.status(400).json({ message: 'Thiếu mã xe (busId)' });
             }
             const bus = await db_1.prisma.bus.findFirst({
                 where: {
@@ -229,7 +229,7 @@ exports.passengerController = {
                 }
             });
             if (!bus) {
-                return res.status(404).json({ message: 'Bus not found' });
+                return res.status(404).json({ message: 'Không tìm thấy xe' });
             }
             const passenger = await db_1.prisma.passenger.create({
                 data: {
@@ -250,7 +250,7 @@ exports.passengerController = {
             res.status(201).json(passenger);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error' });
+            res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     },
     getImportSheets: async (req, res) => {
@@ -258,10 +258,10 @@ exports.passengerController = {
             // Đọc tên các sheet để frontend cho người dùng chọn sheet cần import.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing tripId' });
+                return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const file = req.file;
             if (!file) {
@@ -271,7 +271,7 @@ exports.passengerController = {
             return res.json({ sheets: workbook.SheetNames });
         }
         catch (error) {
-            return res.status(500).json({ message: 'Server error' });
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     },
     importPreview: async (req, res) => {
@@ -279,10 +279,10 @@ exports.passengerController = {
             // Chỉ preview dữ liệu import: map cột, chuẩn hóa SĐT, dò xe, báo lỗi dòng chưa hợp lệ.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing tripId' });
+                return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const file = req.file;
             if (!file) {
@@ -293,7 +293,7 @@ exports.passengerController = {
             const actualSheetName = workbook.SheetNames.find((sheet) => sheet.trim() === requestedSheet);
             if (!actualSheetName) {
                 return res.status(400).json({
-                    message: `Sheet "${requestedSheet}" not found`
+                    message: `Không tìm thấy Sheet "${requestedSheet}"`
                 });
             }
             const worksheet = workbook.Sheets[actualSheetName];
@@ -368,7 +368,7 @@ exports.passengerController = {
             });
         }
         catch (error) {
-            return res.status(500).json({ message: 'Server error' });
+            return res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     },
     update: async (req, res) => {
@@ -376,7 +376,7 @@ exports.passengerController = {
             // Cập nhật hồ sơ khách; nếu đổi xe thì xác thực xe mới vẫn thuộc tenant hiện tại.
             const { id } = req.params;
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const { name, note, busId } = req.body;
             const tel = req.body?.tel;
@@ -403,13 +403,13 @@ exports.passengerController = {
                 }
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Passenger not found' });
+                return res.status(404).json({ message: 'Không tìm thấy hành khách' });
             }
             let nextBusId;
             if (busId !== undefined && busId !== null) {
                 const busIdNumber = Number(busId);
                 if (!busIdNumber) {
-                    return res.status(400).json({ message: 'Invalid busId' });
+                    return res.status(400).json({ message: 'Mã xe không hợp lệ' });
                 }
                 const bus = await db_1.prisma.bus.findFirst({
                     where: {
@@ -420,7 +420,7 @@ exports.passengerController = {
                     }
                 });
                 if (!bus) {
-                    return res.status(404).json({ message: 'Bus not found' });
+                    return res.status(404).json({ message: 'Không tìm thấy xe' });
                 }
                 nextBusId = busIdNumber;
             }
@@ -444,7 +444,7 @@ exports.passengerController = {
             res.json(updated);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error' });
+            res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     },
     delete: async (req, res) => {
@@ -452,7 +452,7 @@ exports.passengerController = {
             // Xóa hành khách theo tenant và phát sự kiện refresh cho dashboard/trang liên quan.
             const { id } = req.params;
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const existing = await db_1.prisma.passenger.findFirst({
                 where: {
@@ -477,7 +477,7 @@ exports.passengerController = {
                 }
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Passenger not found' });
+                return res.status(404).json({ message: 'Không tìm thấy hành khách' });
             }
             await db_1.prisma.passenger.delete({
                 where: { id: Number(id) }
@@ -490,10 +490,10 @@ exports.passengerController = {
                 passengerId: Number(id),
                 updatedAt: new Date().toISOString(),
             });
-            res.json({ message: 'Deleted successfully' });
+            res.json({ message: 'Đã xóa thành công' });
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error' });
+            res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     }
 };

@@ -20,10 +20,11 @@ export const buildRoundColumns = ({
   handleDeleteRow,
   openLocksForRound,
 }: BuildRoundColumnsParams): Column<RoundRow>[] => [
-  { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
+  { header: 'STT', key: 'stt', width: '44px', render: (_row, idx) => idx + 1 },
   {
     header: 'Tên chặng',
     key: 'name',
+    width: '160px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -36,6 +37,7 @@ export const buildRoundColumns = ({
   {
     header: 'Thời gian',
     key: 'time',
+    width: '110px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -48,6 +50,7 @@ export const buildRoundColumns = ({
   {
     header: 'Tình trạng',
     key: 'status',
+    width: '120px',
     render: (row) => {
       const isLocked = Boolean(row.id) && row.busCount > 0 && row.completedBusCount < row.busCount;
       const lockMessage = isLocked
@@ -57,15 +60,11 @@ export const buildRoundColumns = ({
       return (
         <div className="td-content">
           <select
-            className="form-select form-select-sm"
+            className={`form-select form-select-sm ${isLocked ? 'table-control-muted' : ''}`}
             value={row.status}
             disabled={isLocked}
             title={lockMessage}
             onChange={(e) => handleCellChange(row.localId, 'status', e.target.value as RoundStatus)}
-            style={{
-              opacity: isLocked ? 0.55 : 1,
-              cursor: isLocked ? 'not-allowed' : 'pointer',
-            }}
           >
             <option value="DOING">Đang diễn ra</option>
             <option value="DONE">Hoàn thành</option>
@@ -77,18 +76,20 @@ export const buildRoundColumns = ({
   {
     header: 'Số khách check-in',
     key: 'transactionCount',
+    width: '104px',
     render: (row) => (row.id ? `${row.transactionCount}/${row.passengerCount}` : '-'),
   },
   {
     header: 'Số khách check-out',
     key: 'checkOutCount',
+    width: '104px',
     render: (row) => (row.id ? `${row.checkOutCount ?? 0}/${row.passengerCount}` : '-'),
   },
   {
     header: 'Xe hoàn thành chặng',
     key: 'completedBusCount',
     render: (row) => (row.id ? `${row.completedBusCount ?? 0}/${row.busCount ?? 0}` : '-'),
-    width: '180px',
+    width: '126px',
   },
  // ===== KHÓA LƯỢT ĐI =====
   {
@@ -119,7 +120,7 @@ export const buildRoundColumns = ({
         '-'
       ),
 
-    width: '180px',
+    width: '132px',
   },
 
   // ===== KHÓA LƯỢT VỀ =====
@@ -151,12 +152,12 @@ export const buildRoundColumns = ({
         '-'
       ),
 
-    width: '180px',
+    width: '132px',
   },
   {
   header: 'Thao tác',
   key: 'actions',
-  width: '100px', 
+  width: '64px',
   render: (row) => (
     <div className="d-flex justify-content-center align-items-center">
       <button 

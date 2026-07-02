@@ -1,16 +1,57 @@
 .bus-page .td-content input,
-.bus-page .td-content select {
-  min-height: 36px !important;
+.bus-page .td-content select,
+.bus-page .td-content textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 26px !important;
+  height: 26px !important;
   border: 1px solid var(--page-border) !important;
   background-color: var(--page-background) !important;
-  border-radius: 6px !important;
-  font-size: 13px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
   transition: all 0.2s;
 }
 
-.bus-page .td-content input:focus {
+.bus-page .td-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.bus-page .table-responsive {
+  overflow-x: auto;
+}
+
+.bus-page .custom-table {
+  table-layout: fixed;
+  min-width: 1064px;
+}
+
+.bus-page .custom-table th,
+.bus-page .custom-table td {
+  padding-left: 5px !important;
+  padding-right: 5px !important;
+}
+
+.bus-page .custom-table tbody td {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+.bus-page .td-content input:focus,
+.bus-page .td-content select:focus,
+.bus-page .td-content textarea:focus {
   border-color: var(--page-primary) !important;
   box-shadow: 0 0 0 3px var(--page-primary-22) !important;
+}
+
+.bus-page .bus-wrap-input {
+  min-height: 26px !important;
+  max-height: 72px;
+  line-height: 1.35;
+  resize: vertical;
+  white-space: normal;
+  overflow-wrap: normal;
 }
 
 .bus-page .btn-custom-action-small,
@@ -46,20 +87,21 @@
 .bus-page .table thead th {
   background-color: var(--page-table-header-bg) !important;
   color: var(--page-table-header-text) !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.025em !important;
-  padding: 12px !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+  padding: 4px 5px !important;
   border-bottom: 1px solid var(--page-border) !important;
 }
 
 .bus-page .btn-action-delete {
-  width: 36px !important;
-  height: 36px !important;
+  width: 26px !important;
+  height: 26px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border-radius: 10px !important;
+  border-radius: 6px !important;
   border: 1px solid rgba(220, 53, 69, 0.2) !important;
   background-color: rgba(220, 53, 69, 0.05) !important;
   color: #dc3545 !important;
@@ -91,6 +133,36 @@
 
 .bus-page .spin {
   animation: spin 1s linear infinite;
+}
+
+@media (max-width: 1150px) {
+  .bus-page .custom-table {
+    table-layout: auto;
+    min-width: 0;
+  }
+
+  .bus-page .responsive-stack-table td {
+    gap: 12px;
+  }
+
+  .bus-page .responsive-stack-table .td-content {
+    width: auto;
+    max-width: 65%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .bus-page .responsive-stack-table .td-content input,
+  .bus-page .responsive-stack-table .td-content select,
+  .bus-page .responsive-stack-table .td-content textarea {
+    width: 100% !important;
+    max-width: 220px !important;
+  }
+
+  .bus-page .responsive-stack-table .td-content span {
+    min-width: 48px;
+    text-align: right;
+  }
 }
 
 @keyframes spin {

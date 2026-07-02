@@ -1,0 +1,176 @@
+.lock-round-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--lock-modal-overlay-bg);
+  backdrop-filter: blur(6px);
+}
+
+.lock-round-modal .lock-modal-shell {
+  display: flex;
+  width: 100%;
+  max-width: 960px;
+  max-height: 85vh;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--lock-modal-border);
+  border-radius: 16px;
+  background: var(--lock-modal-surface);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+}
+
+.lock-round-modal .lock-modal-header {
+  border-color: var(--lock-modal-border) !important;
+  background-color: var(--lock-modal-header-bg);
+}
+
+.lock-round-modal .lock-modal-title,
+.lock-round-modal .lock-bus-name {
+  color: var(--lock-modal-text-primary);
+}
+
+.lock-round-modal .lock-bus-name {
+  font-size: 14px;
+}
+
+.lock-round-modal .lock-modal-close {
+  border: none;
+  background-color: var(--lock-modal-close-bg);
+  color: var(--lock-modal-text-primary);
+}
+
+.lock-round-modal .lock-modal-body {
+  max-height: calc(85vh - 70px);
+}
+
+.lock-round-modal .lock-modal-left-column {
+  border-color: var(--lock-modal-border) !important;
+}
+
+.lock-round-modal .unlock-request-card {
+  border-color: var(--lock-modal-warning-card-border) !important;
+  background-color: var(--lock-modal-warning-card-bg);
+}
+
+.lock-round-modal .unlock-request-title {
+  font-size: 14px;
+}
+
+.lock-round-modal .icon-circle {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.lock-round-modal .icon-circle.locked {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.lock-round-modal .icon-circle.completed {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.lock-round-modal .badge-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.lock-round-modal .badge-status.locked {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.lock-round-modal .badge-status.completed {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.lock-round-modal .unlock-reason {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background-color: var(--lock-modal-warning-reason-bg);
+  border-color: var(--lock-modal-warning-reason-border);
+  color: var(--lock-modal-warning-reason-color);
+}
+
+.lock-round-modal .unlock-reason-label {
+  flex: 0 0 auto;
+  font-weight: 800;
+}
+
+.lock-round-modal .transition-all {
+  transition: all 0.2s ease-in-out;
+}
+
+.lock-round-modal .tracking-wider {
+  letter-spacing: 0.05em;
+}
+
+.lock-round-modal .unlock-reject-panel {
+  border-color: var(--lock-modal-warning-divider) !important;
+}
+
+.lock-round-modal .unlock-reject-input {
+  border-color: var(--lock-modal-border);
+  background-color: var(--lock-modal-background);
+  color: var(--lock-modal-text-primary);
+}
+
+.lock-round-modal .lock-empty-state,
+.lock-round-modal .completed-empty-state {
+  border-color: var(--lock-modal-border) !important;
+  color: var(--lock-modal-text-secondary);
+}
+
+.lock-round-modal .lock-empty-state {
+  border-style: dashed !important;
+  background-color: var(--lock-modal-empty-bg);
+}
+
+.lock-round-modal .locked-bus-row {
+  border-color: var(--lock-modal-locked-border) !important;
+  border-radius: 12px;
+  background: var(--lock-modal-locked-bg);
+}
+
+.lock-round-modal .completed-bus-row {
+  border-color: var(--lock-modal-completed-border) !important;
+  border-radius: 12px;
+  background: var(--lock-modal-completed-bg);
+}
+
+.lock-round-modal .completed-bus-note {
+  color: var(--lock-modal-text-secondary);
+  font-size: 11px;
+}
+
+@media (min-width: 992px) {
+  .lock-round-modal .border-end-lg {
+    padding-right: 1.5rem !important;
+    border-right: 1px solid var(--bs-border-color) !important;
+  }
+}

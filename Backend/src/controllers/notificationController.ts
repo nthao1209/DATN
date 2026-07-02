@@ -5,7 +5,7 @@ import { prisma } from '../config/db';
 
 const ensureUser = (req: AuthRequest, res: Response) => {
   if (!req.user?.id) {
-    res.status(401).json({ message: 'Unauthorized' });
+    res.status(401).json({ message: 'Không có quyền truy cập' });
     return null;
   }
 
@@ -60,7 +60,7 @@ const list = async (req: AuthRequest, res: Response) => {
     res.json(notifications);
   } catch (error: any) {
 
-    res.status(500).json({ message: 'Server error', detail: error?.message });
+    res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
   }
 };
 
@@ -75,7 +75,7 @@ const create = async (req: AuthRequest, res: Response) => {
     const payload = req.body?.payload ?? null;
 
     if (!type || !title || !content) {
-      return res.status(400).json({ message: 'type, title and content are required' });
+      return res.status(400).json({ message: 'type, title và content là bắt buộc' });
     }
 
     const notification = await createNotification(prisma, {
@@ -89,7 +89,7 @@ const create = async (req: AuthRequest, res: Response) => {
     res.status(201).json(notification);
   } catch (error: any) {
 
-    res.status(500).json({ message: 'Server error', detail: error?.message });
+    res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
   }
 };
 
@@ -100,12 +100,12 @@ const markRead = async (req: AuthRequest, res: Response) => {
 
     const id = Number(req.params.id);
     if (!id) {
-      return res.status(400).json({ message: 'Missing notification id' });
+      return res.status(400).json({ message: 'Thiếu ID thông báo' });
     }
 
     const notification = await prisma.notification.findFirst({ where: { id, userId } });
     if (!notification) {
-      return res.status(404).json({ message: 'Notification not found' });
+      return res.status(404).json({ message: 'Không tìm thấy thông báo' });
     }
 
     const updated = await prisma.notification.update({
@@ -116,7 +116,7 @@ const markRead = async (req: AuthRequest, res: Response) => {
     res.json(updated);
   } catch (error: any) {
 
-    res.status(500).json({ message: 'Server error', detail: error?.message });
+    res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
   }
 };
 
@@ -133,7 +133,7 @@ const markAllRead = async (req: AuthRequest, res: Response) => {
     res.json(result);
   } catch (error: any) {
 
-    res.status(500).json({ message: 'Server error', detail: error?.message });
+    res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
   }
 };
 const remove = async (req: AuthRequest, res: Response) => {
@@ -143,22 +143,22 @@ const remove = async (req: AuthRequest, res: Response) => {
 
     const id = Number(req.params.id);
     if (!id) {
-      return res.status(400).json({ message: 'Missing notification id' });
+      return res.status(400).json({ message: 'Thiếu ID thông báo' });
     }
 
     const notification = await prisma.notification.findFirst({ where: { id, userId } });
     if (!notification) {
-      return res.status(404).json({ message: 'Notification not found' });
+      return res.status(404).json({ message: 'Không tìm thấy thông báo' });
     }
 
     await prisma.notification.delete({
       where: { id },
     });
 
-    res.json({ message: 'Deleted successfully' });
+    res.json({ message: 'Đã xóa thành công' });
   } catch (error: any) {
 
-    res.status(500).json({ message: 'Server error', detail: error?.message });
+    res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
   }
 };
 
@@ -171,10 +171,10 @@ const removeAll = async (req: AuthRequest, res: Response) => {
       where: { userId },
     });
 
-    res.json({ message: 'All notifications deleted', count: result.count });
+    res.json({ message: 'Đã xóa toàn bộ thông báo', count: result.count });
   } catch (error: any) {
 
-    res.status(500).json({ message: 'Server error', detail: error?.message });
+    res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
   }
 };
 

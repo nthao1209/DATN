@@ -1,0 +1,127 @@
+.table-action-bar {
+  border-bottom: 1px solid var(--page-border);
+  background-color: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+}
+
+.table-action-search-wrap {
+  max-width: 400px;
+}
+
+.table-action-search-icon {
+  z-index: 5;
+  color: var(--page-text-muted);
+}
+
+.table-action-search-input {
+  height: 40px;
+  border: 1px solid var(--page-border);
+  border-radius: 8px;
+  background-color: var(--page-background);
+  color: var(--page-text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.table-action-search-input:focus {
+  border-color: var(--page-primary);
+}
+
+.table-action-voice-btn {
+  right: 12px;
+  z-index: 5;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background-color: var(--table-action-voice-bg);
+  color: var(--table-action-voice-color);
+  cursor: var(--table-action-voice-cursor);
+  opacity: var(--table-action-voice-opacity);
+}
+
+.table-action-icon-btn {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--page-border-light);
+  border-radius: 8px;
+  background: var(--page-surface-light);
+  color: var(--page-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.table-action-filter-toggle {
+  color: var(--table-action-filter-toggle-color);
+}
+
+.table-action-add-btn {
+  height: 40px;
+  border-radius: 8px;
+  background-color: var(--page-primary);
+  color: var(--page-text-primary);
+  box-shadow: 0 0 20px var(--page-primary-22);
+}
+
+.table-action-filter-title-icon,
+.table-action-filter-title,
+.table-action-filter-label {
+  color: var(--page-text-muted);
+}
+
+.table-action-filter-title {
+  font-size: 10px;
+  letter-spacing: 0.05rem;
+}
+
+.table-action-filter-label {
+  font-size: 11px;
+}
+
+.table-action-filter-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--page-border);
+  border-radius: 6px;
+  background-color: var(--page-surface);
+  color: var(--page-text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.table-action-filter-input option {
+  background: var(--page-surface);
+}
+
+.custom-placeholder::placeholder {
+  color: var(--page-text-muted) !important;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.transition-all {
+  transition: all 0.3s ease-in-out;
+}
+
+.animate-fade-in {
+  animation: table-action-fade-in 0.3s ease-out;
+}
+
+@keyframes table-action-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

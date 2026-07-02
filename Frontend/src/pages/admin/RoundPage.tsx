@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Save, Map } from 'lucide-react';
+import { Map } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { buildRoundColumns } from './round/columns';
 import { useRoundLocks } from '../../hooks/useRoundLocks';
@@ -13,6 +12,10 @@ import LockRoundModal from './round/LockRoundModal';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
 import { subscribeMqttTopics } from '../../services/mqtt';
+import EditableTableCard from '../../components/admin/EditableTableCard';
+import PageTitle from '../../components/admin/PageTitle';
+import SaveChangesAction from '../../components/admin/SaveChangesAction';
+import { usePageThemeVars } from '../../hooks/usePageThemeVars';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
@@ -22,8 +25,9 @@ const EMPTY_BUSES: any[] = [];
 const EMPTY_UNLOCK_REQUESTS: any[] = [];
 
 const RoundPage: React.FC = () => {
-  const { colors, effects, isDarkMode } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
+  const pageThemeVars = usePageThemeVars();
   const { id: tripId } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<RoundRow[]>([]);
@@ -216,19 +220,6 @@ const RoundPage: React.FC = () => {
   }, [rows, deletedIds]);
 
   const canSave = dirtyCount > 0 && !hasValidationErrors;
-  const pageThemeVars = {
-    '--page-primary': colors.primary,
-    '--page-primary-11': `${colors.primary}11`,
-    '--page-primary-15': `${colors.primary}15`,
-    '--page-primary-33': `${colors.primary}33`,
-    '--page-surface-light': colors.surfaceLight,
-    '--page-background': colors.background,
-    '--page-border': colors.border,
-    '--page-border-light': colors.borderLight,
-    '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
-    '--page-table-header-text': isDarkMode ? colors.textSecondary : '#475569',
-  };
-
   useRegisterUnsavedChanges(dirtyCount > 0);
 
   // --- ACTIONS ---
@@ -368,56 +359,12 @@ const RoundPage: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in p-0 p-md-3 round-page" style={pageThemeVars as React.CSSProperties}>
-      {/* Header Section */}
-      <div className="d-flex align-items-center justify-content-between mb-4 px-2">
-        <div className="d-flex align-items-center gap-3">
-          <div 
-            className="d-flex align-items-center justify-content-center rounded-circle shadow-sm"
-            style={{ 
-              width: '42px', 
-              height: '42px', 
-              backgroundColor: isDarkMode ? colors.primaryGlow : `${colors.primary}15`,
-              border: `1px solid ${colors.primary}33`
-            }}
-          >
-            <Map size={22} style={{ color: colors.primary }} />
-          </div>
-          <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>
-            Quản lý Chặng đi
-          </h1>
-        </div>
+    <div className="animate-fade-in p-0 p-md-3 round-page" style={pageThemeVars}>
+      <PageTitle icon={<Map size={22} />} title="Quản lý Chặng đi" />
 
-        {/* refresh button removed */}
-      </div>
-
-      {/* Table Section */}
-      <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
-        <DataTable
+      <EditableTableCard
           title="Danh sách các chặng"
-          titleActions={dirtyCount > 0 ? (
-            <div className="d-flex flex-column align-items-end gap-1">
-              <button
-                className="btn-custom-action-save shadow-sm save-floating-action"
-                onClick={handleSave}
-                disabled={isSaving || !canSave}
-                title={saveValidationMessage || undefined}
-                style={{ 
-                  backgroundColor: canSave ? colors.success : colors.surfaceLight, 
-                  color: canSave ? '#fff' : colors.textMuted
-                }}
-              >
-                <Save size={16} />
-                <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-                <span className="d-inline d-sm-none">{dirtyCount}</span>
-              </button>
-              {saveValidationMessage && (
-                <div className="small text-end" style={{ color: colors.warning, maxWidth: '280px', lineHeight: 1.2 }}>
-                  {saveValidationMessage}
-                </div>
-              )}
-            </div>
-          ) : null}
+          titleActions={<SaveChangesAction dirtyCount={dirtyCount} isSaving={isSaving} canSave={canSave} onSave={handleSave} validationMessage={saveValidationMessage} messageMaxWidth="280px" />}
           columns={columns}
           queryKey={['rounds-local', tripId]}
           data={rows}
@@ -426,7 +373,9 @@ const RoundPage: React.FC = () => {
           onRefresh={() => { setDeletedIds([]); refetch(); refetchUnlockRequests(); }}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
-        />
+          showAddRow
+          onAddRow={handleAddRow}
+        >
 
         {openLockModal !== null && (
           <LockRoundModal 
@@ -443,23 +392,7 @@ const RoundPage: React.FC = () => {
             isDarkMode={isDarkMode}
           />
         )}
-
-        <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
-          <button 
-            className="btn-add-row-bottom w-100 py-2" 
-            onClick={handleAddRow}
-            style={{ 
-              color: colors.primary, 
-              border: `1px dashed ${colors.primary}66`,
-              borderRadius: '8px',
-              backgroundColor: `${colors.primary}08`
-            }}
-          >
-            <Plus size={18} />
-            <span className="fw-bold ms-2">Thêm dòng mới</span>
-          </button>
-        </div>
-      </div>
+      </EditableTableCard>
     </div>
   );
 };

@@ -42,10 +42,10 @@ exports.roundController = {
             // Lấy danh sách chặng kèm các số liệu tổng quan mà RoundPage cần hiển thị.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing tripId' });
+                return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const rounds = await db_1.prisma.round.findMany({
                 where: {
@@ -107,7 +107,7 @@ exports.roundController = {
         }
         catch (error) {
             res.status(500).json({
-                message: 'Server error',
+                message: 'Lỗi hệ thống',
                 detail: error.message
             });
         }
@@ -118,19 +118,19 @@ exports.roundController = {
             // Tạo chặng mới và trả kèm số hành khách/xe hiện tại để frontend cập nhật bảng ngay.
             const tripId = Number(req.params.tripId);
             if (!tripId) {
-                return res.status(400).json({ message: 'Missing tripId' });
+                return res.status(400).json({ message: 'Thiếu thông tin chuyến xe (tripId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const name = String(req.body?.name ?? '').trim();
             const time = String(req.body?.time ?? '').trim();
             const statusRaw = String(req.body?.status ?? '').trim().toUpperCase();
             if (!name || !time || !statusRaw) {
-                return res.status(400).json({ message: 'Missing required fields: name, time, status' });
+                return res.status(400).json({ message: 'Thiếu các trường bắt buộc: name, time, status' });
             }
             if (statusRaw !== Status.DOING && statusRaw !== Status.DONE) {
-                return res.status(400).json({ message: 'Invalid status. Allowed values: DOING, DONE' });
+                return res.status(400).json({ message: 'Trạng thái không hợp lệ. Chỉ cho phép: DOING, DONE' });
             }
             const trip = await db_1.prisma.trip.findFirst({
                 where: {
@@ -139,7 +139,7 @@ exports.roundController = {
                 },
             });
             if (!trip) {
-                return res.status(404).json({ message: 'Trip not found' });
+                return res.status(404).json({ message: 'Không tìm thấy chuyến xe' });
             }
             const round = await db_1.prisma.round.create({
                 data: {
@@ -195,9 +195,9 @@ exports.roundController = {
         }
         catch (error) {
             if (error.code === 'P2000' || error.code === 'P2002') {
-                return res.status(400).json({ message: 'Invalid data' });
+                return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
             }
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     // Update round
@@ -206,10 +206,10 @@ exports.roundController = {
             // Cập nhật thông tin chặng; nếu đổi status thì trả thêm tiến độ xe hoàn thành.
             const { id } = req.params;
             if (!id) {
-                return res.status(400).json({ message: 'Missing round id' });
+                return res.status(400).json({ message: 'Thiếu mã chặng (roundId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const { name, time, status } = req.body;
             // Check round exists and verify tenant access through trip
@@ -222,7 +222,7 @@ exports.roundController = {
                 }
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Round not found' });
+                return res.status(404).json({ message: 'Không tìm thấy vòng' });
             }
             if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
                 const { busCount, completedBusCount } = await getCompletedBusCounts(existing.tripId, Number(id), req.tenantId);
@@ -251,7 +251,7 @@ exports.roundController = {
             res.json(updated);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error' });
+            res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     },
     // Xóa round
@@ -260,10 +260,10 @@ exports.roundController = {
             // Xóa chặng thuộc tenant hiện tại và phát sự kiện refresh dashboard.
             const { id } = req.params;
             if (!id) {
-                return res.status(400).json({ message: 'Missing round id' });
+                return res.status(400).json({ message: 'Thiếu mã chặng (roundId)' });
             }
             if (!req.tenantId) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'Không có quyền truy cập' });
             }
             const existing = await db_1.prisma.round.findFirst({
                 where: {
@@ -274,7 +274,7 @@ exports.roundController = {
                 }
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Round not found' });
+                return res.status(404).json({ message: 'Không tìm thấy vòng' });
             }
             await db_1.prisma.round.delete({
                 where: { id: Number(id) }
@@ -287,10 +287,10 @@ exports.roundController = {
                 roundId: Number(id),
                 updatedAt: new Date().toISOString(),
             });
-            res.json({ message: 'Deleted successfully' });
+            res.json({ message: 'Đã xóa thành công' });
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error' });
+            res.status(500).json({ message: 'Lỗi hệ thống' });
         }
     }
 };

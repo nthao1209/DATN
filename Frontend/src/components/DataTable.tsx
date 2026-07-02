@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, AlertCircle, Loader2, ListFilter, Search } from 'lucide-react';
 import TableActionBar, { type FilterConfig } from './TableActionBar';
 import useDebounce from '../hooks/useDebounce';
-import { useTheme } from '../theme/ThemeContext';
+import './DataTable.css';
 
 export interface Column<T> {
   header: string;
@@ -12,7 +12,7 @@ export interface Column<T> {
   width?: string;
 }
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   title: React.ReactNode;
   titleActions?: React.ReactNode;
   columns: Column<T>[];
@@ -30,6 +30,8 @@ interface DataTableProps<T> {
   showPagination?: boolean;
   focusRowKey?: string | number | null;
   focusRowSignal?: number;
+  density?: 'compact' | 'comfortable';
+  minTableWidth?: string;
 }
 
 function DataTable<T extends object>({
@@ -48,11 +50,10 @@ function DataTable<T extends object>({
   showActionBar = true,
   showPagination = true,
   focusRowKey = null,
-  focusRowSignal = 0
+  focusRowSignal = 0,
+  density = 'compact',
+  minTableWidth
 }: DataTableProps<T>) {
-  
-  const { colors, effects, isDarkMode } = useTheme();
-
   const normalizeText = (text: string) => {
     // Tìm kiếm không dấu để người dùng gõ "nguyen" vẫn ra "Nguyễn".
     return text
@@ -134,18 +135,21 @@ function DataTable<T extends object>({
     setCurrentPage(1);
   };
 
+  const densityClass = density === 'comfortable' ? 'datatable-comfortable' : 'datatable-compact';
+  const tableMinWidth = minTableWidth || '100%';
+  const shellStyle = { '--datatable-min-width': tableMinWidth } as React.CSSProperties;
+
   return (
-    <div className="card shadow-lg border-0 mb-4 overflow-hidden" 
-         style={{ background: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}` }}>
+    <div className={`data-table-shell ${densityClass} card shadow-lg border-0 mb-4 overflow-hidden`} style={shellStyle}>
       
-      <div className="card-header bg-transparent py-3 py-md-4 px-3 px-md-4" style={{ borderBottom: `1px solid ${colors.border}` }}>
+      <div className="data-table-card-header card-header bg-transparent py-2 px-3">
         <div className="d-flex flex-wrap flex-lg-nowrap align-items-center justify-content-between gap-3">
           
           <div className="d-flex align-items-center gap-2 w-100 w-lg-auto">
-            <div className="p-2 rounded-3" style={{ backgroundColor: colors.primaryGlow, color: colors.primary }}>
+            <div className="data-table-title-icon p-2 rounded-3">
               <ListFilter size={20} />
             </div>
-            <h5 className="mb-0 fw-bold text-nowrap" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>{title}</h5>
+            <h5 className="data-table-title mb-0 fw-bold text-nowrap">{title}</h5>
           </div>
 
           <div className="d-flex align-items-center justify-content-start justify-content-lg-end gap-3 flex-wrap flex-grow-1 ms-auto">
@@ -174,11 +178,11 @@ function DataTable<T extends object>({
         <div className="table-responsive custom-scrollbar">
           <table className="table table-hover align-middle mb-0 custom-table responsive-stack-table">
             <thead className="datatable-head">
-              <tr style={{ background: 'rgba(30, 41, 59, 0.3)' }}>
+              <tr>
                 {columns.map((col, idx) => (
                   <th key={idx} 
-                      style={{ width: col.width, color: colors.textMuted }} 
-                      className="py-3 px-4 small text-uppercase fw-bold border-0">
+                      style={{ width: col.width }}
+                      className="py-1 px-2 small text-uppercase fw-bold border-0">
                     {col.header}
                   </th>
                 ))}
@@ -213,7 +217,7 @@ function DataTable<T extends object>({
                   <tr key={(item as any)?.localId ?? (item as any)?.id ?? rowIdx} className="table-row-dark">
                     {columns.map((col, colIdx) => (
                       <td key={colIdx} 
-                          className="px-4 py-3 border-0 text-gray-300 small"
+                          className="px-2 py-1 border-0 text-gray-300 small"
                           data-label={col.header}
                       >
                         <div className="td-content">
@@ -232,21 +236,14 @@ function DataTable<T extends object>({
       </div>
 
       {showPagination && !isLoading && !isError && filteredData.length > 0 && (
-        <div className="card-footer bg-transparent py-4 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3"
-             style={{ borderTop: `1px solid ${colors.border}` }}>
+        <div className="data-table-footer card-footer bg-transparent py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
           <div className="d-flex align-items-center gap-4">
-            <span style={{ color: colors.textMuted, fontSize: '0.85rem' }}>
-              Hiển thị <span className="fw-bold" style={{ color: colors.textPrimary }}>{((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filteredData.length)}</span> trên <span className="fw-bold" style={{ color: colors.textPrimary }}>{filteredData.length}</span>
+            <span className="data-table-summary">
+              Hiển thị <span className="data-table-summary-strong fw-bold">{((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, filteredData.length)}</span> trên <span className="data-table-summary-strong fw-bold">{filteredData.length}</span>
             </span>
             <div className="d-flex align-items-center gap-2">
               <select
                 className="form-select-dynamic"
-                style={{ 
-                  backgroundColor: isDarkMode ? colors.background : '#fff', 
-                  border: `1px solid ${colors.border}`,
-                  color: colors.textSecondary,
-                  width: 105, fontSize: '11px', height: '30px', borderRadius: '20px', paddingLeft: '12px'
-                }}
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(e.target.value)}
               >
@@ -287,98 +284,6 @@ function DataTable<T extends object>({
           </nav>
         </div>
       )}
-
-      <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .datatable-head { display: table-header-group; }
-        .table-row-dark:hover { background: rgba(251, 244, 236, 0.03) !important; }
-        
-        .custom-table {
-            background-color: transparent !important;
-            color: ${colors.textPrimary} !important;
-            border-color: ${colors.border} !important;
-        }
-        .custom-table :not(caption) > * > * {
-            background-color: transparent !important;
-            color: ${colors.textPrimary} !important;
-            border-bottom-width: 1px;
-            border-color: ${colors.border} !important;
-            box-shadow: none !important;
-        }
-        .table-row-dark:hover td { background-color: rgba(56, 189, 248, 0.04) !important; }
-        
-        .td-content input, .td-content select, .td-content textarea {
-            background-color: ${colors.background} !important;
-            border: 1px solid ${colors.borderLight} !important;
-            color: ${colors.textPrimary} !important;
-            border-radius: 6px;
-        }
-        .td-content input::placeholder, .td-content textarea::placeholder {
-            color: ${colors.textMuted} !important;
-            opacity: 0.6;
-            font-size: 0.8rem;
-        }
-
-        @media (max-width: 1150px) {
-          .datatable-head { display: none; }
-          .responsive-stack-table, .responsive-stack-table tbody, .responsive-stack-table tr, .responsive-stack-table td {
-            display: block;
-            width: 100%;
-          }
-          .responsive-stack-table tr {
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.015);
-            border-radius: 12px;
-            border: 1px solid ${colors.border} !important;
-          }
-          .responsive-stack-table td {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px !important;
-            border-bottom: 1px solid ${colors.border} !important;
-          }
-          .responsive-stack-table td:last-child { border-bottom: 0 !important; }
-          .responsive-stack-table td::before {
-            content: attr(data-label);
-            font-weight: bold;
-            color: ${colors.textMuted};
-            text-transform: uppercase;
-            font-size: 10px;
-            flex: 0 0 35%;
-            text-align: left;
-          }
-          .td-content {
-            flex: 1;
-            max-width: 65%;
-            display: flex;
-            justify-content: flex-end;
-            text-align: right;
-          }
-          .td-content input[type="checkbox"] {
-            width: 18px !important;
-            height: 18px !important;
-          }
-          .td-content input:not([type="checkbox"]), .td-content select, .td-content .form-control {
-            width: 100% !important;
-            max-width: 160px !important;
-            box-sizing: border-box !important;
-          }
-        }
-
-        .spinner-glow {
-          width: 30px; height: 30px;
-          border: 2px solid ${colors.primaryGlow};
-          border-top-color: ${colors.primary};
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 10px; }
-      `}</style>
     </div>
   );
 }

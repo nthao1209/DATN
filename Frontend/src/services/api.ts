@@ -25,6 +25,14 @@ const AUTH_ENDPOINT_HINTS = [
 const isAuthRelatedEndpoint = (url?: string) =>
   !!url && AUTH_ENDPOINT_HINTS.some((hint) => url.includes(hint));
 
+const attachCurrentTenantHeader = (config: any) => {
+  const currentTenantId = localStorage.getItem('currentTenantId');
+  if (currentTenantId && !isAuthRelatedEndpoint(String(config.url || ''))) {
+    config.headers = config.headers || {};
+    config.headers['X-Tenant-Id'] = currentTenantId;
+  }
+};
+
 let authInitPromise: Promise<User | null> | null = null;
 
 const waitForAuthInit = (): Promise<User | null> => {
@@ -44,6 +52,7 @@ const waitForAuthInit = (): Promise<User | null> => {
 };
 
 axiosClient.interceptors.request.use(async (config: any) => {
+  config.headers = config.headers || {};
   // Upload FormData cần để browser tự set multipart boundary.
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     if (config.headers) {
@@ -54,6 +63,7 @@ axiosClient.interceptors.request.use(async (config: any) => {
 
   const existingAuthorization = config.headers?.Authorization || config.headers?.authorization;
   if (existingAuthorization) {
+    attachCurrentTenantHeader(config);
     return config;
   }
 
@@ -63,6 +73,7 @@ axiosClient.interceptors.request.use(async (config: any) => {
     const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
   }
+  attachCurrentTenantHeader(config);
   return config;
 });
 
@@ -104,7 +115,7 @@ axiosClient.interceptors.response.use(
     } else if (!error.response) {
       message = `Không thể kết nối server tại ${endpoint}. Lỗi mạng: ${error.message || 'Unknown network error'}`;
     } else {
-      message = `[${status}] ${method} ${endpoint} - ${backendMessage || 'Server không trả về chi tiết lỗi'}`;
+      message = backendMessage || `[${status}] ${method} ${endpoint} - Server không trả về chi tiết lỗi`;
     }
 
     const apiError = new Error(message) as Error & {
@@ -158,10 +169,7 @@ export const api = {
   joinTenant: (joinCode: string) => 
     axiosClient.post('/tenants/join', { joinCode }),
 
-  deleteAccount: () => 
-    axiosClient.delete('/auth/delete-account'),
-
-  disableAccount: () =>
+  disableAccount: () => 
     axiosClient.delete('/auth/delete-account'),
 
   // Tenant APIs

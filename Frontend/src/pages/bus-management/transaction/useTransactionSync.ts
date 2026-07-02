@@ -18,7 +18,7 @@ type UseTransactionSyncParams = {
 };
 
 type SyncBanner = {
-  tone: 'info' | 'success' | 'warning' | 'danger';
+  tone: 'info' | 'Thành công' | 'warning' | 'danger';
   label: string;
 };
 
@@ -156,7 +156,7 @@ export const useTransactionSync = ({
     const handleQueueSynced = (event: Event) => {
       const detail = (event as CustomEvent<{ storageKey?: string }>).detail;
       if (detail?.storageKey && detail.storageKey === storageKey) {
-        setSyncBanner({ tone: 'success', label: 'Đã gửi lên MQTT, đang chờ cập nhật realtime' });
+        setSyncBanner({ tone: 'Thành công', label: 'Đã gửi lên MQTT, đang chờ cập nhật realtime' });
 
         if (timeoutId) {
           clearTimeout(timeoutId);

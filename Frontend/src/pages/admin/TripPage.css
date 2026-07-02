@@ -1,10 +1,12 @@
 .trip-page .td-content input,
 .trip-page .td-content select {
-  min-height: 36px !important;
+  min-height: 26px !important;
+  height: 26px !important;
   border: 1px solid var(--page-border-light) !important;
   background-color: var(--page-background) !important;
-  border-radius: 6px !important;
-  font-size: 13px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
   transition: all 0.2s;
 }
 
@@ -48,21 +50,22 @@
 .trip-page .table thead th {
   background-color: var(--page-table-header-bg) !important;
   color: var(--page-table-header-text) !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-  padding: 12px !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+  padding: 4px 6px !important;
   border-bottom: 1px solid var(--page-border) !important;
   font-weight: 700 !important;
 }
 
 .trip-page .btn-action-delete {
-  width: 36px !important;
-  height: 36px !important;
+  width: 26px !important;
+  height: 26px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border-radius: 10px !important;
+  border-radius: 6px !important;
   border: 1px solid rgba(220, 53, 69, 0.2) !important;
   background-color: rgba(220, 53, 69, 0.05) !important;
   color: #dc3545 !important;
@@ -90,6 +93,46 @@
 .trip-page .btn-action-delete svg {
   color: #ffffff !important;
   fill: none !important;
+}
+
+.trip-page .btn-stat-link {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--page-primary) 45%, var(--page-border) 55%);
+  border-radius: 4px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--page-primary) 24%, var(--page-surface-light) 76%),
+    color-mix(in srgb, var(--page-primary) 12%, var(--page-background) 88%)
+  );
+  color: var(--page-text-primary);
+  line-height: 1;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.trip-page .btn-stat-link svg {
+  color: color-mix(in srgb, var(--page-primary) 70%, #ffffff 30%);
+}
+
+.trip-page .btn-stat-link:hover {
+  border-color: color-mix(in srgb, var(--page-primary) 70%, #ffffff 30%) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--page-primary) 34%, var(--page-surface-light) 66%),
+    color-mix(in srgb, var(--page-primary) 20%, var(--page-background) 80%)
+  ) !important;
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.26),
+    0 0 0 2px var(--page-primary-22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
 }
 
 .trip-page .spin {

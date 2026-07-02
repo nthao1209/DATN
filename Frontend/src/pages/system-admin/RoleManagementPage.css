@@ -1,0 +1,152 @@
+.role-management-page .role-management-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--page-primary-33);
+  background-color: var(--page-primary-15);
+  color: var(--page-primary);
+}
+
+.role-management-page .role-management-title {
+  color: var(--page-text-primary);
+  letter-spacing: 0;
+}
+
+.role-management-page .role-management-table-card {
+  overflow: hidden;
+  border: 1px solid var(--page-border);
+  border-radius: 12px;
+  background-color: var(--page-surface);
+}
+
+.role-management-page .td-content input,
+.role-management-page .td-content select {
+  min-height: 38px !important;
+  border: 1px solid var(--page-border-light) !important;
+  border-radius: 6px !important;
+  background-color: var(--page-background) !important;
+  font-size: 13.5px !important;
+  transition: all 0.2s;
+}
+
+.role-management-page .td-content input:focus {
+  border-color: var(--page-primary) !important;
+  box-shadow: 0 0 0 3px var(--page-primary-22) !important;
+  outline: none;
+}
+
+.role-management-page .btn-custom-action-small,
+.role-management-page .btn-custom-action-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--page-success);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.role-management-page .btn-custom-action-small:hover {
+  background: var(--page-primary-11);
+  transform: translateY(-1px);
+}
+
+.role-management-page .btn-custom-action-save:not(:disabled):hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.role-management-page .btn-custom-action-save:active {
+  transform: scale(0.96);
+}
+
+.role-management-page .table thead th {
+  padding: 12px !important;
+  border-bottom: 1px solid var(--page-border) !important;
+  background-color: var(--page-table-header-bg) !important;
+  color: var(--page-table-header-text) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+.role-management-page .btn-action-delete {
+  display: flex !important;
+  width: 36px !important;
+  height: 36px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 1px solid rgba(220, 53, 69, 0.2) !important;
+  border-radius: 10px !important;
+  background-color: rgba(220, 53, 69, 0.05) !important;
+  color: #dc3545 !important;
+  cursor: pointer !important;
+  outline: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.role-management-page .btn-action-delete:hover {
+  border-color: #dc3545 !important;
+  background-color: #dc3545 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+  transform: translateY(-2px) !important;
+}
+
+.role-management-page .btn-action-delete:active {
+  background-color: #a71d2a !important;
+  box-shadow: none !important;
+  transform: scale(0.9) !important;
+}
+
+.role-management-page .btn-action-delete svg {
+  color: #fff !important;
+  fill: none !important;
+}
+
+.role-management-page .role-management-add-row {
+  border-color: var(--page-border) !important;
+  background-color: color-mix(in srgb, var(--page-surface-light) 55%, transparent);
+}
+
+.role-management-page .btn-add-row-bottom {
+  border: 1px dashed var(--page-primary-66);
+  border-radius: 8px;
+  background-color: var(--page-primary-08);
+  color: var(--page-primary);
+}
+
+.role-management-page .spin {
+  animation: role-management-spin 1s linear infinite;
+}
+
+.role-management-page.animate-fade-in {
+  animation: role-management-fade-in 0.4s ease-out;
+}
+
+@keyframes role-management-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes role-management-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .role-management-page h1 {
+    font-size: 1.15rem;
+  }
+
+  .role-management-page .btn-custom-action-small,
+  .role-management-page .btn-custom-action-save {
+    padding: 6px 12px;
+  }
+}

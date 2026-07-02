@@ -44,14 +44,14 @@ const getPendingRequests = async (req, res) => {
         // Admin mở modal khóa lượt sẽ gọi endpoint này để lấy các yêu cầu đang chờ của đúng chặng.
         if (!req.tenantId) {
             return res.status(401).json({
-                message: 'Unauthorized',
+                message: 'Không có quyền truy cập',
             });
         }
         const tripId = Number(req.query.tripId);
         const roundId = Number(req.query.roundId);
         if (!tripId || !roundId) {
             return res.status(400).json({
-                message: 'Missing tripId or roundId',
+                message: 'Thiếu mã chuyến xe (tripId) hoặc mã chặng (roundId)',
             });
         }
         const requests = await db_1.prisma.unlockRequest.findMany({
@@ -92,26 +92,26 @@ const create = async (req, res) => {
         const roundId = Number(req.params.roundId);
         const { type = 'check_in', reason } = req.body || {};
         if (!busId || !roundId) {
-            return res.status(400).json({ message: 'Missing busId or roundId' });
+            return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc vòng (roundId)' });
         }
         if (!req.user?.id) {
-            return res.status(401).json({ message: 'Unauthorized' });
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
         }
         if (!req.tenantId) {
-            return res.status(401).json({ message: 'Unauthorized' });
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
         }
         const bus = await db_1.prisma.bus.findFirst({
             where: { id: busId, trip: { tenantId: req.tenantId } },
             include: { trip: true, manager: true },
         });
         if (!bus) {
-            return res.status(404).json({ message: 'Bus not found' });
+            return res.status(404).json({ message: 'Không tìm thấy xe' });
         }
         const round = await db_1.prisma.round.findFirst({
             where: { id: roundId, trip: { tenantId: req.tenantId } },
         });
         if (!round) {
-            return res.status(404).json({ message: 'Round not found' });
+            return res.status(404).json({ message: 'Không tìm thấy vòng' });
         }
         const status = await db_1.prisma.busRoundStatus.findUnique({
             where: { busId_roundId: { busId, roundId } },
@@ -224,23 +224,23 @@ const approve = async (req, res) => {
         // Admin duyệt request: vừa đổi trạng thái request vừa mở khóa field tương ứng.
         const requestId = Number(req.params.requestId);
         if (!requestId)
-            return res.status(400).json({ message: 'Missing requestId' });
+            return res.status(400).json({ message: 'Thiếu mã yêu cầu (requestId)' });
         if (!req.user?.id)
-            return res.status(401).json({ message: 'Unauthorized' });
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
         if (!req.tenantId)
-            return res.status(401).json({ message: 'Unauthorized' });
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
         const request = await db_1.prisma.unlockRequest.findUnique({
             where: { id: requestId },
             include: unlockRequestInclude
         });
         if (!request) {
-            return res.status(404).json({ message: 'Unlock request not found' });
+            return res.status(404).json({ message: 'Không tìm thấy yêu cầu mở khóa' });
         }
         if (request.bus.trip.tenantId !== req.tenantId) {
-            return res.status(403).json({ message: 'Forbidden' });
+            return res.status(403).json({ message: 'Từ chối truy cập (Forbidden)' });
         }
         if (request.status !== 'PENDING') {
-            return res.status(400).json({ message: 'Request already processed' });
+            return res.status(400).json({ message: 'Yêu cầu đã được xử lý' });
         }
         const updated = await db_1.prisma.$transaction(async (tx) => {
             // Dùng transaction DB để request và trạng thái khóa luôn đồng bộ với nhau.
@@ -324,20 +324,20 @@ const reject = async (req, res) => {
         const requestId = Number(req.params.requestId);
         const { rejectReason } = req.body;
         if (!requestId)
-            return res.status(400).json({ message: 'Missing requestId' });
+            return res.status(400).json({ message: 'Thiếu mã yêu cầu (requestId)' });
         if (!req.user?.id)
-            return res.status(401).json({ message: 'Unauthorized' });
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
         if (!req.tenantId)
-            return res.status(401).json({ message: 'Unauthorized' });
+            return res.status(401).json({ message: 'Không có quyền truy cập' });
         const request = await db_1.prisma.unlockRequest.findUnique({
             where: { id: requestId },
             include: unlockRequestInclude
         });
         if (!request) {
-            return res.status(404).json({ message: 'Unlock request not found' });
+            return res.status(404).json({ message: 'Không tìm thấy yêu cầu mở khóa' });
         }
         if (request.status !== 'PENDING') {
-            return res.status(400).json({ message: 'Request already processed' });
+            return res.status(400).json({ message: 'Yêu cầu đã được xử lý' });
         }
         const updated = await db_1.prisma.$transaction(async (tx) => {
             const updatedRequest = await tx.unlockRequest.update({

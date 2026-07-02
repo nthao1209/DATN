@@ -20,11 +20,11 @@ const isSystemSuperAdmin = (req) => {
 };
 const requireSystemSuperAdmin = (req, res) => {
     if (!req.user?.id) {
-        res.status(401).json({ message: 'Unauthorized' });
+        res.status(401).json({ message: 'Không có quyền truy cập' });
         return false;
     }
     if (!isSystemSuperAdmin(req)) {
-        res.status(403).json({ message: 'Forbidden. SuperAdmin only.' });
+        res.status(403).json({ message: 'Từ chối truy cập. Chỉ dành cho SuperAdmin.' });
         return false;
     }
     return true;
@@ -56,7 +56,7 @@ exports.userController = {
             res.json(normalizedUsers);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     update: async (req, res) => {
@@ -65,7 +65,7 @@ exports.userController = {
                 return;
             const userId = Number(req.params.id);
             if (!userId) {
-                return res.status(400).json({ message: 'Invalid user id' });
+                return res.status(400).json({ message: 'ID người dùng không hợp lệ' });
             }
             const { name, description, roleId } = req.body;
             const updatedUser = await db_1.prisma.user.update({
@@ -78,11 +78,11 @@ exports.userController = {
             if (roleId !== undefined && roleId !== null) {
                 const nextRoleId = Number(roleId);
                 if (!nextRoleId) {
-                    return res.status(400).json({ message: 'Invalid roleId' });
+                    return res.status(400).json({ message: 'ID vai trò không hợp lệ' });
                 }
                 const tenantIdFromBody = Number(req.body?.tenantId || 0);
                 if (!tenantIdFromBody) {
-                    return res.status(400).json({ message: 'tenantId is required when updating roleId' });
+                    return res.status(400).json({ message: 'Bắt buộc phải có tenantId khi cập nhật vai trò' });
                 }
                 const membership = await db_1.prisma.userTenant.findUnique({
                     where: {
@@ -93,14 +93,14 @@ exports.userController = {
                     }
                 });
                 if (!membership) {
-                    return res.status(404).json({ message: 'User membership not found for tenant' });
+                    return res.status(404).json({ message: 'Không tìm thấy thành viên trong tổ chức' });
                 }
                 await db_1.prisma.userTenant.update({ where: { id: membership.id }, data: { roleId: nextRoleId } });
             }
             res.json(updatedUser);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     removeFromTenant: async (req, res) => {
@@ -109,17 +109,17 @@ exports.userController = {
                 return;
             const userId = Number(req.params.id);
             if (!userId) {
-                return res.status(400).json({ message: 'Invalid user id' });
+                return res.status(400).json({ message: 'ID người dùng không hợp lệ' });
             }
             await db_1.prisma.userTenant.deleteMany({ where: { userId } });
             const memberships = await db_1.prisma.userTenant.count({ where: { userId } });
             if (memberships === 0) {
                 await db_1.prisma.user.delete({ where: { id: userId } });
             }
-            res.json({ message: 'User removed from tenant successfully' });
+            res.json({ message: 'Đã xóa người dùng khỏi tổ chức' });
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     },
     setStatus: async (req, res) => {
@@ -128,7 +128,7 @@ exports.userController = {
                 return;
             const userId = Number(req.params.id);
             if (!userId) {
-                return res.status(400).json({ message: 'Invalid user id' });
+                return res.status(400).json({ message: 'ID người dùng không hợp lệ' });
             }
             const { isDisabled } = req.body;
             if (typeof isDisabled !== 'boolean') {
@@ -153,7 +153,7 @@ exports.userController = {
             res.json(updated);
         }
         catch (error) {
-            res.status(500).json({ message: 'Server error', detail: error?.message });
+            res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
         }
     }
 };

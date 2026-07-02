@@ -1,15 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
+import { useSelector } from 'react-redux';
 import api from '../../../services/api';
+import type { RootState } from '../../../redux/store';
 import type { BusOption, BusRoundStatus, RoundOption, TransactionRecord, TripOption } from './types';
 
 export const useTransactionData = (selectedTripId: number | null) => {
+  const currentTenantId = useSelector((state: RootState) => state.auth.currentTenant?.id ?? null);
+  const tenantKey = currentTenantId ? String(currentTenantId) : 'no-tenant';
+
   // Lấy danh sách chuyến để hiển thị dropdown chọn chuyến.
   const {
     data: trips = [],
     isLoading: tripsLoading,
   } = useQuery<TripOption[]>({
-    queryKey: ['trips'],
+    queryKey: ['trips', tenantKey],
     queryFn: api.getTrips,
+    enabled: Boolean(currentTenantId),
   });
 
   // Khi đã chọn chuyến, lấy danh sách xe thuộc chuyến đó.
@@ -17,9 +23,9 @@ export const useTransactionData = (selectedTripId: number | null) => {
     data: buses = [],
     isLoading: busesLoading,
   } = useQuery<BusOption[]>({
-    queryKey: ['transaction-buses', selectedTripId],
+    queryKey: ['transaction-buses', tenantKey, selectedTripId],
     queryFn: () => api.getBuses(String(selectedTripId)),
-    enabled: !!selectedTripId,
+    enabled: Boolean(currentTenantId && selectedTripId),
   });
 
   // Lấy danh sách chặng/vòng của chuyến đang chọn.
@@ -27,9 +33,9 @@ export const useTransactionData = (selectedTripId: number | null) => {
     data: rounds = [],
     isLoading: roundsLoading,
   } = useQuery<RoundOption[]>({
-    queryKey: ['transaction-rounds', selectedTripId],
+    queryKey: ['transaction-rounds', tenantKey, selectedTripId],
     queryFn: () => api.getRounds(String(selectedTripId)),
-    enabled: !!selectedTripId,
+    enabled: Boolean(currentTenantId && selectedTripId),
   });
 
   // Lấy danh sách hành khách theo chuyến để dựng các dòng trong bảng điểm danh.
@@ -38,9 +44,9 @@ export const useTransactionData = (selectedTripId: number | null) => {
     isLoading: passengersLoading,
     refetch: refetchPassengers,
   } = useQuery<any[]>({
-    queryKey: ['transaction-passengers', selectedTripId],
+    queryKey: ['transaction-passengers', tenantKey, selectedTripId],
     queryFn: () => api.getAttendancePassengers(String(selectedTripId)),
-    enabled: !!selectedTripId,
+    enabled: Boolean(currentTenantId && selectedTripId),
   });
 
   // Lấy dữ liệu điểm danh đã lưu trong database.
@@ -49,9 +55,9 @@ export const useTransactionData = (selectedTripId: number | null) => {
     isLoading: transactionsLoading,
     refetch: refetchTransactions,
   } = useQuery<TransactionRecord[]>({
-    queryKey: ['transactions', selectedTripId],
+    queryKey: ['transactions', tenantKey, selectedTripId],
     queryFn: () => api.getTransactions(),
-    enabled: !!selectedTripId,
+    enabled: Boolean(currentTenantId && selectedTripId),
   });
 
   // Lấy trạng thái khóa/xác nhận theo từng cặp xe - chặng.
@@ -59,7 +65,7 @@ export const useTransactionData = (selectedTripId: number | null) => {
     data: busRoundStatuses = [],
     refetch: refetchBusRoundStatuses,
   } = useQuery<BusRoundStatus[]>({
-    queryKey: ['transaction-bus-round-statuses', selectedTripId],
+    queryKey: ['transaction-bus-round-statuses', tenantKey, selectedTripId],
     queryFn: async () => {
       const response = await api.getBusRoundStatuses(String(selectedTripId));
       const data = Array.isArray(response)
@@ -70,7 +76,7 @@ export const useTransactionData = (selectedTripId: number | null) => {
 
       return data as BusRoundStatus[];
     },
-    enabled: !!selectedTripId,
+    enabled: Boolean(currentTenantId && selectedTripId),
   });
 
   // Trả về cả dữ liệu và hàm refetch để page/hook realtime dùng lại sau khi có thay đổi.

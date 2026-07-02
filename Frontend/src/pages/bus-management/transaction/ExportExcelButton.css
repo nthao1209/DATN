@@ -1,0 +1,19 @@
+.btn-custom-export {
+  height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background-color: color-mix(in srgb, var(--page-success) 12%, var(--page-background) 88%) !important;
+  border: 1px solid color-mix(in srgb, var(--page-success) 35%, transparent) !important;
+  color: var(--page-success) !important;
+  transition: all 0.2s;
+}
+
+.btn-custom-export:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--page-success) 18%, var(--page-background) 82%) !important;
+  transform: translateY(-1px);
+}

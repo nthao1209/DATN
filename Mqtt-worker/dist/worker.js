@@ -200,7 +200,7 @@ async function init() {
         const roundId = parseInteger(data.roundId);
         const busId = parseInteger(data.busId);
         if (!passengerId || !roundId || !busId) {
-            throw new Error('Missing passengerId, roundId or busId');
+            throw new Error('Thiếu passengerId, roundId hoặc busId');
         }
         const incomingCheckIn = parseBoolean(data.checkIn);
         const incomingCheckOut = parseBoolean(data.checkOut);
@@ -231,7 +231,7 @@ async function init() {
                 `, [busId]);
             const bus = busRes.rows[0];
             if (!bus) {
-                throw new Error(`Bus not found: ${busId}`);
+                throw new Error(`Không tìm thấy xe: ${busId}`);
             }
             const passengerRes = await db.query(`
                 SELECT
@@ -248,7 +248,7 @@ async function init() {
                 `, [passengerId]);
             const passenger = passengerRes.rows[0];
             if (!passenger) {
-                throw new Error(`Passenger not found: ${passengerId}`);
+                throw new Error(`Không tìm thấy hành khách: ${passengerId}`);
             }
             const roundRes = await db.query(`
                 SELECT id, name
@@ -258,7 +258,7 @@ async function init() {
                 `, [roundId, bus.tripId]);
             const round = roundRes.rows[0];
             if (!round) {
-                throw new Error(`Round not found: ${roundId}`);
+                throw new Error(`Không tìm thấy vòng: ${roundId}`);
             }
             const eventCheckInBusId = await resolveEventBusIdByActor(db, checkInBy, bus.tripId, busId);
             const eventCheckOutBusId = await resolveEventBusIdByActor(db, checkOutBy, bus.tripId, busId);

@@ -5,7 +5,7 @@ const notificationService_1 = require("../services/notificationService");
 const db_1 = require("../config/db");
 const ensureUser = (req, res) => {
     if (!req.user?.id) {
-        res.status(401).json({ message: 'Unauthorized' });
+        res.status(401).json({ message: 'Không có quyền truy cập' });
         return null;
     }
     return req.user.id;
@@ -50,7 +50,7 @@ const list = async (req, res) => {
         res.json(notifications);
     }
     catch (error) {
-        res.status(500).json({ message: 'Server error', detail: error?.message });
+        res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
 };
 const create = async (req, res) => {
@@ -63,7 +63,7 @@ const create = async (req, res) => {
         const content = String(req.body?.content || '').trim();
         const payload = req.body?.payload ?? null;
         if (!type || !title || !content) {
-            return res.status(400).json({ message: 'type, title and content are required' });
+            return res.status(400).json({ message: 'type, title và content là bắt buộc' });
         }
         const notification = await (0, notificationService_1.createNotification)(db_1.prisma, {
             userId,
@@ -75,7 +75,7 @@ const create = async (req, res) => {
         res.status(201).json(notification);
     }
     catch (error) {
-        res.status(500).json({ message: 'Server error', detail: error?.message });
+        res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
 };
 const markRead = async (req, res) => {
@@ -85,11 +85,11 @@ const markRead = async (req, res) => {
             return;
         const id = Number(req.params.id);
         if (!id) {
-            return res.status(400).json({ message: 'Missing notification id' });
+            return res.status(400).json({ message: 'Thiếu ID thông báo' });
         }
         const notification = await db_1.prisma.notification.findFirst({ where: { id, userId } });
         if (!notification) {
-            return res.status(404).json({ message: 'Notification not found' });
+            return res.status(404).json({ message: 'Không tìm thấy thông báo' });
         }
         const updated = await db_1.prisma.notification.update({
             where: { id },
@@ -98,7 +98,7 @@ const markRead = async (req, res) => {
         res.json(updated);
     }
     catch (error) {
-        res.status(500).json({ message: 'Server error', detail: error?.message });
+        res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
 };
 const markAllRead = async (req, res) => {
@@ -113,7 +113,7 @@ const markAllRead = async (req, res) => {
         res.json(result);
     }
     catch (error) {
-        res.status(500).json({ message: 'Server error', detail: error?.message });
+        res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
 };
 const remove = async (req, res) => {
@@ -123,19 +123,19 @@ const remove = async (req, res) => {
             return;
         const id = Number(req.params.id);
         if (!id) {
-            return res.status(400).json({ message: 'Missing notification id' });
+            return res.status(400).json({ message: 'Thiếu ID thông báo' });
         }
         const notification = await db_1.prisma.notification.findFirst({ where: { id, userId } });
         if (!notification) {
-            return res.status(404).json({ message: 'Notification not found' });
+            return res.status(404).json({ message: 'Không tìm thấy thông báo' });
         }
         await db_1.prisma.notification.delete({
             where: { id },
         });
-        res.json({ message: 'Deleted successfully' });
+        res.json({ message: 'Đã xóa thành công' });
     }
     catch (error) {
-        res.status(500).json({ message: 'Server error', detail: error?.message });
+        res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
 };
 const removeAll = async (req, res) => {
@@ -146,10 +146,10 @@ const removeAll = async (req, res) => {
         const result = await db_1.prisma.notification.deleteMany({
             where: { userId },
         });
-        res.json({ message: 'All notifications deleted', count: result.count });
+        res.json({ message: 'Đã xóa toàn bộ thông báo', count: result.count });
     }
     catch (error) {
-        res.status(500).json({ message: 'Server error', detail: error?.message });
+        res.status(500).json({ message: 'Lỗi hệ thống', detail: error?.message });
     }
 };
 exports.notificationController = {

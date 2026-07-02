@@ -6,7 +6,7 @@ import { AuthRequest } from "../types/auth";
 // Tất cả transaction phải nằm trong tenant hiện tại để tránh lộ dữ liệu giữa tổ chức.
 const ensureTenant = (req: AuthRequest, res: Response): number | null => {
   if (!req.tenantId) {
-    res.status(401).json({ message: "Unauthorized" });
+    res.status(401).json({ message: "Không có quyền truy cập" });
     return null;
   }
 
@@ -14,8 +14,7 @@ const ensureTenant = (req: AuthRequest, res: Response): number | null => {
 };
 
 // Role 1/2/3 được thao tác điểm danh, các role khác bị chặn.
-const canAccessTransactions = (req: AuthRequest) =>
-  req.roleId === 1 || req.roleId === 2 || req.roleId === 3;
+const canAccessTransactions = (req: AuthRequest) =>  req.roleId === 3;
 
 const parseBoolean = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
@@ -208,7 +207,7 @@ export const transactionController = {
       if (!tenantId) return;
 
       if (!canAccessTransactions(req)) {
-        return res.status(403).json({ message: "Forbidden" });
+        return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
       }
 
       const managerCondition =
@@ -279,7 +278,7 @@ export const transactionController = {
 
       res.json(transactions);
     } catch (error: any) {
-      res.status(500).json({ message: "Server error", detail: error?.message });
+      res.status(500).json({ message: "Lỗi hệ thống", detail: error?.message });
     }
   },
 
@@ -290,7 +289,7 @@ export const transactionController = {
       if (!tenantId) return;
 
       if (!canAccessTransactions(req)) {
-        return res.status(403).json({ message: "Forbidden" });
+        return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
       }
 
       if (hasAttendanceMutationInput(req.body)) {
@@ -317,7 +316,7 @@ export const transactionController = {
       });
 
       if (!bus) {
-        return res.status(404).json({ message: "Bus not found" });
+        return res.status(404).json({ message: "Không tìm thấy xe" });
       }
 
       const round = await prisma.round.findFirst({
@@ -326,13 +325,13 @@ export const transactionController = {
       });
 
       if (!round) {
-        return res.status(404).json({ message: "Round not found" });
+        return res.status(404).json({ message: "Không tìm thấy vòng" });
       }
 
       if (Number(round.tripId) !== Number(bus.tripId)) {
         return res
           .status(400)
-          .json({ message: "Round does not belong to the selected bus trip" });
+          .json({ message: "Chặng không thuộc chuyến xe đã chọn" });
       }
 
       const passenger = await prisma.passenger.findFirst({
@@ -344,7 +343,7 @@ export const transactionController = {
       });
 
       if (!passenger) {
-        return res.status(404).json({ message: "Passenger not found" });
+        return res.status(404).json({ message: "Không tìm thấy hành khách" });
       }
 
       const busRoundStatus = await prisma.busRoundStatus.findUnique({
@@ -456,7 +455,7 @@ export const transactionController = {
 
       res.status(existing ? 200 : 201).json(transaction);
     } catch (error: any) {
-      res.status(500).json({ message: "Server error", detail: error?.message });
+      res.status(500).json({ message: "Lỗi hệ thống", detail: error?.message });
     }
   },
 
@@ -466,12 +465,12 @@ export const transactionController = {
       if (!tenantId) return;
 
       if (!canAccessTransactions(req)) {
-        return res.status(403).json({ message: "Forbidden" });
+        return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
       }
 
       const id = Number(req.params.id);
       if (!id) {
-        return res.status(400).json({ message: "Invalid transaction id" });
+        return res.status(400).json({ message: "ID giao dịch không hợp lệ" });
       }
 
       const existing = await prisma.transaction.findFirst({
@@ -491,7 +490,7 @@ export const transactionController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: "Transaction not found" });
+        return res.status(404).json({ message: "Không tìm thấy giao dịch" });
       }
 
       if (existing.checkIn || existing.checkOut) {
@@ -503,9 +502,9 @@ export const transactionController = {
       }
 
       await prisma.transaction.delete({ where: { id } });
-      res.json({ message: "Deleted successfully" });
+      res.json({ message: "Đã xóa thành công" });
     } catch (error: any) {
-      res.status(500).json({ message: "Server error", detail: error?.message });
+      res.status(500).json({ message: "Lỗi hệ thống", detail: error?.message });
     }
   },
 };

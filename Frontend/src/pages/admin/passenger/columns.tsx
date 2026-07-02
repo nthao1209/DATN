@@ -26,12 +26,13 @@ export const buildPassengerColumns = ({
     {
     header: 'STT',
     key: 'stt',
+    width: '44px',
     render: (_row, index) => index + 1,
   },
   {
     header: 'Họ và tên',
     key: 'name',
-    width: '320px',
+    width: '220px',
     render: (row) =>
       readOnly ? (
         <span className="fw-semibold">{row.name || '-'}</span>
@@ -47,6 +48,7 @@ export const buildPassengerColumns = ({
   {
     header: 'Số điện thoại',
     key: 'tel',
+    width: '120px',
     render: (row) =>
       readOnly ? (
         <span>{row.tel || '-'}</span>
@@ -69,6 +71,7 @@ export const buildPassengerColumns = ({
     return {
       header: String(trip.name),
       key: `trip_${tripId}`,
+      width: '128px',
       render: (row: PassengerRow) => {
         if (readOnly) {
           const assignment = (row as any).tripAssignments?.[tripId];
@@ -82,7 +85,6 @@ export const buildPassengerColumns = ({
 
         return (
           <select
-            className="form-select form-select-sm"
             value={row.tripId === tripId ? (row.busId ?? '') : ''}
             onChange={(e) => {
               const nextBusId = e.target.value ? Number(e.target.value) : null;
@@ -101,7 +103,7 @@ export const buildPassengerColumns = ({
               handleCellChange(row.localId, 'busId', nextBusId);
               handleCellChange(row.localId, 'busCode', nextBus?.busCode || '');
             }}
-            style={{ maxWidth: 120 }}
+            className="form-select form-select-sm passenger-bus-select"
           >
             <option value="">-- Chọn xe --</option>
             {tripBuses.map((bus) => (
@@ -117,9 +119,10 @@ export const buildPassengerColumns = ({
   {
     header: 'Ghi chú',
     key: 'note',
+    width: '160px',
     render: (row) =>
       readOnly ? (
-        <span className="text-wrap passenger-wrap-cell" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{row.note || '-'}</span>
+        <span className="text-wrap passenger-wrap-cell">{row.note || '-'}</span>
       ) : (
         <AutoResizeTextarea
           className="form-control form-control-sm passenger-wrap-input"
@@ -135,7 +138,7 @@ export const buildPassengerColumns = ({
     columns.push({
       header: 'Thao tác',
       key: 'actions',
-      width: '100px', 
+      width: '64px',
       render: (row) => (
         <div className="d-flex justify-content-center align-items-center">
           <button 

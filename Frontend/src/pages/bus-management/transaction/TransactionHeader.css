@@ -1,0 +1,12 @@
+.transaction-header-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--page-primary-33);
+  background-color: var(--page-primary-11);
+  color: var(--page-primary);
+}
+
+.transaction-header-title {
+  color: var(--page-text-primary);
+  letter-spacing: 0;
+}

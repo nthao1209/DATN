@@ -27,10 +27,11 @@ export const buildBusColumns = ({
   handleDeleteRow,
 }: BuildBusColumnsParams): Column<BusRow>[] => [
  
-  { header: 'STT', key: 'stt', width: '70px', render: (_row, idx) => idx + 1 },
+  { header: 'STT', key: 'stt', width: '44px', render: (_row, idx) => idx + 1 },
   {
     header: 'Mã xe *',
     key: 'busCode',
+    width: '90px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -40,8 +41,9 @@ export const buildBusColumns = ({
     ),
   },
   {
-    header: 'Biển số xe *',
+    header: 'Biển số xe',
     key: 'registrationNumber',
+    width: '112px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -53,6 +55,7 @@ export const buildBusColumns = ({
   {
     header: 'Tên tài xế',
     key: 'driverName',
+    width: '118px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -64,6 +67,7 @@ export const buildBusColumns = ({
   {
     header: 'SDT tài xế',
     key: 'driverTel',
+    width: '104px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -78,6 +82,7 @@ export const buildBusColumns = ({
   {
     header: 'Tên HDV',
     key: 'tourGuideName',
+    width: '116px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -89,6 +94,7 @@ export const buildBusColumns = ({
   {
     header: 'SDT HDV',
     key: 'tourGuideTel',
+    width: '104px',
     render: (row) => (
       <input
         className="form-control form-control-sm"
@@ -103,6 +109,7 @@ export const buildBusColumns = ({
   {
     header: 'Đặc điểm xe',
     key: 'description',
+    width: '128px',
     render: (row) => (
       <AutoResizeTextarea
         className="form-control form-control-sm bus-wrap-input"
@@ -113,8 +120,9 @@ export const buildBusColumns = ({
     ),
   },
   {
-    header: 'Trưởng xe *',
+    header: 'Trưởng xe',
     key: 'managerId',
+    width: '126px',
     render: (row) => (
       <select
         className="form-select form-select-sm"
@@ -139,7 +147,7 @@ export const buildBusColumns = ({
    {
     header: 'Số khách check-in',
     key: 'checkInCount',
-    width: '120px',
+    width: '84px',
     render: (row) => {
       const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
       return (
@@ -152,7 +160,7 @@ export const buildBusColumns = ({
   {
     header: 'Số khách check-out',
     key: 'checkOutCount',
-    width: '120px',
+    width: '88px',
     render: (row) => {
       const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
       return (
@@ -165,7 +173,7 @@ export const buildBusColumns = ({
   {
   header: 'Thao tác',
   key: 'actions',
-  width: '100px', 
+  width: '64px', 
   render: (row) => (
     <div className="d-flex justify-content-center align-items-center">
       <button 

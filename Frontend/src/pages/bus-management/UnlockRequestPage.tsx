@@ -285,7 +285,7 @@ const handleSubmit = async () => {
                   >
                     {buses.map((bus: any) => (
                       <option key={bus.id} value={bus.id}>
-                        {bus.busCode} - {bus.registrationNumber}
+                        {bus.registrationNumber ? `${bus.busCode} - ${bus.registrationNumber}` : bus.busCode}
                       </option>
                     ))}
                   </select>

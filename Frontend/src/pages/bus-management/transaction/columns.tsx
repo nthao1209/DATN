@@ -1,7 +1,6 @@
 import PassengerActionButtons from '../../../components/PassengerActionButtons';
 import type { Column } from '../../../components/DataTable';
 import type { DraftCell, RoundOption, TransactionTableRow } from './types';
-import { useTheme } from '../../../theme/ThemeContext';
 import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
 
 type BuildColumnsParams = {
@@ -28,8 +27,6 @@ export const buildTransactionColumns = ({
   onRemovePassenger,
   canRemovePassenger,
 }: BuildColumnsParams): Column<TransactionTableRow>[] => {
-  const { colors } = useTheme();
-
   const dynamicRoundCols: Column<TransactionTableRow>[] = selectedRounds.flatMap((round) => {
     const roundId = Number(round.id);
     const roundLabel = round.name || `Round ${round.id}`;
@@ -37,7 +34,7 @@ export const buildTransactionColumns = ({
     const checkInCol: Column<TransactionTableRow> = {
       header: `${roundLabel} - Lượt đi`,
       key: `round_${roundId}_checkin`,
-      width: '140px',
+      width: '132px',
       render: (row) => {
         const current = getCell(row.id, roundId);
 
@@ -54,11 +51,10 @@ export const buildTransactionColumns = ({
         return (
           <div className="transaction-attendance-cell d-flex flex-column gap-2 align-items-center">
             <input
-              className="transaction-check-input"
+              className={`transaction-check-input ${locked ? 'table-control-muted' : ''}`}
               type="checkbox"
               checked={checkIn}
               disabled={locked}
-              style={{ cursor: locked ? 'not-allowed' : 'pointer', width: 24, height: 24 }}
               onChange={(e) => {
                 if (!row.busId) return;
 
@@ -110,7 +106,7 @@ export const buildTransactionColumns = ({
     const checkOutCol: Column<TransactionTableRow> = {
       header: `${roundLabel} - Lượt về`,
       key: `round_${roundId}_checkout`,
-      width: '140px',
+      width: '132px',
       render: (row) => {
         const current = getCell(row.id, roundId);
 
@@ -127,11 +123,10 @@ export const buildTransactionColumns = ({
         return (
           <div className="transaction-attendance-cell d-flex flex-column gap-2 align-items-center">
             <input
-              className="transaction-check-input"
+              className={`transaction-check-input ${locked ? 'table-control-muted' : ''}`}
               type="checkbox"
               checked={checkOut}
               disabled={locked}
-              style={{ cursor: locked ? 'not-allowed' : 'pointer', width: 24, height: 24 }}
               onChange={(e) => {
                 if (!row.busId) return;
 
@@ -190,48 +185,31 @@ export const buildTransactionColumns = ({
     {
       header: 'STT',
       key: 'stt',
-      width: '70px',
+      width: '44px',
       render: (_row, idx) => idx + 1,
     },
 
     {
       header: 'Họ và tên',
       key: 'name',
-      width: '220px',
+      width: '180px',
       render: (row) => <span className="fw-semibold">{row.name}</span>,
     },
 
     {
       header: 'Liên lạc',
       key: 'contact',
-      width: '180px',
+      width: '150px',
       render: (row) => {
         return (
           <div className="transaction-contact-cell d-flex align-items-center justify-content-between gap-2">
             <div className="d-flex flex-column gap-1 overflow-hidden">
-              <div
-                className="transaction-contact-phone fw-bold"
-                style={{ fontSize: '13px' }}
-              >
+              <div className="transaction-contact-phone fw-bold">
                 {row.tel || '-'}
               </div>
 
-              <div
-                className="px-2 py-0.5 rounded-pill d-inline-flex align-items-center shadow-sm"
-                style={{
-                  backgroundColor: `${colors.warning}15`,
-                  border: `1px solid ${colors.warning}44`,
-                  width: 'fit-content',
-                }}
-              >
-                <span
-                  style={{
-                    color: colors.warning,
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
+              <div className="transaction-bus-badge px-2 py-0.5 rounded-pill shadow-sm">
+                <span className="transaction-bus-badge-text">
                   Biên chế: {row.assignedBusName || row.busName || 'N/A'}
                 </span>
               </div>
@@ -256,7 +234,7 @@ export const buildTransactionColumns = ({
     {
       header: 'Ghi chú hồ sơ',
       key: 'passengerNote',
-      width: '220px',
+      width: '160px',
       render: (row) => {
         const note = (row.note || '').trim();
 
@@ -273,7 +251,7 @@ export const buildTransactionColumns = ({
     {
       header: 'Thao tác',
       key: 'actions',
-      width: '120px',
+      width: '76px',
       render: (row) => {
         const canRemove = canRemovePassenger
           ? canRemovePassenger(row)

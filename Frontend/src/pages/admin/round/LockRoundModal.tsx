@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, Unlock, Check, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import './LockRoundModal.css';
 
 interface LockStatus {
   busId: number;
@@ -115,56 +116,44 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
     }
   };
 
+  const modalVars = {
+    '--lock-modal-overlay-bg': isDarkMode ? 'rgba(8, 13, 28, 0.8)' : 'rgba(15, 23, 42, 0.6)',
+    '--lock-modal-surface': colors.surface,
+    '--lock-modal-background': isDarkMode ? colors.background : '#fff',
+    '--lock-modal-border': colors.border,
+    '--lock-modal-header-bg': isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc',
+    '--lock-modal-text-primary': colors.textPrimary,
+    '--lock-modal-text-secondary': colors.textSecondary,
+    '--lock-modal-close-bg': isDarkMode ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+    '--lock-modal-warning-card-bg': isDarkMode ? 'rgba(245, 158, 11, 0.04)' : '#fffbeb',
+    '--lock-modal-warning-card-border': isDarkMode ? 'rgba(245, 158, 11, 0.3)' : '#fde68a',
+    '--lock-modal-warning-reason-bg': isDarkMode ? 'rgba(245, 158, 11, 0.14)' : '#fff7ed',
+    '--lock-modal-warning-reason-border': isDarkMode ? 'rgba(251, 191, 36, 0.42)' : '#fed7aa',
+    '--lock-modal-warning-reason-color': isDarkMode ? '#fde68a' : '#7c2d12',
+    '--lock-modal-warning-divider': isDarkMode ? 'rgba(245, 158, 11, 0.15)' : '#fcd34d',
+    '--lock-modal-empty-bg': isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc',
+    '--lock-modal-locked-bg': isDarkMode ? 'rgba(239, 68, 68, 0.02)' : '#fef2f2',
+    '--lock-modal-locked-border': isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2',
+    '--lock-modal-completed-bg': isDarkMode ? 'rgba(16, 185, 129, 0.02)' : '#f0fdf4',
+    '--lock-modal-completed-border': isDarkMode ? 'rgba(16, 185, 129, 0.2)' : '#dcfce7',
+  } as React.CSSProperties;
+
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: isDarkMode ? 'rgba(8, 13, 28, 0.8)' : 'rgba(15, 23, 42, 0.6)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 1400,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-      }}
+      className="lock-round-modal"
+      style={modalVars}
     >
-      <div
-        className="animate-fade-in"
-        style={{
-          width: '100%',
-          maxWidth: 960, // Tăng nhẹ kích thước ngang để chia 2 bên cân đối, đẹp mắt
-          maxHeight: '85vh',
-          display: 'flex',
-          flexDirection: 'column',
-          background: colors.surface,
-          borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
-          border: `1px solid ${colors.border}`,
-          overflow: 'hidden',
-        }}
-      >
+      <div className="lock-modal-shell animate-fade-in">
         {/* Header */}
-        <div
-          className="p-3 d-flex justify-content-between align-items-center border-bottom"
-          style={{
-            backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc',
-            borderColor: colors.border
-          }}
-        >
+        <div className="lock-modal-header p-3 d-flex justify-content-between align-items-center border-bottom">
           <div>
-            <h6 className="m-0 fw-bold fs-5" style={{ color: colors.textPrimary }}>
+            <h6 className="lock-modal-title m-0 fw-bold fs-5">
               Quản lý khóa {lockType === 'check_in' ? 'lượt đi (Check-in)' : 'lượt về (Check-out)'} — Chặng {roundId}
             </h6>
           </div>
           <div>
             <button 
-              className="btn btn-sm rounded-pill px-3 fw-medium transition-all"
-              style={{
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
-                color: colors.textPrimary,
-                border: 'none'
-              }}
+              className="lock-modal-close btn btn-sm rounded-pill px-3 fw-medium transition-all"
               onClick={onClose}
             >
               Đóng
@@ -173,11 +162,11 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
         </div>
 
         {/* Body Container được chia làm 2 Cột sử dụng Bootstrap Grid */}
-        <div className="p-4 sidebar-content overflow-auto" style={{ maxHeight: 'calc(85vh - 70px)' }}>
+        <div className="lock-modal-body p-4 sidebar-content overflow-auto">
           <div className="row g-4">
             
             {/* ================= CỘT TRÁI: KHU VỰC XỬ LÝ YÊU CẦU XIN MỞ KHÓA ================= */}
-            <div className="col-12 col-lg-6 border-end-lg" style={{ borderColor: colors.border }}>
+            <div className="lock-modal-left-column col-12 col-lg-6 border-end-lg">
               <div className="d-flex align-items-center gap-2 mb-3 text-warning fw-bold small text-uppercase tracking-wider">
                 <AlertCircle size={16} />
                 <span>Yêu cầu đang chờ xét duyệt ({pendingRequests.length})</span>
@@ -192,29 +181,16 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
                     return (
                       <div
                         key={req.id}
-                        className="p-3 border rounded-3 transition-all shadow-sm"
-                        style={{ 
-                          backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.04)' : '#fffbeb',
-                          borderColor: isDarkMode ? 'rgba(245, 158, 11, 0.3)' : '#fde68a'
-                        }}
+                        className="unlock-request-card p-3 border rounded-3 transition-all shadow-sm"
                       >
                         <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                           <div>
-                            <div className="fw-bold text-warning" style={{ fontSize: '14px' }}>
+                            <div className="unlock-request-title fw-bold text-warning">
                               {busName} gửi yêu cầu mở khóa
                             </div>
                             {req.reason && (
                               <div
                                 className="unlock-reason mt-2"
-                                style={{
-                                  backgroundColor: isDarkMode
-                                    ? 'rgba(245, 158, 11, 0.14)'
-                                    : '#fff7ed',
-                                  borderColor: isDarkMode
-                                    ? 'rgba(251, 191, 36, 0.42)'
-                                    : '#fed7aa',
-                                  color: isDarkMode ? '#fde68a' : '#7c2d12',
-                                }}
                               >
                                 "Lý do: {req.reason}"
                               </div>
@@ -245,21 +221,16 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
 
                         {/* Form phản hồi lý do từ chối */}
                         {rejectingRequestId === req.id && (
-                          <div className="mt-3 pt-3 border-top" style={{ borderColor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : '#fcd34d' }}>
+                          <div className="unlock-reject-panel mt-3 pt-3 border-top">
                             <label className="form-label small fw-bold text-danger mb-1">Lý do từ chối yêu cầu:</label>
                             <div className="d-flex gap-2">
                               <input
                                 type="text"
-                                className="form-control form-control-sm"
+                                className="unlock-reject-input form-control form-control-sm"
                                 placeholder="Nhập lý do gửi tài xế..."
                                 value={rejectReasonText}
                                 onChange={(e) => setRejectReasonText(e.target.value)}
                                 disabled={isSubmittingHandle}
-                                style={{
-                                  backgroundColor: isDarkMode ? colors.background : '#fff',
-                                  color: colors.textPrimary,
-                                  borderColor: colors.border
-                                }}
                               />
                               <button
                                 className="btn btn-sm btn-danger text-nowrap"
@@ -284,13 +255,7 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
               ) : (
                 /* Trạng thái trống bên cột trái */
                 <div 
-                  className="text-center py-5 rounded-3 border" 
-                  style={{ 
-                    color: colors.textSecondary, 
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc',
-                    borderStyle: 'dashed',
-                    borderColor: colors.border
-                  }}
+                  className="lock-empty-state text-center py-5 rounded-3 border" 
                 >
                   <AlertCircle size={24} className="opacity-30 mb-2 text-muted" />
                   <div className="small opacity-70">Không có yêu cầu mở điểm danh nào đang chờ.</div>
@@ -309,13 +274,7 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
 
                 {filteredLocks.length === 0 ? (
                   <div 
-                    className="text-center py-4 rounded-3 border" 
-                    style={{ 
-                      color: colors.textSecondary,
-                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc',
-                      borderStyle: 'dashed',
-                      borderColor: colors.border
-                    }}
+                    className="lock-empty-state text-center py-4 rounded-3 border" 
                   >
                     <Unlock size={20} className="opacity-40 mb-1 text-success" />
                     <div className="small fw-medium text-success">Tất cả các xe đã được mở khóa vận hành</div>
@@ -330,19 +289,14 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
                       return (
                         <div
                           key={key}
-                          className="d-flex align-items-center justify-content-between p-2 px-3 border"
-                          style={{
-                            background: isDarkMode ? 'rgba(239, 68, 68, 0.02)' : '#fef2f2',
-                            borderColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2',
-                            borderRadius: 12,
-                          }}
+                          className="locked-bus-row d-flex align-items-center justify-content-between p-2 px-3 border"
                         >
                           <div className="d-flex align-items-center gap-3">
                             <div className="icon-circle locked">
                               <Lock size={15} />
                             </div>
                             <div>
-                              <div className="fw-bold" style={{ color: colors.textPrimary, fontSize: '14px' }}>{busName}</div>
+                              <div className="lock-bus-name fw-bold">{busName}</div>
                             </div>
                           </div>
 
@@ -363,7 +317,7 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
                 </div>
 
                 {completedBuses.length === 0 ? (
-                  <div className="text-center py-4 border rounded-3" style={{ color: colors.textSecondary, borderColor: colors.border }}>
+                  <div className="completed-empty-state text-center py-4 border rounded-3">
                     <CheckCircle2 size={20} className="opacity-30 mb-1" />
                     <div className="small opacity-60">Chưa có xe nào xác nhận hoàn thành chặng</div>
                   </div>
@@ -376,24 +330,19 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
                       return (
                         <div
                           key={`completed-list-${s.busId}-${s.roundId}`}
-                          className="d-flex align-items-center justify-content-between p-2 px-3 border"
-                          style={{
-                            background: isDarkMode ? 'rgba(16, 185, 129, 0.02)' : '#f0fdf4',
-                            borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.2)' : '#dcfce7',
-                            borderRadius: 12,
-                          }}
+                          className="completed-bus-row d-flex align-items-center justify-content-between p-2 px-3 border"
                         >
                           <div className="d-flex align-items-center gap-3">
-                            <div className="icon-circle" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
+                            <div className="icon-circle completed">
                               <CheckCircle2 size={15} />
                             </div>
                             <div>
-                              <div className="fw-bold" style={{ color: colors.textPrimary, fontSize: '14px' }}>{busName}</div>
-                              <div style={{ fontSize: '11px', color: colors.textSecondary }}>Đã ký xác nhận vận hành</div>
+                              <div className="lock-bus-name fw-bold">{busName}</div>
+                              <div className="completed-bus-note">Đã ký xác nhận vận hành</div>
                             </div>
                           </div>
 
-                          <span className="badge-status" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
+                          <span className="badge-status completed">
                             Hoàn thành
                           </span>
                         </div>
@@ -403,51 +352,16 @@ const LockRoundModal: React.FC<LockRoundModalProps> = ({
                 )}
               </div>
 
-            </div> {/* Kết thúc cột phải */}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* CSS Styles nội bộ giữ nguyên và dọn dẹp các class switch thừa */}
-      <style>
-        {`
-        .icon-circle { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .icon-circle.locked { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-        
-        .badge-status { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
-        .badge-status.locked { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-
-        .unlock-reason {
-          display: inline-flex;
-          max-width: 100%;
-          align-items: flex-start;
-          gap: 6px;
-          padding: 6px 10px;
-          border: 1px solid;
-          border-radius: 8px;
-          font-size: 13px;
-          font-weight: 600;
-          line-height: 1.35;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        }
-
-        .unlock-reason-label {
-          flex: 0 0 auto;
-          font-weight: 800;
-        }
-        
-        .transition-all { transition: all 0.2s ease-in-out; }
-        .tracking-wider { letter-spacing: 0.05em; }
-        
-        @media (min-width: 992px) {
-          .border-end-lg { border-right: 1px solid var(--bs-border-color) !important; padding-right: 1.5rem !important; }
-        }
-        `}
-      </style>
     </div>
   );
 };
 
 export default LockRoundModal;
+
+
+

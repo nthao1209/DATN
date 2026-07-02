@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import type { Column } from '../../../components/DataTable';
 import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
+import { getRoleDisplayName } from '../../../auth/rbac';
 import type { UserRow } from './types';
 
 type BuildUserColumnsParams = {
@@ -75,10 +76,10 @@ export const buildUserColumns = ({
             handleCellChange(row.localId, 'roleId', val);
           }}
         >
-          <option value="">{row.latestRole || 'N/A'}</option>
+          <option value="">{getRoleDisplayName(row.latestRole)}</option>
           {allowedRoles.map((r) => (
             <option key={r.id} value={r.id}>
-              {r.name}
+              {getRoleDisplayName(r.name)}
             </option>
           ))}
         </select>

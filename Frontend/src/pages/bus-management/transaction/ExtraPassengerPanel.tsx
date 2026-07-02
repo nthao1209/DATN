@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, UserPlus, X, AlertCircle, CheckCircle } from 'lucide-react';
-import { useTheme } from '../../../theme/ThemeContext';
 import type { BusOption, PassengerRow } from './types';
+import './ExtraPassengerPanel.css';
 
 interface ExtraPassengerPanelProps {
   show: boolean;
@@ -41,7 +41,6 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
   confirmDisabledReason,
   onClose
 }) => {
-  const { isDarkMode, colors } = useTheme();
   const [extraSearchTerm, setExtraSearchTerm] = useState('');
   const [confirming, setConfirming] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -124,12 +123,7 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
     <div 
       ref={panelRef}
       className="extra-passenger-panel p-3 animate-fade-in"
-      style={{
-        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc',
-        borderRadius: '16px',
-        border: `1px solid ${colors.border}`,
-        boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.03)'
-      }}>
+    >
 
       <div className="position-relative mb-3">
         <Search className="position-absolute top-50 start-0 translate-middle-y ms-3 " size={16} />
@@ -138,19 +132,10 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
           placeholder="Tìm tên hoặc SĐT khách trong toàn chuyến..."
           value={extraSearchTerm}
           onChange={(e) => setExtraSearchTerm(e.target.value)}
-          style={{
-            paddingLeft: '40px',
-            height: '42px',
-            backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : '#fff',
-            border: `1px solid ${colors.border}`,
-            borderRadius: '12px',
-            fontSize: '14px',
-            color: colors.textPrimary
-          }}
         />
       </div>
 
-      <div className="search-results-scroll pe-1" style={{ maxHeight: '220px', overflowY: 'auto' }}>
+      <div className="search-results-scroll pe-1">
         {extraPassengerCandidates.length === 0 ? (
           extraSearchTerm && (
             <div className="text-center py-4 small">
@@ -168,22 +153,21 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
 
               return (
                 <div key={p.id}
-                  className={`candidate-row d-flex align-items-center justify-content-between p-2 rounded-3 transition-all ${isGuest ? 'is-guest-highlight' : ''}`}
-                  style={{ borderBottom: `1px solid ${colors.border}22` }}>
+                  className={`candidate-row d-flex align-items-center justify-content-between p-2 rounded-3 transition-all ${isGuest ? 'is-guest-highlight' : ''}`}>
                   <div className="d-flex align-items-center gap-3">
-                    <div className="avatar-placeholder" style={{ backgroundColor: isDarkMode ? '#334155' : '#e2e8f0', color: colors.textSecondary }}>
+                    <div className="avatar-placeholder">
                       {p.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="d-flex flex-column">
                       <div className="d-flex align-items-center gap-2">
-                        <span className="fw-bold" style={{ fontSize: '13.5px', color: colors.textPrimary }}>{p.name}</span>
+                        <span className="fw-bold candidate-name">{p.name}</span>
                         {isAlreadyInMainTable && (
                           <span className="badge-status-in-table">
                             <CheckCircle size={10} className="me-1" /> Trong xe
                           </span>
                         )}
                         {isGuest && !isAlreadyInMainTable && (
-                           <span className="badge bg-info-subtle text-info border border-info-subtle" style={{fontSize: '9px', padding: '1px 6px', borderRadius: '4px'}}>
+                           <span className="badge bg-info-subtle text-info border border-info-subtle extra-passenger-badge">
                             Ngoài xe
                           </span>
                         )}
@@ -207,7 +191,7 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
                       )}
                     </button>
                   ) : (
-                    <div className=" small px-2 py-1" style={{ fontSize: '11px', fontStyle: 'italic' }}>
+                    <div className="small px-2 py-1 already-listed-text">
                       Đã có trong danh sách
                     </div>
                   )}
@@ -219,9 +203,9 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
       </div>
 
       {extraPassengers.length > 0 && (
-        <div className="mt-3 pt-3 border-top animate-fade-up" style={{ borderColor: colors.border }}>
+        <div className="mt-3 pt-3 border-top animate-fade-up extra-passenger-selected-section">
           <div className="d-flex align-items-center justify-content-between mb-2 px-1">
-            <span className="small fw-bold text-uppercase " style={{ letterSpacing: '0.05em', fontSize: '11px' }}>
+            <span className="small fw-bold text-uppercase extra-passenger-selected-title">
               Khách chờ thêm ({extraPassengers.length})
             </span>
           </div>
@@ -229,8 +213,8 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
           <div className="d-flex flex-wrap gap-2 mb-3">
             {extraPassengers.map((p) => (
               <div key={p.id} className="selected-tag d-flex align-items-center gap-2 pl-2 pr-1 py-1 rounded-pill"
-                style={{ backgroundColor: `${colors.primary}12`, border: `1px solid ${colors.primary}33`, color: colors.primary }}>
-                <span className="fw-bold" style={{ fontSize: '12px' }}>{p.name}</span>
+              >
+                <span className="fw-bold selected-tag-name">{p.name}</span>
                 <button className="btn-remove-tag" onClick={() => onRemove(p.id)}>
                   <X size={12} />
                 </button>
@@ -239,9 +223,8 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
           </div>
 
           <button
-            className="btn btn-primary w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2"
+            className="btn btn-primary w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2 extra-passenger-confirm-button"
             disabled={confirming || extraPassengers.length === 0 || confirmDisabled}
-            style={{ borderRadius: '12px', fontWeight: 'bold', fontSize: '14px' }}
             onClick={handleConfirmAll}
           >
             {confirming ? (
@@ -252,96 +235,12 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
           </button>
 
           {confirmDisabled && confirmDisabledReason ? (
-            <div className="small text-warning mt-2 text-center" style={{ lineHeight: 1.3 }}>
+            <div className="small text-warning mt-2 text-center extra-passenger-warning">
               {confirmDisabledReason}
             </div>
           ) : null}
         </div>
       )}
-
-      <style>{`
-        .custom-search-input::placeholder {
-            color: ${isDarkMode ? 'rgba(255, 255, 255, 0.4)' : '#94a3b8'} !important;
-            opacity: 1; /* Cần thiết cho Firefox */
-            font-style: italic; /* Thêm nghiêng nếu muốn */
-       }
-        .extra-small { font-size: 11px; }
-        
-        .avatar-placeholder {
-          width: 32px; height: 32px;
-          border-radius: 8px;
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 700; font-size: 12px;
-        }
-
-        .badge-status-in-table {
-          font-size: 9px;
-          padding: 1px 6px;
-          border-radius: 4px;
-          background: ${colors.success}15;
-          color: ${colors.success};
-          border: 1px solid ${colors.success}33;
-          display: flex; align-items: center;
-        }
-
-        .btn-add-action {
-          padding: 6px 12px;
-          font-size: 12px;
-          font-weight: 600;
-          border-radius: 8px;
-          border: 1px solid ${colors.primary};
-          background: transparent;
-          color: ${colors.primary};
-          display: flex; align-items: center;
-          transition: all 0.2s;
-        }
-
-        .btn-add-action:hover:not(:disabled) {
-          background: ${colors.primary};
-          color: #fff;
-          transform: translateY(-1px);
-        }
-
-        .btn-add-action.added {
-          background: ${colors.success}22;
-          border-color: ${colors.success}44;
-          color: ${colors.success};
-        }
-
-        .is-guest-highlight {
-          background-color: ${isDarkMode ? 'rgba(0, 163, 255, 0.05)' : 'rgba(240, 249, 255, 1)'};
-          border-left: 3px solid #0ea5e9 !important;
-        }
-
-        .candidate-row {
-          border-left: 3px solid transparent;
-        }
-
-        .btn-remove-tag {
-          width: 18px; height: 18px;
-          border-radius: 50%;
-          border: none;
-          background: ${colors.primary}22;
-          color: ${colors.primary};
-          display: flex; align-items: center; justify-content: center;
-          transition: 0.2s;
-        }
-
-        .btn-remove-tag:hover {
-          background: ${colors.primary};
-          color: #fff;
-        }
-
-        .candidate-row:hover {
-          background-color: ${isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'};
-        }
-
-        .search-results-scroll::-webkit-scrollbar { width: 4px; }
-        .search-results-scroll::-webkit-scrollbar-thumb { 
-          background: ${colors.border}; 
-          border-radius: 10px; 
-        }
-      `}</style>
     </div>
   );
 };

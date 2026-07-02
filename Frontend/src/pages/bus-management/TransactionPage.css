@@ -1,15 +1,17 @@
 
-.transaction-page .td-content input,
+.transaction-page .td-content input:not([type="checkbox"]),
 .transaction-page .td-content select {
-  min-height: 36px !important;
+  min-height: 26px !important;
+  height: 26px !important;
   border: 1px solid var(--page-border-light) !important;
   background-color: var(--page-background) !important;
-  border-radius: 6px !important;
-  font-size: 13px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
   transition: all 0.2s;
 }
 
-.transaction-page .td-content input:focus {
+.transaction-page .td-content input:not([type="checkbox"]):focus {
   border-color: var(--page-primary) !important;
   box-shadow: 0 0 0 3px var(--page-primary-22) !important;
   outline: none;
@@ -18,10 +20,13 @@
 .transaction-page .table thead th {
   background-color: var(--page-table-header-bg) !important;
   color: var(--page-table-header-text) !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-  padding: 12px !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  padding: 4px 6px !important;
   border-bottom: 1px solid var(--page-border) !important;
   font-weight: 700 !important;
 }
@@ -43,6 +48,10 @@
 
 .transaction-page .btn-outline-custom {
   background: transparent;
+  min-width: 200px;
+  padding: 8px 16px;
+  border: 1px solid color-mix(in srgb, var(--page-primary) 44%, transparent);
+  color: var(--page-primary);
 }
 
 .transaction-page .btn-outline-custom:hover {
@@ -61,12 +70,29 @@
 
 .transaction-page .form-select-custom-toolbar {
   height: 36px;
-  padding: 0 12px;
-  border-radius: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--page-border);
+  border-radius: 6px;
+  background-color: var(--page-background);
+  color: var(--page-text-primary);
   font-size: 13px;
   font-weight: 500;
   outline: none;
-  width: 100%;
+}
+
+.transaction-page .transaction-filter-card {
+  border: 1px solid var(--page-border);
+  border-radius: 12px;
+  background-color: var(--page-surface);
+}
+
+.transaction-page .transaction-filter-extra {
+  border-color: var(--page-border) !important;
+}
+
+.transaction-page .transaction-round-filter-label {
+  color: var(--page-text-secondary);
 }
 
 .transaction-page .attendance-display-switch {
@@ -81,11 +107,19 @@
 .transaction-page .attendance-display-option {
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid transparent;
+  border: 1px solid var(--page-border);
   border-radius: 9px;
+  background-color: var(--page-surface);
+  color: var(--page-text-secondary);
   font-size: 13px;
   font-weight: 700;
   transition: all 0.2s ease;
+}
+
+.transaction-page .attendance-display-option.active {
+  border-color: var(--page-primary);
+  background-color: var(--page-primary);
+  color: #fff;
 }
 
 .transaction-page .attendance-display-option:not(.active):hover {
@@ -101,6 +135,12 @@
 .transaction-page .transaction-check-input {
   flex: 0 0 auto;
   accent-color: var(--page-primary);
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .transaction-page .transaction-note-input {
@@ -148,6 +188,9 @@
 .transaction-page .bento-action-hub {
   padding: 16px;
   margin-top: 16px;
+  border: 1px solid var(--page-border);
+  border-radius: 12px;
+  background-color: color-mix(in srgb, var(--page-surface-light) 72%, transparent);
 }
 
 .transaction-page .bento-action-hub>div {

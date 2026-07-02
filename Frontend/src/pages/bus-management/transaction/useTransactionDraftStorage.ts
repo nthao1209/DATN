@@ -106,7 +106,7 @@ export const useTransactionDraftStorage = ({
     localStorage.setItem(storageKey, debouncedDraftJson);
   }, [debouncedDraftJson, draftMap, storageKey]);
 
-  // Khi queue offline sync xong, xóa draft local và refetch dữ liệu mới từ server.
+  // Khi queue offline sync xong, refetch dữ liệu mới trước rồi mới xóa draft local để tránh checkbox nháy về trạng thái cũ.
   useEffect(() => {
     if (!storageKey) return;
 
@@ -116,9 +116,10 @@ export const useTransactionDraftStorage = ({
         return;
       }
 
-      setDraftMap({});
-      localStorage.removeItem(storageKey);
-      void Promise.all([refetchTransactions(), refetchPassengers()]);
+      void Promise.all([refetchTransactions(), refetchPassengers()]).then(() => {
+        setDraftMap({});
+        localStorage.removeItem(storageKey);
+      });
     };
 
     window.addEventListener(OFFLINE_QUEUE_SYNCED_EVENT, handleQueueSynced as EventListener);

@@ -1,0 +1,248 @@
+.app-header {
+  z-index: 999;
+  height: 64px;
+  border-bottom: 1px solid var(--page-border);
+  background-color: var(--topbar-bg);
+  backdrop-filter: blur(12px);
+}
+
+.app-header .status-badge-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--topbar-status-color) 44%, transparent);
+  border-radius: 20px;
+  background: var(--topbar-status-bg);
+  transition: all 0.3s;
+}
+
+.app-header .status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--topbar-status-color);
+}
+
+.app-header .pulse {
+  animation: topbar-pulse 2s infinite;
+}
+
+.app-header .topbar-actions-divider,
+.app-header .topbar-dropdown-divider,
+.password-modal-header {
+  border-color: var(--page-border) !important;
+}
+
+.app-header .btn-icon-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--page-text-secondary);
+  transition: all 0.2s;
+}
+
+.app-header .btn-icon-topbar:hover {
+  background: var(--page-surface-light);
+  color: var(--page-primary);
+  transform: translateY(-1px);
+}
+
+.app-header .theme-toggle-btn:hover {
+  background: var(--topbar-theme-hover-bg) !important;
+}
+
+.app-header .profile-avatar {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--topbar-profile-gradient);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.app-header .topbar-role-label {
+  color: var(--page-text-primary);
+  font-size: 13px;
+}
+
+.app-header .topbar-chevron {
+  color: var(--page-text-secondary);
+}
+
+.app-header .hover-bg-custom {
+  border-color: var(--page-border) !important;
+}
+
+.app-header .hover-bg-custom:hover {
+  background: var(--page-surface-light);
+  transition: 0.2s;
+}
+
+.app-header .topbar-dropdown-menu {
+  min-width: 240px;
+  margin-top: 12px;
+  border: 1px solid var(--page-border);
+  border-radius: 16px;
+  background-color: var(--page-surface);
+}
+
+.app-header .dropdown-item {
+  width: calc(100% - 16px);
+  margin: 0 8px;
+  border-radius: 8px;
+  color: var(--page-text-secondary);
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+.app-header .dropdown-item:hover {
+  background-color: var(--page-surface-light);
+  color: var(--page-text-primary);
+  transform: translateX(4px);
+}
+
+.app-header .dropdown-item svg {
+  color: var(--page-text-muted);
+  transition: 0.2s;
+}
+
+.app-header .dropdown-item:hover svg {
+  color: var(--page-primary);
+}
+
+.app-header .animate-slide-up {
+  animation: topbar-slide-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.password-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--topbar-password-overlay-bg);
+  backdrop-filter: blur(10px);
+}
+
+.password-modal {
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  border: 1px solid var(--page-border);
+  border-radius: 20px;
+  background: var(--page-surface);
+  color: var(--page-text-primary);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.password-modal-header {
+  border-color: var(--page-border) !important;
+}
+
+.password-modal-eyebrow {
+  color: var(--page-primary);
+}
+
+.password-modal-title {
+  color: var(--page-text-primary);
+}
+
+.password-modal-subtitle {
+  color: var(--page-text-muted);
+}
+
+.password-form-label {
+  color: var(--page-text-secondary);
+}
+
+.btn-close-password {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--page-surface-light);
+  color: var(--page-text-secondary);
+  transition: 0.2s;
+}
+
+.btn-close-password:hover {
+  background: var(--page-border-light);
+  color: var(--page-text-primary);
+}
+
+.password-input {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--page-border);
+  border-radius: 12px;
+  background: var(--topbar-password-input-bg);
+  color: var(--page-text-primary);
+}
+
+.password-input::placeholder {
+  color: var(--page-text-muted);
+  opacity: 0.78;
+}
+
+.password-input:focus {
+  border-color: var(--page-primary);
+  background: var(--topbar-password-input-bg);
+  color: var(--page-text-primary);
+  box-shadow: 0 0 0 0.2rem var(--page-primary-glow);
+}
+
+.password-modal .password-input:disabled,
+.password-modal .password-input[disabled] {
+  border-color: var(--page-border) !important;
+  background: var(--topbar-password-disabled-bg) !important;
+  background-color: var(--topbar-password-disabled-bg) !important;
+  color: var(--topbar-password-disabled-text) !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: var(--topbar-password-disabled-text) !important;
+}
+
+.app-header .text-danger,
+.password-modal .text-danger {
+  color: var(--bs-danger) !important;
+}
+
+@keyframes topbar-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--topbar-status-color) 47%, transparent);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--topbar-status-color) 0%, transparent);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--topbar-status-color) 0%, transparent);
+  }
+}
+
+@keyframes topbar-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

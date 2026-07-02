@@ -2,8 +2,8 @@ import React from 'react';
 import { Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useSnackbar } from 'notistack';
-import { useTheme } from '../../../theme/ThemeContext';
 import type { BusOption, DraftCell, PassengerRow, RoundOption, TripOption } from './types';
+import './ExportExcelButton.css';
 
 interface ExportExcelButtonProps {
   visiblePassengers: PassengerRow[];
@@ -24,7 +24,6 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
   getCell,
   disabled
 }) => {
-  const { isDarkMode,colors } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
 
   const busLabelById = new Map(
@@ -138,28 +137,6 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
     >
       <Download size={14} />
       <span className="d-none d-lg-inline">Xuất file Excel</span>
-
-      <style>{`
-        .btn-custom-export {
-          height: 34px !important;
-          padding: 0 12px !important;
-          font-size: 13px !important;
-          font-weight: 600 !important;
-          border-radius: 8px !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 6px !important;
-          background-color: ${isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5'} !important;
-          border: 1px solid ${colors.success}44 !important;
-          color: ${colors.success} !important;
-          transition: all 0.2s;
-        }
-
-        .btn-custom-export:hover:not(:disabled) {
-          background-color: ${colors.success}15 !important;
-          transform: translateY(-1px);
-        }
-      `}</style>
     </button>
   );
 };

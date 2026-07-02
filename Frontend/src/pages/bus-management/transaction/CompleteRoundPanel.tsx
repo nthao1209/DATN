@@ -3,7 +3,7 @@ import { CheckCircle2, TriangleAlert, Info } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import api from '../../../services/api';
 import type { RoundOption } from './types';
-import { useTheme } from '../../../theme/ThemeContext';
+import './CompleteRoundPanel.css';
 
 type BusRoundStatus = {
   busId: number;
@@ -26,7 +26,6 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
   busRoundStatuses,
   onSuccess,
 }) => {
-  const { colors, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
 
@@ -92,12 +91,12 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
         </div>
 
         {/* Thanh ngăn cách dọc (Chỉ hiện trên màn PC) */}
-        <div className="vr d-none d-md-block mx-3 opacity-10" style={{ height: '28px' }}></div>
+        <div className="vr d-none d-md-block mx-3 opacity-10 complete-round-divider"></div>
 
         {/* Khối nội dung thông tin chính giữa */}
         <div className="flex-grow-1 d-flex align-items-center justify-content-between gap-3 flex-wrap">
           <div className="d-flex flex-column gap-0.5">
-            <div className="fw-semibold main-text" style={{ color: colors.textPrimary }}>
+            <div className="fw-semibold main-text">
               {selectedBusIds.length === 1 && selectedRounds.length === 1 ? (
                 <div className="d-flex align-items-center gap-2 flex-wrap">
                   <span>Xe {selectedBusId}</span>
@@ -139,7 +138,7 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
           >
             {loading ? (
               <div className="d-flex align-items-center gap-1.5">
-                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
+                <span className="spinner-border spinner-border-sm complete-round-spinner" role="status" aria-hidden="true"></span>
                 <span>Đang lưu...</span>
               </div>
             ) : (
@@ -148,124 +147,6 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
           </button>
         </div>
       </div>
-
-      <style>{`
-        /* Container bọc ngoài định vị sticky thông minh tạo khoảng cách nhẹ với viền */
-        .complete-panel-wrapper {
-          position: sticky;
-          bottom: 16px;
-          left: 0;
-          right: 0;
-          width: calc(100% - 32px);
-          margin: 0 auto;
-          z-index: 100;
-        }
-
-        /* Khung Card chính mang phong cách Glassmorphism hiện đại */
-        .complete-round-container {
-          background: ${isDarkMode ? 'rgba(23, 32, 59, 0.85)' : 'rgba(255, 255, 255, 0.9)'} !important;
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border: 1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'} !important;
-          border-radius: 14px;
-          padding: 12px 20px !important;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          box-shadow: ${isDarkMode ? '0 12px 30px rgba(0, 0, 0, 0.5)' : '0 10px 25px rgba(15, 23, 42, 0.08)'};
-        }
-
-        /* Icon Badge tròn nhỏ */
-        .icon-badge {
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          background: rgba(16, 185, 129, 0.12);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .main-text {
-          font-size: 14px;
-          letter-spacing: -0.01em;
-        }
-
-        .dot-divider {
-          opacity: 0.3;
-        }
-
-        .sub-tip {
-          font-size: 11px;
-          opacity: 0.85;
-          font-weight: 500;
-        }
-
-        /* Hệ thống Badge UI tinh tế */
-        .badge-ui {
-          padding: 3px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-        }
-        .badge-ui.success { background: rgba(16, 185, 129, 0.12); color: #10b981; }
-        .badge-ui.info { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
-        .badge-ui.warning { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
-
-        /* Nút xác nhận phủ Gradient tinh xảo */
-        .btn-complete-pill {
-          border: none;
-          padding: 8px 18px;
-          font-size: 12px;
-          font-weight: 700;
-          border-radius: 8px;
-          letter-spacing: 0.01em;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          color: white;
-          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-        }
-
-        .btn-complete-pill:hover:not(:disabled) {
-          filter: brightness(1.1);
-          transform: translateY(-1px);
-          box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
-        }
-
-        .btn-complete-pill:active { 
-          transform: translateY(0); 
-          filter: brightness(0.95);
-        }
-        
-        /* Trạng thái tắt nút mượt mà, hòa nhập với nền tối/sáng */
-        .btn-complete-pill:disabled { 
-          background: ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} !important; 
-          color: ${isDarkMode ? 'rgba(255,255,255,0.25)' : '#94a3b8'} !important;
-          box-shadow: none;
-          cursor: not-allowed; 
-          transform: none; 
-        }
-
-        /* Tối ưu Mobile (Responsive cực mượt) */
-        @media (max-width: 576px) {
-          .complete-panel-wrapper {
-            bottom: 8px;
-            width: calc(100% - 16px);
-          }
-          .complete-round-container {
-            padding: 10px 14px !important;
-            gap: 10px;
-          }
-          .main-text {
-            font-size: 13px;
-          }
-          .btn-complete-pill {
-            width: 100%;
-            text-align: center;
-            padding: 8px;
-          }
-        }
-      `}</style>
     </div>
   );
 };

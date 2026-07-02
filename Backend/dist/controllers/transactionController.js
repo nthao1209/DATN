@@ -6,13 +6,13 @@ const db_1 = require("../config/db");
 // Tất cả transaction phải nằm trong tenant hiện tại để tránh lộ dữ liệu giữa tổ chức.
 const ensureTenant = (req, res) => {
     if (!req.tenantId) {
-        res.status(401).json({ message: "Unauthorized" });
+        res.status(401).json({ message: "Không có quyền truy cập" });
         return null;
     }
     return req.tenantId;
 };
 // Role 1/2/3 được thao tác điểm danh, các role khác bị chặn.
-const canAccessTransactions = (req) => req.roleId === 1 || req.roleId === 2 || req.roleId === 3;
+const canAccessTransactions = (req) => req.roleId === 3;
 const parseBoolean = (value) => {
     if (typeof value === "boolean")
         return value;
@@ -174,7 +174,7 @@ exports.transactionController = {
             if (!tenantId)
                 return;
             if (!canAccessTransactions(req)) {
-                return res.status(403).json({ message: "Forbidden" });
+                return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
             }
             const managerCondition = 
             // Role quản lý xe chỉ thấy xe mình quản lý hoặc hành khách/event liên quan đến xe đó.
@@ -243,7 +243,7 @@ exports.transactionController = {
             res.json(transactions);
         }
         catch (error) {
-            res.status(500).json({ message: "Server error", detail: error?.message });
+            res.status(500).json({ message: "Lỗi hệ thống", detail: error?.message });
         }
     },
     create: async (req, res) => {
@@ -253,7 +253,7 @@ exports.transactionController = {
             if (!tenantId)
                 return;
             if (!canAccessTransactions(req)) {
-                return res.status(403).json({ message: "Forbidden" });
+                return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
             }
             if (hasAttendanceMutationInput(req.body)) {
                 return res.status(400).json({
@@ -274,19 +274,19 @@ exports.transactionController = {
                 select: { id: true, tripId: true },
             });
             if (!bus) {
-                return res.status(404).json({ message: "Bus not found" });
+                return res.status(404).json({ message: "Không tìm thấy xe" });
             }
             const round = await db_1.prisma.round.findFirst({
                 where: { id: roundId, trip: { tenantId } },
                 select: { id: true, tripId: true },
             });
             if (!round) {
-                return res.status(404).json({ message: "Round not found" });
+                return res.status(404).json({ message: "Không tìm thấy vòng" });
             }
             if (Number(round.tripId) !== Number(bus.tripId)) {
                 return res
                     .status(400)
-                    .json({ message: "Round does not belong to the selected bus trip" });
+                    .json({ message: "Chặng không thuộc chuyến xe đã chọn" });
             }
             const passenger = await db_1.prisma.passenger.findFirst({
                 where: {
@@ -296,7 +296,7 @@ exports.transactionController = {
                 select: { id: true },
             });
             if (!passenger) {
-                return res.status(404).json({ message: "Passenger not found" });
+                return res.status(404).json({ message: "Không tìm thấy hành khách" });
             }
             const busRoundStatus = await db_1.prisma.busRoundStatus.findUnique({
                 where: { busId_roundId: { busId, roundId } },
@@ -384,7 +384,7 @@ exports.transactionController = {
             res.status(existing ? 200 : 201).json(transaction);
         }
         catch (error) {
-            res.status(500).json({ message: "Server error", detail: error?.message });
+            res.status(500).json({ message: "Lỗi hệ thống", detail: error?.message });
         }
     },
     delete: async (req, res) => {
@@ -393,11 +393,11 @@ exports.transactionController = {
             if (!tenantId)
                 return;
             if (!canAccessTransactions(req)) {
-                return res.status(403).json({ message: "Forbidden" });
+                return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
             }
             const id = Number(req.params.id);
             if (!id) {
-                return res.status(400).json({ message: "Invalid transaction id" });
+                return res.status(400).json({ message: "ID giao dịch không hợp lệ" });
             }
             const existing = await db_1.prisma.transaction.findFirst({
                 where: {
@@ -415,7 +415,7 @@ exports.transactionController = {
                 },
             });
             if (!existing) {
-                return res.status(404).json({ message: "Transaction not found" });
+                return res.status(404).json({ message: "Không tìm thấy giao dịch" });
             }
             if (existing.checkIn || existing.checkOut) {
                 return res.status(409).json({
@@ -424,10 +424,10 @@ exports.transactionController = {
                 });
             }
             await db_1.prisma.transaction.delete({ where: { id } });
-            res.json({ message: "Deleted successfully" });
+            res.json({ message: "Đã xóa thành công" });
         }
         catch (error) {
-            res.status(500).json({ message: "Server error", detail: error?.message });
+            res.status(500).json({ message: "Lỗi hệ thống", detail: error?.message });
         }
     },
 };

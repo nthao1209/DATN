@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -10,7 +10,7 @@ import { auth as fbAuth } from '../config/firebase';
 import api from '../services/api';
 import type { Tenant } from '../types/auth';
 import { useTheme } from '../theme/ThemeContext';
-import { getFallbackPathForRole } from '../auth/rbac';
+import { getFallbackPathForRole, getRoleDisplayName } from '../auth/rbac';
 
 interface TenantSelectorProps {
   isOpen: boolean;
@@ -28,6 +28,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
   const { currentTenant, tenants: stateTenants } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: status, isLoading } = useQuery<{ tenants: Tenant[] }>({
     queryKey: ['userStatus'],
@@ -50,6 +51,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
 
   const handleSelectTenant = (tenant: any) => {
     dispatch(setCurrentTenant(tenant));
+    queryClient.clear();
     sessionStorage.setItem(SETUP_ORG_COMPLETE_KEY, 'true');
     onClose();
     navigate(getFallbackPathForRole(tenant.roleId ?? tenant.role?.id));
@@ -110,7 +112,7 @@ const TenantSelector: React.FC<TenantSelectorProps> = ({
                           {tenant.name}
                         </div>
                         <div className={`small ${isSelected ? 'text-primary-light' : 'text-gray-500'}`}>
-                          Vai trò: <span className="text-uppercase fw-bold" style={{fontSize: '10px'}}>{typeof tenant.role === 'string' ? tenant.role : tenant.role?.name ?? 'Member'}</span>
+                          Vai trò: <span className="text-uppercase fw-bold" style={{fontSize: '10px'}}>{getRoleDisplayName(typeof tenant.role === 'string' ? tenant.role : tenant.role?.name)}</span>
                         </div>
                       </div>
                       {isSelected ? (

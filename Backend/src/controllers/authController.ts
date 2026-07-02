@@ -57,7 +57,7 @@ export const getMyStatus = async (req: AuthRequest, res: Response) => {
 
     if (!userId) {
       return res.status(401).json({
-        message: 'Unauthorized',
+        message: 'Không có quyền truy cập',
       });
     }
 
@@ -98,7 +98,7 @@ export const getMyStatus = async (req: AuthRequest, res: Response) => {
 
 
     return res.status(500).json({
-      message: 'Internal server error',
+      message: 'Lỗi hệ thống',
     });
   }
 };
@@ -112,7 +112,7 @@ export const deleteUser = async (
 
   if (!userId || !firebaseUid) {
     return res.status(401).json({
-      message: 'Unauthorized',
+      message: 'Không có quyền truy cập',
     });
   }
 

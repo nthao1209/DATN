@@ -1,0 +1,124 @@
+.admin-page-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-inline: 0.5rem;
+}
+
+.admin-page-title-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-page-title-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--page-primary);
+  background-color: var(--page-primary-15);
+  border: 1px solid var(--page-primary-33);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.admin-page-title-text {
+  margin: 0;
+  color: var(--page-text-primary);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.table-container-card {
+  overflow: hidden;
+  background-color: var(--page-surface);
+  border: 1px solid var(--page-border);
+  border-radius: 12px;
+}
+
+.admin-table-add-row {
+  padding: 0.5rem;
+  border-top: 1px solid var(--page-border);
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.btn-add-row-bottom {
+  color: var(--page-primary);
+  border: 1px dashed var(--page-primary-66);
+  border-radius: 8px;
+  background-color: var(--page-primary-08);
+}
+
+.admin-save-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.admin-save-action .btn-custom-action-save {
+  background-color: var(--page-surface-light);
+  color: var(--page-text-muted);
+}
+
+.admin-save-action .btn-custom-action-save.is-enabled {
+  background-color: var(--page-success);
+  color: #fff;
+}
+
+.admin-save-message {
+  color: var(--page-warning);
+  max-width: 320px;
+  line-height: 1.2;
+}
+
+.admin-save-message.is-narrow {
+  max-width: 280px;
+}
+
+.table-cell-compact {
+  min-height: 0;
+}
+
+.table-control-muted {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.passenger-wrap-cell {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.passenger-bus-select {
+  max-width: 120px;
+}
+
+.transaction-check-input {
+  width: 18px;
+  height: 18px;
+}
+
+.transaction-contact-phone {
+  font-size: 13px;
+}
+
+.transaction-bus-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  background-color: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.transaction-bus-badge-text {
+  color: var(--page-warning);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}

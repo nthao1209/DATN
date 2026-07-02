@@ -1,17 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Save, Bus } from 'lucide-react';
+import { Bus } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import DataTable from '../../components/DataTable';
 import api from '../../services/api';
 import { isValidPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
 import { buildBusColumns } from './bus/columns';
-import { useTheme } from '../../theme/ThemeContext';
 import './BusPage.css';
 import type { TransactionRecord } from '../bus-management/transaction/types';
 import type { BusManager, BusRow } from './bus/types';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
+import EditableTableCard from '../../components/admin/EditableTableCard';
+import PageTitle from '../../components/admin/PageTitle';
+import SaveChangesAction from '../../components/admin/SaveChangesAction';
+import { usePageThemeVars } from '../../hooks/usePageThemeVars';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
@@ -20,8 +22,8 @@ const EMPTY_MANAGERS: BusManager[] = [];
 const EMPTY_TRANSACTIONS: TransactionRecord[] = [];
 
 const BusPage: React.FC = () => {
-  const { colors, effects, isDarkMode } = useTheme(); 
   const { enqueueSnackbar } = useSnackbar();
+  const pageThemeVars = usePageThemeVars();
   const { id: tripId } = useParams<{ id: string }>();
   const [rows, setRows] = useState<BusRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
@@ -123,11 +125,7 @@ const BusPage: React.FC = () => {
     return !isSameRow(row, initial);
   };
 
-  const isRowValid = (row: BusRow) => Boolean(
-    row.busCode.trim() &&
-    row.registrationNumber.trim() &&
-    row.managerId
-  );
+  const isRowValid = (row: BusRow) => Boolean(row.busCode.trim());
 
   const hasValidationErrors = useMemo(
     () => rows.some((row) => isRowDirty(row) && !isRowValid(row)),
@@ -140,8 +138,6 @@ const BusPage: React.FC = () => {
     rows.forEach((row) => {
       if (!isRowDirty(row)) return;
       if (!row.busCode.trim()) missing.add('Mã xe');
-      if (!row.registrationNumber.trim()) missing.add('Biển số');
-      if (!row.managerId) missing.add('Trưởng xe');
     });
     return missing.size ? `Thiếu: ${Array.from(missing).join(', ')}` : 'Vui lòng nhập đủ dữ liệu bắt buộc';
   }, [hasValidationErrors, rows]);
@@ -182,18 +178,6 @@ const BusPage: React.FC = () => {
   }, [rows, tripId, transactions]);
 
   const isPageLoading = isLoading || isTransactionsLoading;
-
-  const pageThemeVars = {
-    '--page-primary': colors.primary,
-    '--page-primary-11': `${colors.primary}11`,
-    '--page-primary-22': `${colors.primary}22`,
-    '--page-surface-light': colors.surfaceLight,
-    '--page-background': colors.background,
-    '--page-border': colors.border,
-    '--page-border-light': colors.borderLight,
-    '--page-table-header-bg': isDarkMode ? colors.surfaceLight : '#f8fafc',
-    '--page-table-header-text': isDarkMode ? colors.textSecondary : '#475569',
-  };
 
   useRegisterUnsavedChanges(dirtyCount > 0);
 
@@ -246,8 +230,8 @@ const BusPage: React.FC = () => {
     try {
       setIsSaving(true);
       await Promise.all([
-        ...rows.filter(r => !r.id && r.busCode.trim()).map(r => api.createBus(tripId, { ...r, managerId: Number(r.managerId), driverTel: normalizePhoneNumber(r.driverTel), tourGuideTel: normalizePhoneNumber(r.tourGuideTel) })),
-        ...rows.filter(r => r.id && isRowDirty(r)).map(r => api.updateBus(String(r.id), { ...r, driverTel: normalizePhoneNumber(r.driverTel), tourGuideTel: normalizePhoneNumber(r.tourGuideTel) })),
+        ...rows.filter(r => !r.id && r.busCode.trim()).map(r => api.createBus(tripId, { ...r, managerId: r.managerId ? Number(r.managerId) : null, registrationNumber: r.registrationNumber.trim() || null, driverTel: normalizePhoneNumber(r.driverTel) || null, tourGuideTel: normalizePhoneNumber(r.tourGuideTel) || null })),
+        ...rows.filter(r => r.id && isRowDirty(r)).map(r => api.updateBus(String(r.id), { ...r, managerId: r.managerId ? Number(r.managerId) : null, registrationNumber: r.registrationNumber.trim() || null, driverTel: normalizePhoneNumber(r.driverTel) || null, tourGuideTel: normalizePhoneNumber(r.tourGuideTel) || null })),
         ...deletedIds.map(id => api.deleteBus(String(id)))
       ]);
       setDeletedIds([]);
@@ -259,55 +243,12 @@ const BusPage: React.FC = () => {
   const columns = buildBusColumns({ managers, attendanceSummary: busAttendanceSummary, handleCellChange, handleDeleteRow});
 
   return (
-    <div className="animate-fade-in p-0 p-md-3 bus-page" style={pageThemeVars as React.CSSProperties}>
-      {/* Header Section */}
-      <div className="d-flex align-items-center justify-content-between mb-4 px-2">
-        <div className="d-flex align-items-center gap-3">
-          <div 
-            className="d-flex align-items-center justify-content-center rounded-circle"
-            style={{ 
-                width: '42px', 
-                height: '42px', 
-                backgroundColor: isDarkMode ? colors.primaryGlow : `${colors.primary}15`,
-                border: `1px solid ${colors.primary}33`
-            }}
-          >
-            <Bus size={20} style={{ color: colors.primary }} />
-          </div>
-          <h1 className="h4 fw-bold m-0" style={{ letterSpacing: '-0.02em', color: colors.textPrimary }}>Quản lý Đội xe</h1>
-        </div>
-        
-        {/* refresh button removed */}
-      </div>
+    <div className="animate-fade-in p-0 p-md-3 bus-page" style={pageThemeVars}>
+      <PageTitle icon={<Bus size={20} />} title="Quản lý Đội xe" />
 
-
-      {/* Bọc Table trong một Card có shadow nhẹ */}
-      <div className="table-container-card shadow-sm" style={{ backgroundColor: colors.surface, borderRadius: effects.borderRadius.lg, border: `1px solid ${colors.border}`, overflow: 'hidden' }}>
-        <DataTable
+      <EditableTableCard
           title="Thông tin chi tiết đội xe"
-          titleActions={dirtyCount > 0 ? (
-            <div className="d-flex flex-column align-items-end gap-1">
-              <button
-                className="btn-custom-action-save shadow-sm save-floating-action"
-                onClick={handleSave}
-                disabled={isSaving || !canSave}
-                title={saveValidationMessage || undefined}
-                style={{ 
-                  backgroundColor: canSave ? colors.success : colors.surfaceLight, 
-                  color: canSave ? '#fff' : colors.textMuted
-                }}
-              >
-                <Save size={16} />
-                <span className="d-none d-sm-inline">{isSaving ? 'Đang lưu...' : `Lưu (${dirtyCount})`}</span>
-                <span className="d-inline d-sm-none">{dirtyCount}</span>
-              </button>
-              {saveValidationMessage && (
-                <div className="small text-end" style={{ color: colors.warning, maxWidth: '320px', lineHeight: 1.2 }}>
-                  {saveValidationMessage}
-                </div>
-              )}
-            </div>
-          ) : null}
+          titleActions={<SaveChangesAction dirtyCount={dirtyCount} isSaving={isSaving} canSave={canSave} onSave={handleSave} validationMessage={saveValidationMessage} />}
           columns={columns}
           queryKey={['buses-local', tripId]}
           data={rows}
@@ -316,23 +257,9 @@ const BusPage: React.FC = () => {
           onRefresh={() => { setDeletedIds([]); setRows(prev => prev.filter(r => r.id || isNewRowDirty(r))); refetch(); }}
           focusRowKey={focusRowKey}
           focusRowSignal={focusRowSignal}
+          showAddRow
+          onAddRow={handleAddRow}
         />
-        <div className="p-3 border-top" style={{ borderColor: colors.border, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fcfcfc' }}>
-          <button 
-            className="btn-add-row-bottom w-100 py-2" 
-            onClick={handleAddRow}
-            style={{ 
-              color: colors.primary, 
-              border: `1px dashed ${colors.primary}66`,
-              borderRadius: '8px',
-              backgroundColor: `${colors.primary}08`
-            }}
-          >
-            <Plus size={18} />
-            <span className="fw-bold ms-2">Thêm dòng mới</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

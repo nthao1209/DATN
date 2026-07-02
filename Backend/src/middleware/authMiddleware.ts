@@ -119,7 +119,7 @@ export const verifyFirebaseTokenOnly = async (
     return next();
   } catch (error: any) {
     return res.status(401).json({
-      message: 'Unauthorized',
+      message: 'Không có quyền truy cập',
     });
   }
 };
@@ -156,7 +156,7 @@ export const verifyVerifiedFirebaseTokenOnly = async (
     return next();
   } catch (error: any) {
     return res.status(401).json({
-      message: 'Unauthorized',
+      message: 'Không có quyền truy cập',
     });
   }
 };
@@ -187,16 +187,17 @@ export const verifyFirebaseToken = async (
       return;
     }
 
-    const userTenant =
-      await prisma.userTenant.findFirst({
-        where: {
-          userId: user.id,
-        },
-        include: {
-          tenant: true,
-          role: true,
-        },
-      });
+    const selectedTenantId = Number(req.header('x-tenant-id') || 0);
+    const userTenant = await prisma.userTenant.findFirst({
+      where: {
+        userId: user.id,
+        ...(selectedTenantId ? { tenantId: selectedTenantId } : {}),
+      },
+      include: {
+        tenant: true,
+        role: true,
+      },
+    });
 
     if (!userTenant) {
       return res.status(403).json({
@@ -214,7 +215,7 @@ export const verifyFirebaseToken = async (
     return next();
   } catch (error: any) {
     return res.status(401).json({
-      message: 'Unauthorized',
+      message: 'Không có quyền truy cập',
     });
   }
 };
