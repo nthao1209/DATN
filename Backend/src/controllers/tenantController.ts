@@ -1,9 +1,10 @@
-import {Response} from 'express'
-import { AuthRequest } from '../types/auth'
+import { Response } from 'express';
 import { randomBytes } from 'crypto';
 import { prisma } from '../config/db';
+import { AuthRequest } from '../types/auth';
 
 export const generateJoinCode = () =>{
+  // Bỏ các ký tự dễ nhầm như I/O/0/1 để người dùng nhập mã mời ít sai hơn.
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes = randomBytes(6);
   let code = '';
@@ -16,6 +17,7 @@ export const generateJoinCode = () =>{
 }
 
 export const generateUniqueJoinCode = async() : Promise<string> =>{
+  // Sinh lại mã cho tới khi không trùng tenant nào trong database.
   let code: string;
   let exists = true;
   while (exists) {
@@ -30,6 +32,7 @@ export const generateUniqueJoinCode = async() : Promise<string> =>{
 }
 
 export const createTenant = async (req:AuthRequest,res: Response) => {
+  // Người tạo tổ chức được gán role Admin trong chính tenant vừa tạo.
   const user = req.user;
   const {name} = req.body;
 
@@ -74,6 +77,7 @@ export const createTenant = async (req:AuthRequest,res: Response) => {
 
 
 export const joinTenant = async (req: AuthRequest,res:Response) =>{
+  // Tham gia bằng mã mời và mặc định nhận role trưởng xe/quản lý xe.
   const {joinCode} = req.body;
   const user = req.user;
 
@@ -100,4 +104,47 @@ export const joinTenant = async (req: AuthRequest,res:Response) =>{
     res.status(400).json({message:"Bạn đã là thành viên của tổ chức này"})
   }
 }
+
+const canRenameTenant = (req: AuthRequest, res: Response) => {
+  if (!req.user?.id) {
+    res.status(401).json({ message: 'Không có quyền truy cập' });
+    return false;
+  }
+
+  if (!req.tenantId) {
+    res.status(401).json({ message: 'Không có quyền truy cập' });
+    return false;
+  }
+
+  if (Number(req.roleId) !== 2) {
+    res.status(403).json({ message: 'Chỉ admin của tổ chức mới được đổi tên' });
+    return false;
+  }
+
+  return true;
+};
+
+export const renameCurrentTenant = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!canRenameTenant(req, res)) return;
+
+    const name = String(req.body?.name || '').trim();
+
+    if (!name) {
+      return res.status(400).json({ message: 'Thiếu tên tổ chức' });
+    }
+
+    const tenant = await prisma.tenant.update({
+      where: { id: req.tenantId! },
+      data: { name },
+    });
+
+    return res.json({
+      message: 'Đổi tên tổ chức thành công',
+      tenant,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Lỗi server', detail: error?.message });
+  }
+};
 

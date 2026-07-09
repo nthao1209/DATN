@@ -53,7 +53,6 @@ const PassengerExcelImport: React.FC<PassengerExcelImportProps> = ({
       setSelectedFile(file);
       const result = await api.getPassengerImportSheets(String(selectedTripId), file);
 
-      // Backend may return { sheets }, { sheetName } or { sheetNames }
       const rAny: any = result;
       const sheets = (rAny && (rAny.sheets || rAny.sheetName || rAny.sheetNames)) || [];
       setSheetNames(sheets);
@@ -147,7 +146,6 @@ return (
       onChange={handleFileChange}
     />
 
-    {/* Nút chọn file chính - Bé lại và mướt hơn */}
     <button
       type="button"
       className="btn-custom-import"
@@ -160,7 +158,6 @@ return (
       </span>
     </button>
 
-    {/* Hiển thị tên file và Nút Import sheet trên cùng 1 hàng nếu đã chọn file */}
     {sheetNames.length > 0 && (
       <div className="d-flex align-items-center gap-2 animate-fade-left">
         <select
@@ -194,7 +191,6 @@ return (
       </div>
     )}
 
-    {/* Thông báo trạng thái - Để tuyệt đối để không đẩy layout */}
     {selectedFile && !sheetNames.length && (
        <div className="position-absolute top-100 start-0 mt-1 badge text-bg-light border shadow-sm animate-fade-up" 
             style={{ fontSize: '10px', whiteSpace: 'nowrap', zIndex: 10 }}>

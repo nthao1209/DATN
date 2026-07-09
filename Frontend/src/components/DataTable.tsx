@@ -85,7 +85,21 @@ function DataTable<T extends object>({
 
   const { data: queryData, isLoading: queryLoading, isError: queryError,isFetching } = queryResult;
 
-  const tableData = useMemo(() => data ?? queryData ?? [], [data, queryData]);
+  const tableData = useMemo(() => {
+    const source = data ?? queryData ?? [];
+
+    return [...source].sort((left: any, right: any) => {
+      const leftId = Number(left?.id);
+      const rightId = Number(right?.id);
+      const leftHasId = Number.isFinite(leftId) && leftId > 0;
+      const rightHasId = Number.isFinite(rightId) && rightId > 0;
+
+      if (leftHasId && rightHasId) return leftId - rightId;
+      if (leftHasId) return -1;
+      if (rightHasId) return 1;
+      return 0;
+    });
+  }, [data, queryData]);
   const isLoading = externalLoading ?? queryLoading;
   const isError = externalError ?? queryError;
 

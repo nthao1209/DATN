@@ -109,6 +109,17 @@ const authSlice = createSlice({
       state.roleId = resolveRoleId(action.payload.roleId, action.payload.role?.id);
       localStorage.setItem('currentTenantId', String(action.payload.id));
     },
+    renameCurrentTenantSuccess: (state, action: PayloadAction<Tenant>) => {
+      const updatedTenant = action.payload;
+
+      state.tenants = state.tenants.map((tenant) =>
+        tenant.id === updatedTenant.id ? { ...tenant, ...updatedTenant } : tenant,
+      );
+
+      if (state.currentTenant?.id === updatedTenant.id) {
+        state.currentTenant = { ...state.currentTenant, ...updatedTenant };
+      }
+    },
     resetAuthState: (state) => {
       state.user = null;
       state.token = null;
@@ -143,5 +154,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { loginRequest, registerRequest, registerSuccess, emailVerificationRequired, authSuccess, authFailure, logout, forgotPasswordRequest, joinTenantSuccess, joinTenantRequest, setCurrentTenant, resetAuthState } = authSlice.actions;
+export const { loginRequest, registerRequest, registerSuccess, emailVerificationRequired, authSuccess, authFailure, logout, forgotPasswordRequest, joinTenantSuccess, joinTenantRequest, setCurrentTenant, renameCurrentTenantSuccess, resetAuthState } = authSlice.actions;
 export default authSlice.reducer;

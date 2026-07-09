@@ -1,12 +1,31 @@
-import { Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import type { Column } from '../../../components/DataTable';
 import type { BusManager, BusRow } from './types';
 import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
+
+export type WrongBusPassenger = {
+  transactionId: number;
+  passengerId: number;
+  passengerName: string;
+  // Xe gốc là xe được phân bổ ban đầu cho hành khách.
+  assignedBusId: number;
+  assignedBusLabel: string;
+  // Xe thực tế là xe nơi phát sinh event điểm danh sai xe gần nhất.
+  actualBusId: number;
+  actualBusLabel: string;
+  // Tách riêng check-in/check-out để trưởng đoàn biết sai ở chiều nào.
+  checkInWrongBusId?: number | null;
+  checkInWrongBusLabel?: string;
+  checkOutWrongBusId?: number | null;
+  checkOutWrongBusLabel?: string;
+  roundName?: string;
+};
 
 type BusAttendanceSummary = {
   busId: number;
   checkInCount: number;
   checkOutCount: number;
+  wrongBusPassengers?: WrongBusPassenger[];
 };
 
 type BuildBusColumnsParams = {
@@ -18,6 +37,10 @@ type BuildBusColumnsParams = {
     value: BusRow[K]
   ) => void;
   handleDeleteRow: (row: BusRow) => void;
+  handleShowWrongBusPassengers?: (
+    bus: BusRow,
+    passengers: WrongBusPassenger[]
+  ) => void;
 };
 
 export const buildBusColumns = ({
@@ -25,8 +48,8 @@ export const buildBusColumns = ({
   attendanceSummary = [],
   handleCellChange,
   handleDeleteRow,
+  handleShowWrongBusPassengers,
 }: BuildBusColumnsParams): Column<BusRow>[] => [
- 
   { header: 'STT', key: 'stt', width: '44px', render: (_row, idx) => idx + 1 },
   {
     header: 'Mã xe *',
@@ -65,7 +88,7 @@ export const buildBusColumns = ({
     ),
   },
   {
-    header: 'SDT tài xế',
+    header: 'SĐT tài xế',
     key: 'driverTel',
     width: '104px',
     render: (row) => (
@@ -144,46 +167,65 @@ export const buildBusColumns = ({
       </select>
     ),
   },
-   {
-    header: 'Số khách check-in',
+  {
+    header: 'Check-in',
     key: 'checkInCount',
     width: '84px',
     render: (row) => {
       const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
-      return (
-        <span className="fw-bold text-success">
-          {summary?.checkInCount ?? 0}
-        </span>
-      );
+      return <span className="fw-bold text-success">{summary?.checkInCount ?? 0}</span>;
     },
   },
   {
-    header: 'Số khách check-out',
+    header: 'Check-out',
     key: 'checkOutCount',
     width: '88px',
     render: (row) => {
       const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
+      return <span className="fw-bold text-warning">{summary?.checkOutCount ?? 0}</span>;
+    },
+  },
+  {
+    header: 'Sai xe',
+    key: 'wrongBusCount',
+    width: '76px',
+    render: (row) => {
+      // Mỗi dòng xe chỉ nhận danh sách khách sai xe thuộc xe gốc của chính dòng đó.
+      const summary = attendanceSummary.find((item) => item.busId === Number(row.id));
+      const wrongBusPassengers = summary?.wrongBusPassengers || [];
+      const count = wrongBusPassengers.length;
+
+      if (!count) {
+        return <span className="bus-wrong-count-empty">0</span>;
+      }
+
       return (
-        <span className="fw-bold text-warning">
-          {summary?.checkOutCount ?? 0}
-        </span>
+        <button
+          type="button"
+          className="bus-wrong-count-button"
+          onClick={() => handleShowWrongBusPassengers?.(row, wrongBusPassengers)}
+          title="Xem danh sách khách sai xe"
+        >
+          <AlertTriangle size={14} />
+          <span>{count}</span>
+        </button>
       );
     },
   },
   {
-  header: 'Thao tác',
-  key: 'actions',
-  width: '64px', 
-  render: (row) => (
-    <div className="d-flex justify-content-center align-items-center">
-      <button 
-        className="btn-action-delete" 
-        onClick={() => handleDeleteRow(row)} 
-        title="Xóa xe"
-      >
-        <Trash2 size={18} />
-      </button>
-    </div>
-  ),
-},
+    header: 'Thao tác',
+    key: 'actions',
+    width: '64px',
+    render: (row) => (
+      <div className="d-flex justify-content-center align-items-center">
+        <button
+          className="btn-action-delete"
+          onClick={() => handleDeleteRow(row)}
+          title="Xóa xe"
+        >
+          <Trash2 size={18} />
+        </button>
+      </div>
+    ),
+  },
 ];

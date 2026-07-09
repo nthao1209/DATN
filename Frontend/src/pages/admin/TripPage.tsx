@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Route } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -12,75 +12,79 @@ import EditableTableCard from '../../components/admin/EditableTableCard';
 import PageTitle from '../../components/admin/PageTitle';
 import SaveChangesAction from '../../components/admin/SaveChangesAction';
 import { usePageThemeVars } from '../../hooks/usePageThemeVars';
+import { useEditableRows } from '../../hooks/useEditableRows';
 
 const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const MIN_ROWS = 1;
 const EMPTY_TRIPS: any[] = [];
 
+const isSameTripRow = (current: TripRow, initial: TripRow) =>
+  current.name.trim() === initial.name.trim() && current.status === initial.status;
+
+const isNewTripRowDirty = (row: TripRow) =>
+  Boolean(row.name.trim() || row.status !== 'DOING');
+
+const createEmptyTripRow = (): TripRow => ({
+  localId: makeLocalId(),
+  name: '',
+  status: 'DOING',
+  busCount: 0,
+  roundCount: 0,
+  completedRoundCount: 0,
+});
+
 const TripPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const pageThemeVars = usePageThemeVars();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<TripRow[]>([]);
-  const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [focusRowKey, setFocusRowKey] = useState<string | number | null>(null);
-  const [focusRowSignal, setFocusRowSignal] = useState(0);
-  const initialRowsByIdRef = useRef<Record<number, TripRow>>({});
 
-  // --- DATA FETCHING ---
-  const { data: tripsData, isLoading, isError, refetch} = useQuery<any[]>({
+  const { data: tripsData, isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ['trips'],
     queryFn: api.getTrips,
   });
 
   const trips = tripsData ?? EMPTY_TRIPS;
 
-  useEffect(() => {
-    const mapped: TripRow[] = trips.map((t: any) => ({
-      id: Number(t.id),
-      localId: `db_${t.id}`,
-      name: t.name || '',
-      status: t.status === 'DONE' ? 'DONE' : 'DOING',
-      busCount: Number(t?._count?.buses || 0),
-      roundCount: Number(t?._count?.rounds || 0),
-      completedRoundCount: Number(t?.completedRoundCount || 0),
-    }));
+  const {
+    rows,
+    deletedIds,
+    resetDeletedIds,
+    focusRowKey,
+    focusRowSignal,
+    isRowDirty,
+    dirtyCount,
+    handleCellChange,
+    handleAddRow,
+    handleDeleteRow,
+    pruneEmptyNewRows,
+  } = useEditableRows<TripRow>({
+    buildRows: () => {
+      const mapped: TripRow[] = trips.map((trip: any) => ({
+        id: Number(trip.id),
+        localId: `db_${trip.id}`,
+        name: trip.name || '',
+        status: trip.status === 'DONE' ? 'DONE' : 'DOING',
+        busCount: Number(trip?._count?.buses || 0),
+        roundCount: Number(trip?._count?.rounds || 0),
+        completedRoundCount: Number(trip?.completedRoundCount || 0),
+      }));
 
-    const initialById: Record<number, TripRow> = {};
-    mapped.forEach((row) => {
-      if (row.id) initialById[row.id] = row;
-    });
-    initialRowsByIdRef.current = initialById;
+      const initialById: Record<number, TripRow> = {};
+      mapped.forEach((row) => {
+        if (row.id) initialById[row.id] = row;
+      });
 
-    const padded = [...mapped];
-    while (padded.length < MIN_ROWS) {
-      padded.push({ localId: makeLocalId(), name: '', status: 'DOING', busCount: 0, roundCount: 0, completedRoundCount: 0 });
-    }
-    setRows(padded);
-  }, [trips]);
+      const rows = [...mapped];
+      while (rows.length < MIN_ROWS) rows.push(createEmptyTripRow());
 
-  const isSameRow = (current: TripRow, initial: TripRow) => {
-    return current.name.trim() === initial.name.trim() && current.status === initial.status;
-  };
-
-  const isNewRowDirty = (row: TripRow) => {
-    return Boolean(row.name.trim() || row.status !== 'DOING');
-  };
-
-  // Remove empty newly added rows on unmount and prevent multiple empty rows
-  useEffect(() => {
-    return () => {
-      setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
-    };
-  }, []);
-
-  const isRowDirty = (row: TripRow) => {
-    if (!row.id) return isNewRowDirty(row);
-    const initial = initialRowsByIdRef.current[row.id];
-    if (!initial) return true;
-    return !isSameRow(row, initial);
-  };
+      return { rows, initialById };
+    },
+    resetDeps: [trips],
+    isSameRow: isSameTripRow,
+    isNewRowDirty: isNewTripRowDirty,
+    createRow: createEmptyTripRow,
+  });
 
   const isRowValid = (row: TripRow) => Boolean(row.name.trim());
 
@@ -99,49 +103,8 @@ const TripPage: React.FC = () => {
     return missing.size ? `Thiếu: ${Array.from(missing).join(', ')}` : 'Vui lòng nhập đủ dữ liệu bắt buộc';
   }, [hasValidationErrors, rows]);
 
-  const dirtyCount = useMemo(() => {
-    const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
-    const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
-    return created + edited + deletedIds.length;
-  }, [rows, deletedIds]);
-
   const canSave = dirtyCount > 0 && !hasValidationErrors;
   useRegisterUnsavedChanges(dirtyCount > 0);
-
-  const handleCellChange = <K extends keyof TripRow>(localId: string, key: K, value: TripRow[K]) => {
-    setRows((prev) => prev.map((row) => {
-      if (row.localId !== localId) return row;
-      const nextRow = { ...row, [key]: value };
-      if (!row.id) return nextRow;
-      const initial = initialRowsByIdRef.current[row.id];
-      const isEdited = initial ? !isSameRow(nextRow, initial) : true;
-      return { ...nextRow, isEdited };
-    }));
-  };
-
-  const handleAddRow = () => {
-    setRows((prev) => {
-      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
-      if (hasEmptyNew) {
-        const emptyRow = prev.find((r) => !r.id && !isNewRowDirty(r));
-        if (emptyRow) {
-          setFocusRowKey(emptyRow.localId);
-          setFocusRowSignal((value) => value + 1);
-        }
-        return prev;
-      }
-
-      const localId = makeLocalId();
-      setFocusRowKey(localId);
-      setFocusRowSignal((value) => value + 1);
-      return [...prev, { localId, name: '', status: 'DOING', busCount: 0, roundCount: 0, completedRoundCount: 0 }];
-    });
-  };
-
-  const handleDeleteRow = (row: TripRow) => {
-    if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
-    setRows((prev) => prev.filter((r) => r.localId !== row.localId));
-  };
 
   const handleSave = async () => {
     if (hasValidationErrors) {
@@ -149,18 +112,18 @@ const TripPage: React.FC = () => {
       return;
     }
 
-    const rowsToCreate = rows.filter((r) => !r.id && r.name.trim());
-    const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
+    const rowsToCreate = rows.filter((row) => !row.id && row.name.trim());
+    const rowsToUpdate = rows.filter((row) => row.id && isRowDirty(row));
     if (!rowsToCreate.length && !rowsToUpdate.length && !deletedIds.length) return;
 
     try {
       setIsSaving(true);
       await Promise.all([
-        ...rowsToCreate.map((r) => api.createTrip({ name: r.name.trim(), status: r.status })),
-        ...rowsToUpdate.map((r) => api.updateTrip(String(r.id), { name: r.name.trim(), status: r.status })),
+        ...rowsToCreate.map((row) => api.createTrip({ name: row.name.trim(), status: row.status })),
+        ...rowsToUpdate.map((row) => api.updateTrip(String(row.id), { name: row.name.trim(), status: row.status })),
         ...deletedIds.map((id) => api.deleteTrip(String(id))),
       ]);
-      setDeletedIds([]);
+      resetDeletedIds();
       await refetch();
       enqueueSnackbar('Đã lưu thành công', { variant: 'success' });
     } catch (err: any) {
@@ -182,19 +145,32 @@ const TripPage: React.FC = () => {
       <PageTitle icon={<Route size={20} />} title="Quản lý Lộ trình" />
 
       <EditableTableCard
-          title="Danh sách lộ trình"
-          titleActions={<SaveChangesAction dirtyCount={dirtyCount} isSaving={isSaving} canSave={canSave} onSave={handleSave} validationMessage={saveValidationMessage} messageMaxWidth="280px" />}
-          columns={columns}
-          queryKey={['trips-local']}
-          data={rows}
-          isLoading={isLoading}
-          isError={isError}
-          onRefresh={() => { setDeletedIds([]); setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r))); refetch(); }}
-          focusRowKey={focusRowKey}
-          focusRowSignal={focusRowSignal}
-          showAddRow
-          onAddRow={handleAddRow}
-        />
+        title="Danh sách lộ trình"
+        titleActions={
+          <SaveChangesAction
+            dirtyCount={dirtyCount}
+            isSaving={isSaving}
+            canSave={canSave}
+            onSave={handleSave}
+            validationMessage={saveValidationMessage}
+            messageMaxWidth="280px"
+          />
+        }
+        columns={columns}
+        queryKey={['trips-local']}
+        data={rows}
+        isLoading={isLoading}
+        isError={isError}
+        onRefresh={() => {
+          resetDeletedIds();
+          pruneEmptyNewRows();
+          refetch();
+        }}
+        focusRowKey={focusRowKey}
+        focusRowSignal={focusRowSignal}
+        showAddRow
+        onAddRow={handleAddRow}
+      />
     </div>
   );
 };

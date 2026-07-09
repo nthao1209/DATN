@@ -7,6 +7,8 @@ export type AttendanceUpdateEvent = {
     | 'attendance.wrong_bus';
 
   tripId: number;
+  tenantId?: number;
+  entity?: string;
 
   roundId: number;
   roundName?: string;
@@ -130,6 +132,7 @@ const ensureSharedClient = () => {
     if (!handlers || handlers.size === 0) {
       return;
     }
+      // Payload MQTT luôn đi qua JSON để mọi listener nhận cùng một cấu trúc dữ liệu.
       const parsed = JSON.parse(payload.toString()) as Record<string, unknown>;
       handlers.forEach((handler) => handler(topic, parsed));
     
@@ -303,6 +306,7 @@ export const subscribeLockUpdates = (
 
 
 const createAttendanceAckWaiter = (actionId: string, timeoutMs = 15000) => {
+  // Frontend chỉ xóa action khỏi offline queue khi worker đã publish ACK sau khi commit DB.
   let timeoutId: number | undefined;
   let subscription: MqttSubscriptionHandle | null = null;
 
@@ -342,9 +346,11 @@ const createAttendanceAckWaiter = (actionId: string, timeoutMs = 15000) => {
 export const publishAttendanceAction = async (action: OfflineAction) => {
   const client = await waitForClientConnection();
 
+  // Topic chứa trip/bus/round để worker xử lý điểm danh độc lập với HTTP API.
   const topic = `${MQTT_ATTENDANCE_TOPIC_PREFIX}/${action.tripId}/${action.busId}/${action.roundId}/check`;
   const ackPromise = action.id ? createAttendanceAckWaiter(action.id) : Promise.resolve();
   const payload = {
+    // actionId giúp ghép đúng thao tác gửi đi với ACK trả về từ worker.
     actionId: action.id,
     passengerId: action.passengerId,
     roundId: action.roundId,
@@ -355,10 +361,16 @@ export const publishAttendanceAction = async (action: OfflineAction) => {
     checkOutBy: action.checkOutBy,
     checkInNote: action.checkInNote || '',
     checkOutNote: action.checkOutNote || '',
+    checkInTouched: Boolean(action.checkInTouched),
+    checkOutTouched: Boolean(action.checkOutTouched),
+    checkInNoteTouched: Boolean(action.checkInNoteTouched),
+    checkOutNoteTouched: Boolean(action.checkOutNoteTouched),
     timestamp: action.timestamp,
   };
 
   await new Promise<void>((resolve, reject) => {
+    // retain=true giúp worker vẫn nhận được action nếu publish xong rồi worker mới reconnect.
+    // Sau khi xử lý thành công, worker sẽ clear retained message của topic này.
     client.publish(topic, JSON.stringify(payload), { qos: 1, retain: true }, (error) => {
       if (error) {
         reject(error);

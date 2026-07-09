@@ -18,6 +18,7 @@ const SyncManager: React.FC = () => {
   const previousMqttStatusRef = useRef<MqttBrokerStatus | null>(null);
 
   const scheduleRetry = useCallback(() => {
+    // Khi publish/ACK lỗi, không retry ngay lập tức để tránh spam broker và snackbar.
     if (retryTimerRef.current !== null) {
       window.clearTimeout(retryTimerRef.current);
     }
@@ -29,6 +30,7 @@ const SyncManager: React.FC = () => {
   }, []);
 
   const flushQueue = useCallback(async () => {
+    // Chỉ một lượt flush được chạy tại một thời điểm để tránh gửi trùng cùng action.
     if (isFlushingRef.current || !navigator.onLine) {
       return;
     }
@@ -57,6 +59,7 @@ const SyncManager: React.FC = () => {
       }
 
       while (navigator.onLine && getMqttStatus() === 'connected') {
+        // Gửi theo thứ tự thời gian để giữ đúng trình tự thao tác điểm danh của người dùng.
         const queue = offlineService.getQueue().sort((a, b) => a.timestamp - b.timestamp);
         if (!queue.length) {
           break;
@@ -69,6 +72,7 @@ const SyncManager: React.FC = () => {
 
           offlineService.markSyncing(action.id);
           try {
+            // publishAttendanceAction chỉ resolve khi nhận ACK từ worker sau khi DB commit.
             await publishAttendanceAction(action);
             offlineService.removeFromQueue(action.id);
             syncedCount += 1;
@@ -122,6 +126,7 @@ const SyncManager: React.FC = () => {
   }, [flushQueue]);
 
   useEffect(() => {
+    // Mỗi khi MQTT đổi trạng thái hoặc queue thay đổi, thử flush lại các action còn pending.
     void flushQueue();
   }, [flushQueue, mqttStatus]);
 
@@ -204,6 +209,7 @@ const SyncManager: React.FC = () => {
   }, [enqueueSnackbar, flushQueue]);
 
   useEffect(() => {
+    // Khi user quay lại tab, thử đồng bộ lại để tránh queue bị treo do tab ngủ.
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         void flushQueue();

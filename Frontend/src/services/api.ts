@@ -176,6 +176,9 @@ export const api = {
   createTenant: (data: { name: string }) =>
     axiosClient.post('/tenants/create', data),
 
+  renameTenant: (name: string) =>
+    axiosClient.put('/tenants/current', { name }),
+
   getTenant: (id: string) =>
     axiosClient.get(`/tenants/${id}`),
 

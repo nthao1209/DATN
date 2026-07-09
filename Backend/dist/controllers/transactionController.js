@@ -11,8 +11,7 @@ const ensureTenant = (req, res) => {
     }
     return req.tenantId;
 };
-// Role 1/2/3 được thao tác điểm danh, các role khác bị chặn.
-const canAccessTransactions = (req) => req.roleId === 3;
+const canAccessTransactions = (req) => [1, 2, 3].includes(Number(req.roleId));
 const parseBoolean = (value) => {
     if (typeof value === "boolean")
         return value;

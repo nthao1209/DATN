@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, UserPlus, X, AlertCircle, CheckCircle } from 'lucide-react';
 import type { BusOption, PassengerRow } from './types';
 import './ExtraPassengerPanel.css';
@@ -44,6 +44,7 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
   const [extraSearchTerm, setExtraSearchTerm] = useState('');
   const [confirming, setConfirming] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const targetBusId = selectedBusIds && selectedBusIds.length ? Number(selectedBusIds[0]) : null;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -92,8 +93,9 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
         );
       })
       .sort((a, b) => {
-        const aIsExtra = !selectedBusIds.includes(Number(a.assignedBusId));
-        const bIsExtra = !selectedBusIds.includes(Number(b.assignedBusId));
+        const targetBusId = selectedBusIds && selectedBusIds.length ? Number(selectedBusIds[0]) : null;
+        const aIsExtra = targetBusId !== null && Number(a.assignedBusId) !== targetBusId;
+        const bIsExtra = targetBusId !== null && Number(b.assignedBusId) !== targetBusId;
         if (aIsExtra && !bIsExtra) return -1;
         if (!aIsExtra && bIsExtra) return 1;
         return a.name.localeCompare(b.name);
@@ -101,7 +103,6 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
   }, [extraSearchTerm, passengers, selectedBusIds]);
 
   const handleAdd = (candidate: any) => {
-    const targetBusId = selectedBusIds && selectedBusIds.length ? Number(selectedBusIds[0]) : null;
     if (!targetBusId) return;
     const actualBus = buses.find((bus) => Number(bus.id) === targetBusId);
     const actualBusName = actualBus?.busCode || actualBus?.registrationNumber || '';
@@ -147,9 +148,10 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
           <div className="d-flex flex-column gap-1">
             {extraPassengerCandidates.map((p) => {
               const isAlreadyAdded = extraPassengers.some(ep => ep.id === p.id);
-              const isAlreadyInMainTable = existingPassengerIds.includes(p.id);
-              const isGuest = !selectedBusIds.includes(Number(p.assignedBusId));
-              const showAddButton = !isAlreadyInMainTable;
+              const isAssignedToTargetBus = targetBusId !== null && Number(p.assignedBusId) === targetBusId;
+              const isAlreadyInCurrentBusTable = isAssignedToTargetBus && existingPassengerIds.includes(p.id);
+              const isGuest = !isAssignedToTargetBus;
+              const showAddButton = isGuest;
 
               return (
                 <div key={p.id}
@@ -161,12 +163,12 @@ const ExtraPassengerPanel: React.FC<ExtraPassengerPanelProps> = ({
                     <div className="d-flex flex-column">
                       <div className="d-flex align-items-center gap-2">
                         <span className="fw-bold candidate-name">{p.name}</span>
-                        {isAlreadyInMainTable && (
+                        {isAlreadyInCurrentBusTable && (
                           <span className="badge-status-in-table">
                             <CheckCircle size={10} className="me-1" /> Trong xe
                           </span>
                         )}
-                        {isGuest && !isAlreadyInMainTable && (
+                        {isGuest && (
                            <span className="badge bg-info-subtle text-info border border-info-subtle extra-passenger-badge">
                             Ngoài xe
                           </span>

@@ -1,10 +1,8 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { UserPlus } from 'lucide-react';
-import api from '../../services/api';
 import { buildTransactionColumns } from './transaction/columns';
 import type {
   DraftCell,
-  PassengerRow,
   TransactionTableRow,
 } from './transaction/types';
 import { keyOf } from './transaction/types';
@@ -14,7 +12,10 @@ import { useTransactionData } from './transaction/useTransactionData';
 import { useTransactionDraftStorage } from './transaction/useTransactionDraftStorage';
 import { useTransactionMap } from './transaction/useTransactionMap';
 import { useTransactionRealtime } from './transaction/useTransactionRealtime';
-import { areNumberArraysEqual, buildLockedAttendanceMessage, isSameCell, normalizeNote } from './transaction/helpers';
+import { buildLockedAttendanceMessage, isSameCell } from './transaction/helpers';
+import { useDisplayedPassengers } from './transaction/useDisplayedPassengers';
+import { useExtraPassengers } from './transaction/useExtraPassengers';
+import { useTransactionSelection, useTransactionSelectionDataSync } from './transaction/useTransactionSelection';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
 import { useSnackbar } from 'notistack';
 import { useSelector } from 'react-redux';
@@ -36,41 +37,36 @@ const TransactionPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const currentTenantId = useSelector((state: RootState) => state.auth.currentTenant?.id ?? null);
   const pageThemeVars = usePageThemeVars();
-  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
-  const [selectedBusIds, setSelectedBusIds] = useState<number[]>([]);
-  const [selectedRoundIds, setSelectedRoundIds] = useState<number[]>([]);
+  // draftMap lưu trạng thái người dùng vừa sửa trên UI trước khi MQTT worker ghi xong DB.
+  // Nhờ vậy checkbox/ghi chú phản hồi ngay cả khi đang chờ ACK, refetch hoặc mạng chậm.
   const [draftMap, setDraftMap] = useState<Record<string, DraftCell>>({});
-  const [tripDropdownOpen, setTripDropdownOpen] = useState(false);
-  const [busDropdownOpen, setBusDropdownOpen] = useState(false);
-  const [roundDropdownOpen, setRoundDropdownOpen] = useState(false);
-  const [departureRoundFilter, setDepartureRoundFilter] = useState<number | null>(null);
-  const [returnRoundFilter, setReturnRoundFilter] = useState<number | null>(null);
   const [attendanceDisplayMode, setAttendanceDisplayMode] = useState<AttendanceDisplayMode>('all');
-  const [showAddPassengerPanel, setShowAddPassengerPanel] = useState(false);
-  const [extraPassengers, setExtraPassengers] = useState<PassengerRow[]>([]);
-  const filterDropdownRef = useRef<HTMLDivElement>(null);
-
+  const {
+    selectedTripId,
+    setSelectedTripId,
+    selectedBusIds,
+    setSelectedBusIds,
+    selectedRoundIds,
+    setSelectedRoundIds,
+    tripDropdownOpen,
+    setTripDropdownOpen,
+    busDropdownOpen,
+    setBusDropdownOpen,
+    roundDropdownOpen,
+    setRoundDropdownOpen,
+    departureRoundFilter,
+    setDepartureRoundFilter,
+    returnRoundFilter,
+    setReturnRoundFilter,
+    filterDropdownRef,
+  } = useTransactionSelection();
   useEffect(() => {
     setSelectedTripId(null);
     setSelectedBusIds([]);
     setSelectedRoundIds([]);
     setDraftMap({});
-    setExtraPassengers([]);
-    setShowAddPassengerPanel(false);
   }, [currentTenantId]);
 
-  // Đóng các dropdown filter khi click ra ngoài vùng toolbar.
-  useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
-          setBusDropdownOpen(false);
-          setRoundDropdownOpen(false);
-          setTripDropdownOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [setBusDropdownOpen, setRoundDropdownOpen, setTripDropdownOpen]);
 
   // Hook này gom toàn bộ API query cần cho trang transaction.
   const {
@@ -90,6 +86,21 @@ const TransactionPage: React.FC = () => {
     refetchBusRoundStatuses,
   } = useTransactionData(selectedTripId);
 
+  useTransactionSelectionDataSync({
+    trips,
+    buses,
+    rounds,
+    selectedTripId,
+    setSelectedTripId,
+    selectedRoundIds,
+    setSelectedBusIds,
+    setSelectedRoundIds,
+    departureRoundFilter,
+    setDepartureRoundFilter,
+    returnRoundFilter,
+    setReturnRoundFilter,
+  });
+
     // Tìm xe thực tế của hành khách ở một chặng: ưu tiên transaction đã có, fallback về xe được phân công.
     const getActualBusId = (
       passengerId: number,
@@ -100,6 +111,12 @@ const TransactionPage: React.FC = () => {
 
       const txCell = txMap[key];
 
+      if (txCell?.checkOutBusId) {
+        return Number(txCell.checkOutBusId);
+      }
+      if (txCell?.checkInBusId) {
+        return Number(txCell.checkInBusId);
+      }
       if (txCell?.busId) {
         return Number(txCell.busId);
       }
@@ -116,20 +133,8 @@ const TransactionPage: React.FC = () => {
     getActualBusId
   );
 
-  // Khi mới vào trang, tự chọn chuyến đầu tiên để người dùng có dữ liệu ngay.
-  useEffect(() => {
-    if (!selectedTripId && trips.length > 0) {
-      setSelectedTripId(Number(trips[0].id));
-    }
-  }, [selectedTripId, trips]);
 
-  // Đổi chuyến thì reset panel/khách ngoài biên chế để không lẫn dữ liệu giữa các chuyến.
-  useEffect(() => {
-    setExtraPassengers([]);
-    setShowAddPassengerPanel(false);
-  }, [selectedTripId]);
-
-  // Lắng nghe MQTT để bảng tự cập nhật khi tài xế/admin khác thay đổi điểm danh hoặc khóa lượt.
+  // Lắng nghe MQTT để bảng tự cập nhật khi trưởng xe khác thay đổi điểm danh hoặc khóa lượt.
   useTransactionRealtime({
     selectedTripId,
     refetchBusRoundStatuses,
@@ -138,53 +143,8 @@ const TransactionPage: React.FC = () => {
     refetchTransactions,
   });
 
-  // Nếu chưa chọn xe nào thì chọn toàn bộ xe của chuyến; nếu danh sách xe đổi thì loại xe không còn hợp lệ.
-  useEffect(() => {
-    if (!buses.length) {
-      setSelectedBusIds((prev) => (prev.length ? [] : prev));
-      return;
-    }
-
-    setSelectedBusIds((prev) => {
-      if (!prev.length) {
-        const next = buses.map((b) => Number(b.id));
-        return areNumberArraysEqual(prev, next) ? prev : next;
-      }
-      const valid = prev.filter((id) => buses.some((b) => Number(b.id) === id));
-      const next = valid.length ? valid : buses.map((b) => Number(b.id));
-      return areNumberArraysEqual(prev, next) ? prev : next;
-    });
-  }, [buses]);
 
 
-  // Tương tự xe: mặc định chọn toàn bộ chặng và tự dọn id chặng không còn tồn tại.
-  useEffect(() => {
-    if (!rounds.length) {
-      setSelectedRoundIds((prev) => (prev.length ? [] : prev));
-      return;
-    }
-
-    setSelectedRoundIds((prev) => {
-      if (!prev.length) {
-        const next = rounds.map((r) => Number(r.id));
-        return areNumberArraysEqual(prev, next) ? prev : next;
-      }
-      const valid = prev.filter((id) => rounds.some((r) => Number(r.id) === id));
-      const next = valid.length ? valid : rounds.map((r) => Number(r.id));
-      return areNumberArraysEqual(prev, next) ? prev : next;
-    });
-  }, [rounds]);
-
-  // Nếu filter lượt đi/lượt về trỏ tới chặng đã bỏ chọn thì reset filter đó.
-  useEffect(() => {
-    if (departureRoundFilter && !selectedRoundIds.includes(departureRoundFilter)) {
-      setDepartureRoundFilter(null);
-    }
-
-    if (returnRoundFilter && !selectedRoundIds.includes(returnRoundFilter)) {
-      setReturnRoundFilter(null);
-    }
-  }, [departureRoundFilter, returnRoundFilter, selectedRoundIds]);
 
   // Quản lý draft local/offline và trả về storageKey để useTransactionSync biết queue nào cần xử lý.
   const storageKey = useTransactionDraftStorage({
@@ -198,7 +158,9 @@ const TransactionPage: React.FC = () => {
   // Map dữ liệu transaction theo key passengerId_roundId để đọc trạng thái từng ô nhanh hơn.
   const txMap = useTransactionMap(transactions);
 
-  // Sau khi server trả dữ liệu mới, xóa các draft đã trùng với DB để không còn báo "chưa lưu".
+  // Sau khi server trả dữ liệu mới, xóa draft đã trùng DB.
+  // Đây là điểm "chốt": khi MQTT worker đã ghi DB và refetch trả dữ liệu mới,
+  // trạng thái tạm trong draftMap không còn cần nữa.
   useEffect(() => {
     setDraftMap((prev) => {
       let changed = false;
@@ -216,192 +178,49 @@ const TransactionPage: React.FC = () => {
   }, [txMap]);
 
 
-  // Danh sách hành khách chính thức thuộc các xe đang được chọn.
-  const busFilteredPassengers = useMemo<PassengerRow[]>(() => {
-    return passengers
-      .map((p: any) => ({
-        id: Number(p.id),
-        name: p.name || '',
-        tel: p.tel || '',
-        note: p.note || '',
-        busId: p.bus?.id ? Number(p.bus.id) : null,
-        assignedBusId: p.bus?.id ? Number(p.bus.id) : null,
-        busName: p.bus?.busCode || p.bus?.registrationNumber || '',
-        assignedBusName: p.bus?.busCode || p.bus?.registrationNumber || '',
-      }))
-      .filter((p: PassengerRow) => p.busId && selectedBusIds.includes(Number(p.busId)));
-  }, [passengers, selectedBusIds]);
+  const {
+    displayedPassengers,
+    existingPassengerIds,
+    assignedBusByPassengerId,
+  } = useDisplayedPassengers({
+    passengers,
+    transactions,
+    selectedBusIds,
+    buses,
+  });
 
-  // Bổ sung hành khách đã có transaction dù không còn nằm trong xe đang lọc, tránh mất dòng đã điểm danh.
-   const transactionBackedPassengers = useMemo<PassengerRow[]>(() => {
-    const passengersById = new Map<number, PassengerRow>();
-    const passengerDict = new Map(passengers.map((p: any) =>[Number(p.id), p]));
-
-    transactions.forEach((tx) => {
-      const passengerId = Number(tx.passengerId ?? tx.passenger?.id ?? 0);
-      const actualBusId = Number(tx.busId ?? tx.bus?.id ?? 0);
-      const assignedBusId = Number(tx.passenger?.busId ?? tx.passenger?.bus?.id ?? 0);
-      if (!passengerId || !actualBusId) return;
-      const eventBusIds = (tx.events || [])
-        .map((event) => Number(event.busId || 0))
-        .filter(Boolean);
-      const selectedEventBusId = eventBusIds.find((eventBusId) => selectedBusIds.includes(eventBusId));
-
-      const isInActualBusFilter = selectedBusIds.includes(actualBusId);
-      const isInAssignedBusFilter = assignedBusId ? selectedBusIds.includes(assignedBusId) : false;
-      const isInEventBusFilter = Boolean(selectedEventBusId);
-      if (!isInActualBusFilter && !isInAssignedBusFilter && !isInEventBusFilter) return;
-
-      if (passengersById.has(passengerId)) return;
-
-      const assignedFromPassengerList = passengerDict.get(passengerId);
-      const displayBusId = isInActualBusFilter || isInAssignedBusFilter
-        ? actualBusId
-        : selectedEventBusId || actualBusId;
-      const displayBus = buses.find((bus) => Number(bus.id) === Number(displayBusId));
-      const assignedBusName =
-        assignedFromPassengerList?.bus?.busCode ||
-        assignedFromPassengerList?.bus?.registrationNumber ||
-        tx.passenger?.bus?.busCode ||
-        tx.passenger?.bus?.registrationNumber ||
-        '';
-
-      passengersById.set(passengerId, {
-        id: passengerId,
-        name: tx.passenger?.name || '',
-        tel: tx.passenger?.tel || '',
-        note: assignedFromPassengerList?.note || tx.passenger?.note || '',
-        busId: displayBusId,
-        assignedBusId: assignedFromPassengerList?.bus?.id
-          ? Number(assignedFromPassengerList.bus.id)
-          : assignedBusId || null,
-        busName: displayBus?.busCode || displayBus?.registrationNumber || tx.bus?.busCode || tx.bus?.registrationNumber || '',
-        assignedBusName,
-      });
-    });
-
-    return Array.from(passengersById.values());
-  }, [transactions, selectedBusIds, passengers, buses]);
-
-  
-
-  // Thêm khách ngoài biên chế vào danh sách tạm trên màn, chưa lưu DB ngay.
-  const addExtraPassenger = (passenger: PassengerRow) => {
-    setExtraPassengers((prev) => {
-      if(prev.some(p => p.id === passenger.id)) return prev;
-      return [...prev, passenger];
-    });
-  };
-
-  // Chỉ cho xóa khỏi bảng nếu khách không thuộc biên chế xe hiện tại.
-  const canRemovePassenger = (row: PassengerRow) => {
-    const assignedBusId = assignedBusByPassengerId.get(Number(row.id));
-    if (!assignedBusId) return false;
-    return !selectedBusIds.includes(Number(assignedBusId));
-  };
-
-  // Xóa khách ngoài biên chế khỏi các transaction của chuyến hiện tại và dọn draft liên quan.
-  const handleRemovePassengerFromTransaction = async (row: PassengerRow) => {
-    if (!selectedTripId) return;
-
-    if (!canRemovePassenger(row)) {
-      enqueueSnackbar('Không được xóa khách thuộc biên chế xe bạn quản lý. Chỉ được xóa khách thuộc xe khác.', { variant: 'warning' });
-      return;
-    }
-
-    const ok = window.confirm(`Xóa khách ${row.name} khỏi transaction của chuyến hiện tại?`);
-    if (!ok) return;
-
-    try {
-      const txToDelete = transactions.filter((tx) => {
-        const passengerId = Number(tx.passengerId ?? tx.passenger?.id ?? 0);
-        const tripId = Number(tx.round?.tripId ?? 0);
-        return passengerId === Number(row.id) && tripId === Number(selectedTripId);
-      });
-
-      if (txToDelete.length > 0) {
-        await Promise.all(txToDelete.map((tx) => api.deleteTransaction(String(tx.id))));
-      }
-
-      setDraftMap((prev) => {
-        const next = { ...prev };
-        Object.keys(next).forEach((key) => {
-          if (key.startsWith(`${row.id}_`)) {
-            delete next[key];
-          }
-        });
-        return next;
-      });
-
-      setExtraPassengers((prev) => prev.filter((p) => p.id !== row.id));
-
-      await Promise.all([refetchTransactions(), refetchPassengers()]);
-      enqueueSnackbar('Đã xóa khách khỏi bảng điểm danh', { variant: 'success' });
-    } catch (error: any) {
-      const message =
-        error?.status === 409
-          ? 'Không thể xóa khách đang có trạng thái điểm danh. Hãy bỏ tick điểm danh trước khi xóa khỏi bảng.'
-          : error?.message || 'Không thể xóa khách khỏi bảng điểm danh';
-
-      enqueueSnackbar(message, { variant: 'error' });
-    }
-  };
-
-  // Gỡ khách ngoài biên chế khỏi danh sách tạm khi chưa xác nhận lưu.
-  const removeExtraPassenger = (passengerId: number) => {
-    setExtraPassengers((prev) => prev.filter((p) => p.id !== passengerId));
-  };
-
- 
-
-  // Gộp khách chính thức và khách có transaction thành danh sách hiển thị, tránh trùng theo passenger id.
-  const displayedPassengers = useMemo<PassengerRow[]>(() => {
-    const map = new Map<number, PassengerRow>();
-    busFilteredPassengers.forEach((p) => map.set(p.id, p));
-    transactionBackedPassengers.forEach((p) => map.set(p.id, p));
-    return Array.from(map.values());
-  }, [busFilteredPassengers, transactionBackedPassengers]);
-
-  const existingPassengerIds = useMemo(() => displayedPassengers.map((p) => p.id), [displayedPassengers]);
-
-  // Tạo map passenger -> bus được phân công để kiểm tra quyền xóa/hiển thị.
-  const assignedBusByPassengerId = useMemo(() => {
-    const map = new Map<number, number | null>();
-
-    displayedPassengers.forEach((p) => {
-      map.set(Number(p.id), p.assignedBusId ?? null);
-    });
-
-    return map;
-  }, [displayedPassengers]);
-
-  
   // Chỉ lấy các chặng đang được chọn để dựng cột bảng và tính tổng.
   const selectedRounds = useMemo(
     () => rounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
     [rounds, selectedRoundIds]
   );
 
-  const extraPassengerTargetBusId = selectedBusIds.length === 1 ? Number(selectedBusIds[0]) : selectedBusIds[0] ?? null;
+  const {
+    showAddPassengerPanel,
+    setShowAddPassengerPanel,
+    extraPassengers,
+    extraPassengerRoundConfirmed,
+    addExtraPassenger,
+    removeExtraPassenger,
+    handleConfirmAllExtraPassengers,
+    handleRemovePassengerFromTransaction,
+    canRemovePassenger,
+  } = useExtraPassengers({
+    selectedTripId,
+    selectedBusIds,
+    selectedRoundIds,
+    selectedRounds,
+    busRoundStatuses,
+    transactions,
+    assignedBusByPassengerId,
+    setDraftMap,
+    refetchTransactions,
+    refetchPassengers,
+  });
 
-  // Không cho thêm khách ngoài biên chế nếu chặng của xe đã được tài xế xác nhận hoàn tất.
-  const extraPassengerRoundConfirmed = useMemo(() => {
-    if (!extraPassengerTargetBusId || !selectedRounds.length) {
-      return false;
-    }
-
-    return selectedRounds.some((round) => {
-      const status = busRoundStatuses.find(
-        (item) =>
-          Number(item.busId) === Number(extraPassengerTargetBusId) &&
-          Number(item.roundId) === Number(round.id)
-      );
-
-      return Boolean(status?.driverConfirmedBy);
-    });
-  }, [busRoundStatuses, extraPassengerTargetBusId, selectedRounds]);
-
-  // Lấy trạng thái ô: draft đang sửa sẽ đè lên dữ liệu DB, nhưng ghi chú chưa touched vẫn lấy từ DB.
+  // Lấy trạng thái ô để render bảng.
+  // Ưu tiên draftMap trước txMap để UI hiển thị ngay thao tác vừa tick, thay vì phải chờ MQTT -> worker -> DB -> refetch API.
+  // Nếu chưa có draft thì dùng txMap, tức dữ liệu thật từ DB/API.
   const getCell = (passengerId: number, roundId: number): DraftCell | null => {
     const key = keyOf(passengerId, roundId);
     const draft = draftMap[key];
@@ -417,7 +236,10 @@ const TransactionPage: React.FC = () => {
     };
   };
 
-  // Cập nhật một ô điểm danh/ghi chú trên màn, đồng thời chặn sửa nếu lượt đã bị khóa.
+  // Cập nhật một ô điểm danh/ghi chú trên màn.
+  // Hàm này chỉ ghi vào draftMap, chưa ghi DB trực tiếp; useTransactionSync sẽ lấy
+  // các draft khác DB để đưa vào offline queue rồi publish MQTT.
+  // Cách này vừa tạo optimistic UI cho online, vừa hỗ trợ offline queue.
   const setCell = (payload: Partial<DraftCell>) => {
     
   if (payload.passengerId === undefined || payload.roundId === undefined || payload.busId === undefined) {
@@ -545,60 +367,15 @@ const TransactionPage: React.FC = () => {
   }, [displayedPassengers, departureRoundFilter, returnRoundFilter, txMap, draftMap]);
 
   // Những ô khác DB sẽ được coi là dirty và đưa vào queue lưu/sync.
+  // So sánh draftMap với txMap giúp biết chính xác ô nào cần gửi lên MQTT.
   const dirtyEntries = useMemo(
     () => Object.values(draftMap).filter((entry) => !isSameCell(entry, txMap[keyOf(entry.passengerId, entry.roundId)])),
     [draftMap, txMap]
   );
 
-  // Tạo mô tả ngắn về các thay đổi chưa lưu để debug và hiển thị trạng thái sync.
-  const dirtyEntryDetails = useMemo(() => {
-    const busLabelById = new Map(
-      buses.map((bus) => [
-        Number(bus.id),
-        bus.busCode || bus.registrationNumber || `Xe #${bus.id}`,
-      ])
-    );
-    const passengerLabelById = new Map(displayedPassengers.map((passenger) => [Number(passenger.id), passenger.name || `Khách #${passenger.id}`]));
-    const roundLabelById = new Map(rounds.map((round) => [Number(round.id), round.name || `Chặng #${round.id}`]));
-    const yesNo = (value?: boolean) => (value ? 'Có' : 'Không');
-    const busLabel = (busId?: number | null) => (busId ? busLabelById.get(Number(busId)) || `Xe #${busId}` : 'Trống');
-
-    return dirtyEntries.slice(0, 5).map((entry) => {
-      const base = txMap[keyOf(entry.passengerId, entry.roundId)];
-      const changes: string[] = [];
-
-      if (entry.checkIn !== Boolean(base?.checkIn)) {
-        changes.push(`lượt đi DB=${yesNo(base?.checkIn)} -> màn=${yesNo(entry.checkIn)}`);
-      }
-
-      if (entry.checkOut !== Boolean(base?.checkOut)) {
-        changes.push(`lượt về DB=${yesNo(base?.checkOut)} -> màn=${yesNo(entry.checkOut)}`);
-      }
-
-      if (entry.checkIn && Number(entry.checkInBusId ?? entry.busId) !== Number(base?.checkInBusId ?? base?.busId ?? entry.busId)) {
-        changes.push(`xe lượt đi DB=${busLabel(base?.checkInBusId ?? base?.busId)} -> màn=${busLabel(entry.checkInBusId ?? entry.busId)}`);
-      }
-
-      if (entry.checkOut && Number(entry.checkOutBusId ?? entry.busId) !== Number(base?.checkOutBusId ?? base?.busId ?? entry.busId)) {
-        changes.push(`xe lượt về DB=${busLabel(base?.checkOutBusId ?? base?.busId)} -> màn=${busLabel(entry.checkOutBusId ?? entry.busId)}`);
-      }
-
-      if (entry.checkInNoteTouched && normalizeNote(entry.checkInNote) !== normalizeNote(base?.checkInNote)) {
-        changes.push(`ghi chú lượt đi DB="${normalizeNote(base?.checkInNote)}" -> màn="${normalizeNote(entry.checkInNote)}"`);
-      }
-
-      if (entry.checkOutNoteTouched && normalizeNote(entry.checkOutNote) !== normalizeNote(base?.checkOutNote)) {
-        changes.push(`ghi chú lượt về DB="${normalizeNote(base?.checkOutNote)}" -> màn="${normalizeNote(entry.checkOutNote)}"`);
-      }
-
-      return `${passengerLabelById.get(Number(entry.passengerId)) || `Khách #${entry.passengerId}`} - ${roundLabelById.get(Number(entry.roundId)) || `Chặng #${entry.roundId}`}: ${changes.join('; ') || 'draft khác DB'}`;
-    });
-  }, [buses, dirtyEntries, displayedPassengers, rounds, txMap]);
-
   // Hook này xử lý lưu/sync dirty entries, bao gồm cả chế độ offline.
   useTransactionSync({
     dirtyEntries,
-    dirtyEntryDetails,
     enabled: !transactionsLoading,
     selectedTripId,
     storageKey,
@@ -608,53 +385,9 @@ const TransactionPage: React.FC = () => {
 
   const isLoading = tripsLoading || busesLoading || roundsLoading || passengersLoading || transactionsLoading;
 
-  // Lưu toàn bộ khách ngoài biên chế vào DB cho các chặng đang chọn.
-  const handleConfirmAllExtraPassengers = async () => {
-    if (extraPassengers.length === 0 || !selectedTripId) return;
-
-    if (extraPassengerRoundConfirmed) {
-      enqueueSnackbar('Chặng đã xác nhận hoàn tất, không thể thêm khách ngoài biên chế.', { variant: 'warning' });
-      return;
-    }
-    
-    try {
-    
-      // Mỗi khách ngoài biên chế cần một transaction cho từng chặng được chọn.
-      const savePromises = extraPassengers.flatMap((passenger) => 
-        selectedRoundIds.map((roundId) => 
-          api.createTransaction({
-            passengerId: passenger.id,
-            roundId: roundId,
-            busId: passenger.busId!,
-            checkIn: false,
-            checkOut: false,
-            checkInNote: null,
-            checkOutNote: null,
-          })
-        )
-      );
-      await Promise.all(savePromises);
-      enqueueSnackbar('Đã thêm khách ngoài biên chế vào bảng', { variant: 'success' });
-      await Promise.all([refetchTransactions(), refetchPassengers()]);
-      setExtraPassengers([]);
-      setShowAddPassengerPanel(false);
-    }catch(error: any) {
-      const conflictMessage =
-        error?.status === 409 && typeof error?.message === 'string'
-          ? error.message.split(' - ').pop()
-          : null;
-      enqueueSnackbar(
-        conflictMessage || error?.message || 'Có lỗi xảy ra khi thêm khách ngoài biên chế',
-        { variant: 'error' }
-      );
-    } 
-  };
   return (
     <div className="animate-fade-in p-0 p-md-3 transaction-page pb-5" style={pageThemeVars}>
-      
           <TransactionHeader>{null}</TransactionHeader>
-
-
       {/* Filters Toolbar - Đã gọn hóa */}
       <div className="transaction-filter-card p-3 mb-4 shadow-sm">
         <div ref={filterDropdownRef}>
@@ -798,6 +531,7 @@ const TransactionPage: React.FC = () => {
         <CompleteRoundPanel
             selectedRounds={selectedRounds}
             selectedBusIds={selectedBusIds}
+            buses={buses}
             busRoundStatuses={busRoundStatuses}
             onSuccess={() => { refetchTransactions(); refetchLocks(); refetchBusRoundStatuses(); }}
           />

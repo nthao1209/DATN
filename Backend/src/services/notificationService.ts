@@ -13,6 +13,7 @@ export interface NotificationCreateInput {
 }
 
 export const createNotification = (prisma: NotificationWriteClient, input: NotificationCreateInput) => {
+  // Ghi notification vào DB; realtime nếu cần sẽ được publish riêng qua MQTT service.
   return prisma.notification.create({
     data: {
       userId: input.userId,
@@ -29,6 +30,8 @@ export const getTenantAdminRecipient = async (
   tenantId: number,
   roleIds: number[] = [2],
 ) => {
+  // Chọn một admin của tenant làm người nhận thông báo nghiệp vụ như mở khóa/sai xe.
+  // orderBy giúp kết quả ổn định nếu tenant có nhiều admin.
   const recipient = await prisma.userTenant.findFirst({
     where: {
       tenantId,

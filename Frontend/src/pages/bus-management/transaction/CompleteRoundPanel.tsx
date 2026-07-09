@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { CheckCircle2, TriangleAlert, Info } from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import api from '../../../services/api';
-import type { RoundOption } from './types';
+import type { BusOption, RoundOption } from './types';
 import './CompleteRoundPanel.css';
 
 type BusRoundStatus = {
@@ -16,6 +16,7 @@ type BusRoundStatus = {
 interface CompleteRoundPanelProps {
   selectedRounds: RoundOption[];
   selectedBusIds: number[];
+  buses: BusOption[];
   busRoundStatuses: BusRoundStatus[];
   onSuccess: () => void;
 }
@@ -23,6 +24,7 @@ interface CompleteRoundPanelProps {
 const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
   selectedRounds,
   selectedBusIds,
+  buses,
   busRoundStatuses,
   onSuccess,
 }) => {
@@ -31,6 +33,13 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
 
   const selectedBusId = selectedBusIds.length === 1 ? Number(selectedBusIds[0]) : null;
   const selectedRound = selectedRounds.length === 1 ? selectedRounds[0] : null;
+  const selectedBus = selectedBusId
+    ? buses.find((bus) => Number(bus.id) === selectedBusId)
+    : null;
+  const selectedBusLabel =
+    selectedBus?.busCode ||
+    selectedBus?.registrationNumber ||
+    (selectedBusId ? `Xe #${selectedBusId}` : '');
 
   const currentStatus = useMemo(() => {
     if (!selectedBusId || !selectedRound) return null;
@@ -61,7 +70,7 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
       return;
     }
 
-    const label = `chặng ${selectedRound.name || selectedRound.id} cho xe ${selectedBusId}`;
+    const label = `chặng ${selectedRound.name || selectedRound.id} cho xe ${selectedBusLabel || selectedBusId}`;
     if (!window.confirm(`Xác nhận hoàn thành ${label}?`)) {
       return;
     }
@@ -99,7 +108,7 @@ const CompleteRoundPanel: React.FC<CompleteRoundPanelProps> = ({
             <div className="fw-semibold main-text">
               {selectedBusIds.length === 1 && selectedRounds.length === 1 ? (
                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                  <span>Xe {selectedBusId}</span>
+                  <span>{selectedBusLabel}</span>
                   <span className="dot-divider">•</span>
                   <span>{selectedRound?.name || selectedRound?.id}</span>
                   

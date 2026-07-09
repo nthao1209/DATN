@@ -7,6 +7,7 @@ export interface AppConfig {
         path?: string;
         topic: string;
         uiTopicPrefix?: string;
+        dashboardTopicPrefix?: string;
         username: string;
         password: string;
         qos?: 0 | 1 | 2;

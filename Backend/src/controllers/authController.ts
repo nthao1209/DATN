@@ -5,6 +5,7 @@ import admin from "../config/firebaseAdmin";
 
 
 const getSystemSuperAdminEmails = () => {
+  // Super admin hệ thống được cấu hình qua biến môi trường, không phụ thuộc tenant.
   const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
   const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
 
@@ -16,6 +17,7 @@ const getSystemSuperAdminEmails = () => {
 
 
 export const syncUser = async (req: AuthRequest, res: Response) => {
+  // Sau khi Firebase tạo tài khoản, frontend gọi endpoint này để đồng bộ user vào PostgreSQL.
   const { email, firebaseUid, name } = req.body;
 
   if (!email || !firebaseUid) {
@@ -36,6 +38,7 @@ export const syncUser = async (req: AuthRequest, res: Response) => {
       getSystemSuperAdminEmails().includes(String(firebaseUid));
 
     if (isSystemSuperAdmin) {
+      // Super admin dùng tenantId null để phân biệt quyền hệ thống với quyền trong từng tổ chức.
       await prisma.userTenant.deleteMany({
         where: { userId: user.id, tenantId: null },
       });
@@ -53,6 +56,7 @@ export const syncUser = async (req: AuthRequest, res: Response) => {
 
 export const getMyStatus = async (req: AuthRequest, res: Response) => {
   try {
+    // Endpoint này là bước backend xác nhận session: trả user, danh sách tenant và role tương ứng.
     const userId = req.user?.id;
 
     if (!userId) {
@@ -71,7 +75,13 @@ export const getMyStatus = async (req: AuthRequest, res: Response) => {
           req.user.firebaseUid
         ));
 
+    await prisma.user.update({
+      where: { id: userId },
+      data: { latestData: new Date() },
+    });
+
     const userTenants = await prisma.userTenant.findMany({
+      // Một user có thể thuộc nhiều tổ chức, mỗi tổ chức có role riêng.
       where: { userId },
       include: {
         tenant: true,

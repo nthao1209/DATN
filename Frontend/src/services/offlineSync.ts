@@ -25,7 +25,6 @@ export const OFFLINE_QUEUE_SYNCED_EVENT = 'attendance-offline-sync-complete';
 
 const isBrowser = () => typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 const queueMatchKey = (action: Pick<OfflineAction, 'tripId' | 'passengerId' | 'roundId' | 'storageKey'>) =>
-  // Một ô điểm danh chỉ cần một action mới nhất trong queue, tránh gửi nhiều bản cũ.
   `${action.storageKey || ''}:${action.tripId}:${action.passengerId}:${action.roundId}`;
 
 const migrateOfflineAction = (action: OfflineAction & { note?: string }): OfflineAction => {

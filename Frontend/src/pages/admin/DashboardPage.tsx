@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../redux/store';
 import { 
@@ -9,80 +8,29 @@ import {
 import StatCard from '../../components/StatCard';
 import { useTheme } from '../../theme/ThemeContext';
 import { useSnackbar } from 'notistack';
-import api from '../../services/api';
-import { subscribeMqttTopics } from '../../services/mqtt';
 import { canViewJoinCode } from '../../auth/rbac';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area,Cell, PieChart, Pie 
 } from 'recharts';
-
-const formatCount = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
+import { useDashboardData } from './dashboard/useDashboardData';
+import {
+  buildAttendanceSummary,
+  buildTripCards,
+  formatCount,
+} from './dashboard/dashboardStats';
+import { usePageThemeVars } from '../../hooks/usePageThemeVars';
 
 const Dashboard: React.FC = () => {
   const { colors, isDarkMode } = useTheme();
+  const pageThemeVars = usePageThemeVars();
   const { enqueueSnackbar } = useSnackbar();
-  const realtimeRefreshTimerRef = useRef<number | null>(null);
   const { currentTenant, roleId } = useSelector((state: RootState) => state.auth);
   const canSeeJoinCode = canViewJoinCode(roleId);
-  const tenantKey = currentTenant?.id ? String(currentTenant.id) : 'no-tenant';
-  const tenantDashboardTopic = currentTenant?.id ? `dashboard/tenant/${currentTenant.id}` : null;
-
-  const { data: trips = [], refetch: refetchTrips } = useQuery<any[]>({
-    queryKey: ['dashboard-trips', tenantKey],
-    queryFn: api.getTrips,
-  });
-
-  const tripIds = useMemo(
-    () => trips.map((trip: any) => Number(trip.id)).filter((id: number) => Number.isFinite(id) && id > 0),
-    [trips]
-  );
-
-  const { data: buses = [], refetch: refetchBuses } = useQuery<any[]>({
-    queryKey: ['dashboard-buses', tenantKey, tripIds.join(',')],
-    enabled: tripIds.length > 0,
-    queryFn: async () => {
-      const busesByTrip = await Promise.all(tripIds.map((tripId) => api.getBuses(String(tripId))));
-      return busesByTrip.flat();
-    },
-  });
-
-  const { data: rounds = [], refetch: refetchRounds } = useQuery<any[]>({
-    queryKey: ['dashboard-rounds', tenantKey, tripIds.join(',')],
-    enabled: tripIds.length > 0,
-    queryFn: async () => {
-      const roundsByTrip = await Promise.all(tripIds.map((tripId) => api.getRounds(String(tripId))));
-      return roundsByTrip.flat();
-    },
-  });
-
-  const { data: passengers = [], refetch: refetchPassengers } = useQuery<any[]>({
-    queryKey: ['dashboard-passengers', tenantKey, tripIds.join(',')],
-    enabled: tripIds.length > 0,
-    queryFn: async () => {
-      const passengersByTrip = await Promise.all(tripIds.map((tripId) => api.getPassengers(String(tripId))));
-      return passengersByTrip.flat();
-    },
-  });
-
-  const { data: transactions = [], refetch: refetchTransactions } = useQuery<any[]>({
-    queryKey: ['dashboard-transactions', tenantKey],
-    queryFn: api.getTransactions,
-  });
+  const { trips, buses, rounds, passengers, transactions } = useDashboardData(currentTenant?.id);
 
   const tripCards = useMemo(() => {
-    return trips.map((trip: any) => {
-      const tripId = Number(trip.id);
-      const passengersOfTrip = passengers.filter((passenger: any) => Number(passenger.bus?.trip?.id) === tripId);
-      return {
-        id: tripId,
-        name: trip.name || `Trip ${tripId}`,
-        status: String(trip.status || '').toUpperCase(),
-        busCount: Number(trip?._count?.buses || buses.filter((bus: any) => Number(bus.trip?.id) === tripId).length),
-        roundCount: Number(trip?._count?.rounds || rounds.filter((round: any) => Number(round.trip?.id) === tripId).length),
-        passengerCount: passengersOfTrip.length,
-      };
-    });
+    return buildTripCards({ trips, buses, rounds, passengers });
   }, [buses, passengers, rounds, trips]);
 
   const activeTrips = tripCards.filter((trip) => trip.status === 'DOING').length;
@@ -92,51 +40,9 @@ const Dashboard: React.FC = () => {
   const totalRounds = rounds.length;
   const totalPassengers = passengers.length;
   const completedRounds = rounds.filter((round: any) => String(round.status || '').toUpperCase() === 'DONE').length;
-  
-  const refetchDashboardData = async () => {
-    await Promise.all([
-      refetchTrips(),
-      refetchBuses(),
-      refetchRounds(),
-      refetchPassengers(),
-      refetchTransactions(),
-    ]);
-  };
-
-
-
-  useEffect(() => {
-    if (!tenantDashboardTopic) return;
-
-    const subscription = subscribeMqttTopics([tenantDashboardTopic], () => {
-      // Debounce nhẹ để gộp nhiều event realtime đến gần nhau.
-      if (realtimeRefreshTimerRef.current !== null) return;
-
-      realtimeRefreshTimerRef.current = window.setTimeout(async () => {
-        realtimeRefreshTimerRef.current = null;
-        await refetchDashboardData();
-      }, 500);
-    });
-
-    return () => {
-      if (realtimeRefreshTimerRef.current !== null) {
-        window.clearTimeout(realtimeRefreshTimerRef.current);
-        realtimeRefreshTimerRef.current = null;
-      }
-
-      subscription.end(true);
-    };
-  }, [
-    tenantDashboardTopic,
-    refetchTrips,
-    refetchBuses,
-    refetchRounds,
-    refetchPassengers,
-    refetchTransactions,
-  ]);
-
-
-
+  const attendanceSummary = useMemo(() => {
+    return buildAttendanceSummary(transactions);
+  }, [transactions]);
   const copyJoinCode = () => {
     if (currentTenant?.joinCode) {
       navigator.clipboard.writeText(currentTenant.joinCode);
@@ -179,7 +85,7 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in dashboard-page" style={pageThemeVars}>
       <div className="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-5">
         <div>
           <div className="d-flex align-items-center gap-2 text-primary mb-2">
@@ -273,8 +179,13 @@ const Dashboard: React.FC = () => {
         <div className="col-12 col-md-6 col-xl-3">
           <StatCard 
             title="Điểm danh" 
-            value={formatCount(transactions.length)} 
+            value={`${formatCount(attendanceSummary.checkInCount)}/${formatCount(attendanceSummary.checkOutCount)}`} 
             icon={<TrendingUp size={24} />}
+            trend={
+              <span style={{ color: colors.textPrimary }}>
+                check-in / check-out
+              </span>
+            }
             color="var(--bs-warning)" 
           />
         </div>

@@ -1,68 +1,84 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Map } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import api from '../../services/api';
 import { buildRoundColumns } from './round/columns';
-import { useRoundLocks } from '../../hooks/useRoundLocks';
-import { useTheme } from '../../theme/ThemeContext'; 
+import { useTheme } from '../../theme/ThemeContext';
 import './RoundPage.css';
 import type { RoundRow } from './round/types';
+import { buildRoundRows, isNewRoundRowDirty, isSameRoundRow, makeRoundLocalId } from './round/helpers';
 import LockRoundModal from './round/LockRoundModal';
 import { useSnackbar } from 'notistack';
 import { useRegisterUnsavedChanges } from '../../components/common/UnsavedChangesContext';
-import { subscribeMqttTopics } from '../../services/mqtt';
 import EditableTableCard from '../../components/admin/EditableTableCard';
 import PageTitle from '../../components/admin/PageTitle';
 import SaveChangesAction from '../../components/admin/SaveChangesAction';
 import { usePageThemeVars } from '../../hooks/usePageThemeVars';
+import { useAttendanceRealtimeInvalidation } from '../../hooks/useAttendanceRealtimeInvalidation';
+import { useEditableRows } from '../../hooks/useEditableRows';
+import { useRoundLockManagement } from './round/useRoundLockManagement';
 
-const makeLocalId = () => `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-const MIN_ROWS = 1;
 const EMPTY_ROUNDS: any[] = [];
 const EMPTY_TRANSACTIONS: any[] = [];
 const EMPTY_BUSES: any[] = [];
-const EMPTY_UNLOCK_REQUESTS: any[] = [];
+
+const createEmptyRoundRow = (): RoundRow => ({
+  localId: makeRoundLocalId(),
+  name: '',
+  time: '',
+  status: 'DOING',
+  transactionCount: 0,
+  passengerCount: 0,
+  busCount: 0,
+  completedBusCount: 0,
+});
 
 const RoundPage: React.FC = () => {
   const { colors, isDarkMode } = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const pageThemeVars = usePageThemeVars();
   const { id: tripId } = useParams<{ id: string }>();
-  const queryClient = useQueryClient();
-  const [rows, setRows] = useState<RoundRow[]>([]);
-  const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [focusRowKey, setFocusRowKey] = useState<string | number | null>(null);
-  const [focusRowSignal, setFocusRowSignal] = useState(0);
-  const initialRowsByIdRef = useRef<Record<number, RoundRow>>({});
-  const [openLockModal, setOpenLockModal] = useState<{
-    roundId: number;
-    lockType: 'check_in' | 'check_out';
-  } | null>(null);
 
-  // --- DATA FETCHING ---
   const { data: roundsData, isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ['rounds', tripId],
     queryFn: () => api.getRounds(String(tripId)),
     enabled: !!tripId,
   });
-
   const rounds = roundsData ?? EMPTY_ROUNDS;
 
   const { data: transactionsData } = useQuery<any[]>({
-    // RoundPage tự đếm check-in/check-out theo chặng từ transaction, không lấy _count từ backend.
     queryKey: ['round-transactions', tripId],
     queryFn: () => api.getTransactions(),
     enabled: !!tripId,
   });
-
   const transactions = transactionsData ?? EMPTY_TRANSACTIONS;
 
-  const { lockStatuses = [], refetchLocks } = useRoundLocks(
-    tripId ? Number(tripId) : null,
-    () => null
+  const roundRealtimeQueryKeys = useMemo(
+    () => [
+      ['round-transactions', tripId],
+      ['rounds', tripId],
+      ['bus-round-locks', tripId],
+    ],
+    [tripId]
   );
+
+  useAttendanceRealtimeInvalidation({
+    tripId: tripId ? Number(tripId) : null,
+    queryKeys: roundRealtimeQueryKeys,
+  });
+
+  const {
+    openLockModal,
+    setOpenLockModal,
+    lockStatuses,
+    unlockRequests,
+    refetchUnlockRequests,
+    toggling,
+    toggleLock,
+    handleUnlockRequest,
+  } = useRoundLockManagement({ tripId, enqueueSnackbar });
 
   const { data: busesData } = useQuery<any[]>({
     queryKey: ['buses', tripId],
@@ -70,130 +86,25 @@ const RoundPage: React.FC = () => {
     enabled: !!tripId,
   });
   const buses = busesData ?? EMPTY_BUSES;
-  const { data: unlockRequestsData, refetch: refetchUnlockRequests } = useQuery<any[]>({
-    queryKey: ['unlock-requests', tripId, openLockModal?.roundId],
-    queryFn: async () => {
-      const response = await api.getPendingUnlockRequests(String(tripId), String(openLockModal?.roundId));
-      return Array.isArray(response) ? response : [];
-    },
-    enabled: !!tripId && !!openLockModal?.roundId,
+
+  const {
+    rows,
+    deletedIds,
+    resetDeletedIds,
+    focusRowKey,
+    focusRowSignal,
+    isRowDirty,
+    dirtyCount,
+    handleCellChange,
+    handleAddRow,
+    handleDeleteRow,
+  } = useEditableRows<RoundRow>({
+    buildRows: () => buildRoundRows({ rounds, transactions, lockStatuses, buses }),
+    resetDeps: [rounds, transactions, lockStatuses, buses],
+    isSameRow: isSameRoundRow,
+    isNewRowDirty: isNewRoundRowDirty,
+    createRow: createEmptyRoundRow,
   });
-  const unlockRequests = unlockRequestsData ?? EMPTY_UNLOCK_REQUESTS;
-
-  
-
-  const [toggling, setToggling] = useState<Record<string, boolean>>({});
-
-  // Nghe MQTT để cập nhật trạng thái khóa/yêu cầu mở khóa ngay khi admin hoặc tài xế thao tác.
-  useEffect(() => {
-    const subscription = subscribeMqttTopics(['attendance/ui/locks'], (_topic, message: any) => {
-      if (Number(message?.tripId) !== Number(tripId)) return;
-
-      if (message.type === 'bus.round.lock.updated') {
-        queryClient.setQueryData(['bus-round-locks', tripId], (oldData: any[]) => {
-          if (!oldData) return oldData;
-          return oldData.map((item) =>
-            Number(item.busId) === message.busId && Number(item.roundId) === message.roundId
-              ? {
-                  ...item,
-                  checkInLocked: message.checkInLocked,
-                  checkOutLocked: message.checkOutLocked,
-                }
-              : item
-          );
-        });
-        refetchLocks();
-      }
-      if (
-        message.type === 'unlock.request.created' ||
-        message.type === 'unlock.request.approved' ||
-        message.type === 'unlock.request.rejected'
-      ) {
-        refetchUnlockRequests();
-      }
-    });
-
-    return () => {
-      subscription.end(true);
-    };
-  }, [queryClient, tripId, refetchLocks, refetchUnlockRequests]);
-
-  useEffect(() => {
-    // Map round API thành row hiển thị, kèm số check-in/check-out và số xe đã khóa/hoàn thành.
-    const mapped: RoundRow[] = rounds.map((r: any) => {
-      const roundId = Number(r.id);
-      const checkInTxCount = (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === roundId && Boolean(tx.checkIn)).length;
-      const checkOutTxCount = (transactions || []).filter((tx: any) => Number(tx.roundId ?? tx.round?.id ?? 0) === roundId && Boolean(tx.checkOut)).length;
-
-      const lockedInCount = (lockStatuses || []).filter((s: any) => Number(s.roundId) === roundId && Boolean(s.checkInLocked)).length;
-      const lockedOutCount = (lockStatuses || []).filter((s: any) => Number(s.roundId) === roundId && Boolean(s.checkOutLocked)).length;
-      const busCount = Number(r?.busCount ?? buses.length ?? 0);
-      const completedBusCount = Number(r?.completedBusCount ?? 0);
-
-      return {
-        id: roundId,
-        localId: `db_${r.id}`,
-        name: r.name || '',
-        time: r.time || '',
-        status: r.status === 'DONE' ? 'DONE' : 'DOING',
-        transactionCount: Number(checkInTxCount),
-        checkInCount: Number(checkInTxCount),
-        checkOutCount: Number(checkOutTxCount),
-        passengerCount: Number(r?.passengerCount || 0),
-        busCount,
-        completedBusCount,
-        lockedInCount,
-        lockedOutCount,
-      } as RoundRow;
-    });
-
-    const initialById: Record<number, RoundRow> = {};
-    mapped.forEach((row) => {
-      if (row.id) initialById[row.id] = row;
-    });
-    initialRowsByIdRef.current = initialById;
-
-    const padded = [...mapped];
-    while (padded.length < MIN_ROWS) {
-      padded.push({
-        localId: makeLocalId(),
-        name: '',
-        time: '',
-        status: 'DOING',
-        transactionCount: 0,
-        passengerCount: 0,
-        busCount: buses.length,
-        completedBusCount: 0,
-      });
-    }
-    setRows(padded);
-  }, [rounds, transactions, lockStatuses, buses]);
-
-  const isSameRow = (current: RoundRow, initial: RoundRow) => {
-    // Chỉ name/time/status là field user sửa trực tiếp trên RoundPage.
-    return (
-      current.name.trim() === initial.name.trim() &&
-      current.time.trim() === initial.time.trim() &&
-      current.status === initial.status
-    );
-  };
-
-  const isNewRowDirty = (row: RoundRow) => {
-    return Boolean(row.name.trim() || row.time.trim() || row.status !== 'DOING');
-  };
-
-  useEffect(() => {
-    return () => {
-      setRows((prev) => prev.filter((r) => r.id || isNewRowDirty(r)));
-    };
-  }, []);
-
-  const isRowDirty = (row: RoundRow) => {
-    if (!row.id) return isNewRowDirty(row);
-    const initial = initialRowsByIdRef.current[row.id];
-    if (!initial) return true;
-    return !isSameRow(row, initial);
-  };
 
   const isRowValid = (row: RoundRow) => Boolean(row.name.trim() && row.time.trim());
 
@@ -213,64 +124,8 @@ const RoundPage: React.FC = () => {
     return missing.size ? `Thiếu: ${Array.from(missing).join(', ')}` : 'Vui lòng nhập đủ dữ liệu bắt buộc';
   }, [hasValidationErrors, rows]);
 
-  const dirtyCount = useMemo(() => {
-    const created = rows.filter((r) => !r.id && isNewRowDirty(r)).length;
-    const edited = rows.filter((r) => r.id && isRowDirty(r)).length;
-    return created + edited + deletedIds.length;
-  }, [rows, deletedIds]);
-
   const canSave = dirtyCount > 0 && !hasValidationErrors;
   useRegisterUnsavedChanges(dirtyCount > 0);
-
-  // --- ACTIONS ---
-  const handleCellChange = <K extends keyof RoundRow>(localId: string, key: K, value: RoundRow[K]) => {
-    setRows((prev) =>
-      prev.map((row) => {
-        if (row.localId !== localId) return row;
-        const nextRow = { ...row, [key]: value };
-        if (!row.id) return nextRow;
-        const initial = initialRowsByIdRef.current[row.id];
-        const isEdited = initial ? !isSameRow(nextRow, initial) : true;
-        return { ...nextRow, isEdited };
-      })
-    );
-  };
-
-  const handleAddRow = () => {
-    setRows((prev) => {
-      const hasEmptyNew = prev.some((r) => !r.id && !isNewRowDirty(r));
-      if (hasEmptyNew) {
-        const emptyRow = prev.find((r) => !r.id && !isNewRowDirty(r));
-        if (emptyRow) {
-          setFocusRowKey(emptyRow.localId);
-          setFocusRowSignal((value) => value + 1);
-        }
-        return prev;
-      }
-
-      const localId = makeLocalId();
-      setFocusRowKey(localId);
-      setFocusRowSignal((value) => value + 1);
-      return [
-        ...prev,
-        {
-          localId,
-          name: '',
-          time: '',
-          status: 'DOING',
-          transactionCount: 0,
-          passengerCount: 0,
-          busCount: 0,
-          completedBusCount: 0,
-        },
-      ];
-    });
-  };
-
-  const handleDeleteRow = (row: RoundRow) => {
-    if (row.id) setDeletedIds((prev) => [...new Set([...prev, row.id!])]);
-    setRows((prev) => prev.filter((r) => r.localId !== row.localId));
-  };
 
   const handleSave = async () => {
     if (!tripId) return;
@@ -278,17 +133,18 @@ const RoundPage: React.FC = () => {
       enqueueSnackbar('Vui lòng nhập đủ tên chặng và thời gian trước khi lưu', { variant: 'warning' });
       return;
     }
-    const rowsToCreate = rows.filter((r) => !r.id && r.name.trim() && r.time.trim());
-    const rowsToUpdate = rows.filter((r) => r.id && isRowDirty(r));
+
+    const rowsToCreate = rows.filter((row) => !row.id && row.name.trim() && row.time.trim());
+    const rowsToUpdate = rows.filter((row) => row.id && isRowDirty(row));
 
     try {
       setIsSaving(true);
       await Promise.all([
-        ...rowsToCreate.map((r) => api.createRound(tripId, { name: r.name.trim(), time: r.time.trim(), status: r.status })),
-        ...rowsToUpdate.map((r) => api.updateRound(String(r.id), { name: r.name.trim(), time: r.time.trim(), status: r.status })),
+        ...rowsToCreate.map((row) => api.createRound(tripId, { name: row.name.trim(), time: row.time.trim(), status: row.status })),
+        ...rowsToUpdate.map((row) => api.updateRound(String(row.id), { name: row.name.trim(), time: row.time.trim(), status: row.status })),
         ...deletedIds.map((id) => api.deleteRound(String(id))),
       ]);
-      setDeletedIds([]);
+      resetDeletedIds();
       await refetch();
       enqueueSnackbar('Đã lưu thành công', { variant: 'success' });
     } catch (err: any) {
@@ -306,79 +162,39 @@ const RoundPage: React.FC = () => {
     },
   });
 
-  const toggleLock = async (
-    busId: number,
-    roundId: number,
-    value: boolean,
-    lockType: 'check_in' | 'check_out'
-  ) => {
-    const key = `${busId}_${roundId}_${lockType}`;
-    setToggling((s) => ({ ...s, [key]: true }));
-    try {
-      await api.confirmBusRoundChecks(
-        Number(busId),
-        Number(roundId),
-        lockType === 'check_in' ? { checkInLocked: value } : { checkOutLocked: value }
-      );
-      enqueueSnackbar(
-        `${value ? 'Đã khóa' : 'Đã mở khóa'} ${lockType === 'check_in' ? 'lượt đi' : 'lượt về'} cho xe ${busId}`,
-        { variant: 'success' }
-      );
-      refetchLocks();
-    } catch (err: any) {
-      enqueueSnackbar(err?.message || 'Lỗi khi cập nhật khóa', { variant: 'error' });
-    } finally {
-      setToggling((s) => ({ ...s, [key]: false }));
-    }
-  };
-
-  const handleUnlockRequest = async (
-    requestId: number,
-    status: 'APPROVED' | 'REJECTED',
-    rejectReason?: string
-  ) => {
-    try {
-      if (status === 'APPROVED') {
-        await api.approveUnlockRequest(requestId);
-      } else {
-        await api.rejectUnlockRequest(requestId, {
-          rejectReason,
-        });
-      }
-
-      enqueueSnackbar(
-        status === 'APPROVED'
-          ? 'Đã phê duyệt yêu cầu mở khóa'
-          : 'Đã từ chối yêu cầu mở khóa',
-        { variant: 'success' }
-      );
-      refetchUnlockRequests();
-    } catch (err: any) {
-      enqueueSnackbar(err?.message || 'Lỗi khi xử lý yêu cầu mở khóa', { variant: 'error' });
-    }
-  };
-
   return (
     <div className="animate-fade-in p-0 p-md-3 round-page" style={pageThemeVars}>
       <PageTitle icon={<Map size={22} />} title="Quản lý Chặng đi" />
 
       <EditableTableCard
-          title="Danh sách các chặng"
-          titleActions={<SaveChangesAction dirtyCount={dirtyCount} isSaving={isSaving} canSave={canSave} onSave={handleSave} validationMessage={saveValidationMessage} messageMaxWidth="280px" />}
-          columns={columns}
-          queryKey={['rounds-local', tripId]}
-          data={rows}
-          isLoading={isLoading}
-          isError={isError}
-          onRefresh={() => { setDeletedIds([]); refetch(); refetchUnlockRequests(); }}
-          focusRowKey={focusRowKey}
-          focusRowSignal={focusRowSignal}
-          showAddRow
-          onAddRow={handleAddRow}
-        >
-
+        title="Danh sách các chặng"
+        titleActions={
+          <SaveChangesAction
+            dirtyCount={dirtyCount}
+            isSaving={isSaving}
+            canSave={canSave}
+            onSave={handleSave}
+            validationMessage={saveValidationMessage}
+            messageMaxWidth="280px"
+          />
+        }
+        columns={columns}
+        queryKey={['rounds-local', tripId]}
+        data={rows}
+        isLoading={isLoading}
+        isError={isError}
+        onRefresh={() => {
+          resetDeletedIds();
+          refetch();
+          refetchUnlockRequests();
+        }}
+        focusRowKey={focusRowKey}
+        focusRowSignal={focusRowSignal}
+        showAddRow
+        onAddRow={handleAddRow}
+      >
         {openLockModal !== null && (
-          <LockRoundModal 
+          <LockRoundModal
             roundId={openLockModal.roundId}
             lockType={openLockModal.lockType}
             onClose={() => setOpenLockModal(null)}

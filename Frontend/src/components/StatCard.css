@@ -1,24 +1,48 @@
 .stat-card {
-  border-color: var(--page-border);
-  border-top: 3px solid var(--stat-card-accent);
-  background-color: var(--page-surface);
+  min-height: 178px;
+  border: 1px solid color-mix(in srgb, var(--stat-card-accent) 20%, var(--page-border)) !important;
+  border-top: 3px solid var(--stat-card-accent) !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--stat-card-accent) 8%, var(--page-surface)) 0%,
+      var(--page-surface) 100%
+    ) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--stat-card-accent) 14%, transparent),
-    0 12px 30px rgba(0, 0, 0, 0.08);
+    0 16px 36px rgba(0, 0, 0, 0.16) !important;
 }
 
 .stat-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--stat-card-accent) 14%, transparent);
   color: var(--stat-card-accent);
 }
 
 .stat-card-title {
   margin-bottom: 0.5rem;
-  color: var(--page-text-secondary);
-  font-style: italic;
+  color: var(--page-text-primary);
+  font-size: 0.95rem;
+  font-style: normal;
+  font-weight: 800;
+  opacity: 0.92;
 }
 
 .stat-card-value {
   margin: 0;
   color: var(--stat-card-accent);
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.stat-card .text-muted {
+  color: var(--page-text-secondary) !important;
+  font-weight: 650;
+  opacity: 0.95;
 }

@@ -35,6 +35,7 @@ export const useAuthBootstrap = () => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(fbAuth, async (firebaseUser) => {
+      // syncSeq giúp bỏ qua response cũ nếu Firebase auth state đổi trong lúc request đang chạy.
       const syncSeq = ++authSyncSeqRef.current;
       setIsBootstrapping(true);
 
@@ -55,6 +56,7 @@ export const useAuthBootstrap = () => {
 
         const token = await firebaseUser.getIdToken(true);
 
+        // Kiểm tra lại sau khi lấy token để tránh ghi nhầm session khi user vừa đăng xuất/đổi tài khoản.
         if (syncSeq !== authSyncSeqRef.current || fbAuth.currentUser?.uid !== firebaseUser.uid) {
           return;
         }
@@ -73,6 +75,7 @@ export const useAuthBootstrap = () => {
 
         const status = (response as any)?.data ?? response;
 
+        // Backend là nguồn quyết định tài khoản có bị khóa hay không, frontend chỉ điều hướng theo kết quả.
         if (status?.user?.isDisabled) {
           hadAuthenticatedSessionRef.current = false;
           await signOutAndClear();
@@ -83,6 +86,7 @@ export const useAuthBootstrap = () => {
         hadAuthenticatedSessionRef.current = true;
 
         dispatch(resetAuthState());
+        // Lưu user, token, tenant và role vào Redux để router/API interceptor dùng trong toàn app.
         dispatch(
           authSuccess({
             user: status.user,

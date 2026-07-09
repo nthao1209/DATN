@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+﻿import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import api from '../../../services/api';
 import type { RootState } from '../../../redux/store';
@@ -47,6 +47,8 @@ export const useTransactionData = (selectedTripId: number | null) => {
     queryKey: ['transaction-passengers', tenantKey, selectedTripId],
     queryFn: () => api.getAttendancePassengers(String(selectedTripId)),
     enabled: Boolean(currentTenantId && selectedTripId),
+    refetchInterval: selectedTripId ? 30000 : false, // Tự động refetch dữ liệu hành khách mỗi 30 giây nếu đã chọn chuyến.
+    refetchIntervalInBackground: false,
   });
 
   // Lấy dữ liệu điểm danh đã lưu trong database.

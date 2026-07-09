@@ -1,11 +1,11 @@
-import React, { useEffect,  useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { type RootState } from '../redux/store';
-import { logout } from '../redux/slice/authSlice';
+import { logout, renameCurrentTenantSuccess } from '../redux/slice/authSlice';
 import { 
-  LogOut, ChevronDown,Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert, Copy
+  LogOut, ChevronDown, Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert, Copy, PencilLine
 } from 'lucide-react';
 import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
 import api from '../services/api';
@@ -22,6 +22,7 @@ import {enqueueSnackbar} from 'notistack';
 import { useUnsavedChanges } from './common/UnsavedChangesContext';
 import NotificationBell from './NotificationBell';
 import TenantSelector from './TenantSelector';
+import { getRoleDisplayName } from '../auth/rbac';
 
 const schema = yup.object({
   currentPassword : yup.string().required("Mật khẩu hiện tại không được để trống"),
@@ -38,10 +39,14 @@ const TopBar: React.FC = () => {
   const { colors, isDarkMode, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentTenant, user } = useSelector((state: RootState) => state.auth);
+  const { currentTenant, roleId, user } = useSelector((state: RootState) => state.auth);
+  const isSystemAdmin = Number(roleId) === 1;
   const mqttStatus = useMqttBrokerStatus();
   const { state: unsavedChanges, clearUnsavedChanges } = useUnsavedChanges();
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isRenameTenantOpen, setIsRenameTenantOpen] = useState(false);
+  const [tenantName, setTenantName] = useState(currentTenant?.name || '');
+  const [isRenamingTenant, setIsRenamingTenant] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isDisablingAccount, setIsDisablingAccount] = useState(false);
@@ -75,6 +80,21 @@ const TopBar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChangePasswordOpen]);
 
+  useEffect(() => {
+    if (!isRenameTenantOpen) return;
+
+    setTenantName(currentTenant?.name || '');
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsRenameTenantOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentTenant?.name, isRenameTenantOpen]);
+
   
 
   const statusMeta = {
@@ -100,6 +120,47 @@ const TopBar: React.FC = () => {
     setPasswordError(null);
     resetPasswordForm();
     setIsChangePasswordOpen(true);
+  };
+
+  const canRenameTenant = Number(roleId) === 2 && Boolean(currentTenant?.id);
+
+  const openRenameTenantModal = () => {
+    if (!canRenameTenant) return;
+    setTenantName(currentTenant?.name || '');
+    setIsRenameTenantOpen(true);
+  };
+
+  const closeRenameTenantModal = () => {
+    if (isRenamingTenant) return;
+    setTenantName(currentTenant?.name || '');
+    setIsRenameTenantOpen(false);
+  };
+
+  const handleRenameTenant = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const nextName = tenantName.trim();
+    if (!nextName || nextName === currentTenant?.name) {
+      setIsRenameTenantOpen(false);
+      return;
+    }
+
+    setIsRenamingTenant(true);
+    try {
+      const response: any = await api.renameTenant(nextName);
+      const updatedTenant = response?.tenant ?? response;
+
+      if (updatedTenant) {
+        dispatch(renameCurrentTenantSuccess(updatedTenant));
+      }
+
+      enqueueSnackbar('Đã đổi tên tổ chức thành công', { variant: 'success' });
+      setIsRenameTenantOpen(false);
+    } catch (error: any) {
+      enqueueSnackbar(error?.message || 'Không thể đổi tên tổ chức lúc này. Vui lòng thử lại sau.', { variant: 'error' });
+    } finally {
+      setIsRenamingTenant(false);
+    }
   };
 
   const handleDisableAccount = async () => {
@@ -203,16 +264,20 @@ const TopBar: React.FC = () => {
             
             {/* Quick Actions Group */}
             <div className="d-flex align-items-center gap-1 border-end pe-3 me-2" style={{ borderColor: colors.border }}>
-              <button 
-                className="btn-icon-topbar theme-toggle-btn me-1 px-3 d-flex align-items-center gap-2" 
-                onClick={() => setShowTenantSelector(true)}
-                title="Chuyển tổ chức"
-                style={{ width: 'auto', borderRadius: '8px' }}
-              >
-                <Copy size={16} /> <span className="d-none d-md-inline small fw-bold">Chuyển tổ chức</span>
-              </button>
-              <NotificationBell />
-              
+              {!isSystemAdmin && (
+                <>
+                  <button 
+                    className="btn-icon-topbar theme-toggle-btn me-1 px-3 d-flex align-items-center gap-2" 
+                    onClick={() => setShowTenantSelector(true)}
+                    title="Chuyển tổ chức"
+                    style={{ width: 'auto', borderRadius: '8px' }}
+                  >
+                    <Copy size={16} /> <span className="d-none d-md-inline small fw-bold">Chuyển tổ chức</span>
+                  </button>
+                  <NotificationBell />
+                </>
+              )}
+
               <button 
                 className="btn-icon-topbar theme-toggle-btn" 
                 onClick={toggleTheme} 
@@ -233,7 +298,7 @@ const TopBar: React.FC = () => {
                 </div>
                 <div className="d-none d-md-block">
                     <p className="m-0 small fw-bold leading-none" style={{ color: colors.textPrimary, fontSize: '13px' }}>
-                        {currentTenant?.role?.name}
+                        {getRoleDisplayName(currentTenant?.role?.name)}
                     </p>
                 </div>
                 <ChevronDown size={16} style={{ color: colors.textSecondary }} />
@@ -252,17 +317,27 @@ const TopBar: React.FC = () => {
                     <ShieldCheck size={16} /> <span>Đổi mật khẩu</span>
                   </button>
                 </li>
+
+                {canRenameTenant && (
+                  <li>
+                    <button className="dropdown-item d-flex align-items-center gap-3 py-2" onClick={openRenameTenantModal} type="button">
+                      <PencilLine size={16} /> <span>Đổi tên tổ chức</span>
+                    </button>
+                  </li>
+                )}
                 
-                <li>
-                  <button
-                    className="dropdown-item d-flex align-items-center gap-3 py-2 text-danger"
-                    onClick={handleDisableAccount}
-                    disabled={isDisablingAccount}
-                    type="button"
-                  >
-                    <CircleAlert size={16} /> <span className="fw-bold">{isDisablingAccount ? 'Đang vô hiệu hóa...' : 'Vô hiệu hóa tài khoản'}</span>
-                  </button>
-                </li>
+                {!isSystemAdmin && (
+                  <li>
+                    <button
+                      className="dropdown-item d-flex align-items-center gap-3 py-2 text-danger"
+                      onClick={handleDisableAccount}
+                      disabled={isDisablingAccount}
+                      type="button"
+                    >
+                      <CircleAlert size={16} /> <span className="fw-bold">{isDisablingAccount ? 'Đang vô hiệu hóa...' : 'Vô hiệu hóa tài khoản'}</span>
+                    </button>
+                  </li>
+                )}
 
                 <li className="my-2 border-top" style={{ borderColor: colors.border }}></li>
                 
@@ -378,6 +453,60 @@ const TopBar: React.FC = () => {
                 </button>
                 <button type="submit" className="btn btn-primary px-4" disabled={!isValid || isSavingPassword}>
                   {isSavingPassword ? 'Đang lưu...' : 'Đổi mật khẩu'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isRenameTenantOpen && (
+        <div className="password-modal-overlay" onClick={closeRenameTenantModal}>
+          <div className="password-modal shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="d-flex align-items-start justify-content-between gap-3 p-4 border-bottom" style={{ borderColor: colors.border }}>
+              <div>
+                <div className="d-flex align-items-center gap-2 mb-2" style={{ color: colors.primary }}>
+                  <PencilLine size={18} />
+                  <span className="fw-semibold small text-uppercase">Thông tin tổ chức</span>
+                </div>
+                <h5 className="m-0 fw-bold" style={{ color: colors.textPrimary }}>Đổi tên tổ chức</h5>
+                <p className="mb-0 small" style={{ color: colors.textMuted }}>
+                  Cập nhật tên hiển thị của tổ chức hiện tại.
+                </p>
+              </div>
+              <button className="btn-close-password" onClick={closeRenameTenantModal} type="button">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRenameTenant} className="p-4">
+              <div className="mb-3">
+                <label className="form-label small fw-semibold" style={{ color: colors.textSecondary }}>
+                  Tên tổ chức
+                </label>
+                <input
+                  type="text"
+                  className="form-control password-input"
+                  value={tenantName}
+                  onChange={(event) => setTenantName(event.target.value)}
+                  placeholder="Nhập tên tổ chức mới"
+                  maxLength={120}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="d-flex gap-2 justify-content-end">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary px-4"
+                  onClick={closeRenameTenantModal}
+                  disabled={isRenamingTenant}
+                >
+                  Hủy
+                </button>
+                <button type="submit" className="btn btn-primary px-4" disabled={isRenamingTenant || !tenantName.trim()}>
+                  {isRenamingTenant ? 'Đang lưu...' : 'Lưu tên mới'}
                 </button>
               </div>
             </form>

@@ -170,6 +170,12 @@ const create = async (req: AuthRequest, res: Response) => {
       include: unlockRequestInclude,
     });
 
+    if (existingRequest?.status === 'PENDING') {
+      return res.status(409).json({
+        message: 'Yêu cầu đã được gửi, hãy chờ phản hồi từ Trưởng đoàn',
+      });
+    }
+
     const request = existingRequest
       // Nếu từng gửi yêu cầu cùng bus/round/type thì mở lại request cũ thay vì tạo bản ghi trùng.
       ? await prisma.unlockRequest.update({

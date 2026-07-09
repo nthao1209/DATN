@@ -7,6 +7,7 @@ exports.deleteUser = exports.getMyStatus = exports.syncUser = void 0;
 const db_1 = require("../config/db");
 const firebaseAdmin_1 = __importDefault(require("../config/firebaseAdmin"));
 const getSystemSuperAdminEmails = () => {
+    // Super admin hệ thống được cấu hình qua biến môi trường, không phụ thuộc tenant.
     const fromSingle = (process.env.SUPERADMIN_EMAIL || '').trim();
     const fromList = (process.env.SUPERADMIN_EMAILS || '').trim();
     return `${fromSingle},${fromList}`
@@ -15,6 +16,7 @@ const getSystemSuperAdminEmails = () => {
         .filter(Boolean);
 };
 const syncUser = async (req, res) => {
+    // Sau khi Firebase tạo tài khoản, frontend gọi endpoint này để đồng bộ user vào PostgreSQL.
     const { email, firebaseUid, name } = req.body;
     if (!email || !firebaseUid) {
         return res.status(400).json({ error: "Thiếu email hoặc firebaseUid" });
@@ -29,6 +31,7 @@ const syncUser = async (req, res) => {
         const isSystemSuperAdmin = getSystemSuperAdminEmails().includes(normalizedEmail) ||
             getSystemSuperAdminEmails().includes(String(firebaseUid));
         if (isSystemSuperAdmin) {
+            // Super admin dùng tenantId null để phân biệt quyền hệ thống với quyền trong từng tổ chức.
             await db_1.prisma.userTenant.deleteMany({
                 where: { userId: user.id, tenantId: null },
             });
@@ -46,6 +49,7 @@ const syncUser = async (req, res) => {
 exports.syncUser = syncUser;
 const getMyStatus = async (req, res) => {
     try {
+        // Endpoint này là bước backend xác nhận session: trả user, danh sách tenant và role tương ứng.
         const userId = req.user?.id;
         if (!userId) {
             return res.status(401).json({
@@ -56,7 +60,12 @@ const getMyStatus = async (req, res) => {
             getSystemSuperAdminEmails().includes(req.user.email.toLowerCase())) ||
             (!!req.user?.firebaseUid &&
                 getSystemSuperAdminEmails().includes(req.user.firebaseUid));
+        await db_1.prisma.user.update({
+            where: { id: userId },
+            data: { latestData: new Date() },
+        });
         const userTenants = await db_1.prisma.userTenant.findMany({
+            // Một user có thể thuộc nhiều tổ chức, mỗi tổ chức có role riêng.
             where: { userId },
             include: {
                 tenant: true,
