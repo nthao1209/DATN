@@ -189,10 +189,15 @@ const TransactionPage: React.FC = () => {
     buses,
   });
 
-  // Chỉ lấy các chặng đang được chọn để dựng cột bảng và tính tổng.
+  const sortedRounds = useMemo(
+    () => [...rounds].sort((a, b) => Number(a.id) - Number(b.id)),
+    [rounds]
+  );
+
+  // Chỉ lấy các chặng đang được chọn để dựng cột bảng và xuất file theo thứ tự id chặng.
   const selectedRounds = useMemo(
-    () => rounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
-    [rounds, selectedRoundIds]
+    () => sortedRounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
+    [sortedRounds, selectedRoundIds]
   );
 
   const {
@@ -394,7 +399,7 @@ const TransactionPage: React.FC = () => {
         <TransactionFilters
             trips={trips} 
             buses={buses} 
-            rounds={rounds}
+            rounds={sortedRounds}
             selectedTripId={selectedTripId} 
             selectedBusIds={selectedBusIds} 
             selectedRoundIds={selectedRoundIds}

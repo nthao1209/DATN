@@ -44,6 +44,7 @@
 }
 
 .setup-org-page .btn-access:hover {
+  color: #ffffff;
   box-shadow: 0 8px 20px var(--page-primary-33);
   transform: translateY(-2px);
 }
@@ -108,6 +109,25 @@
 .setup-org-page .setup-join-button {
   border-color: var(--page-primary);
   color: var(--page-primary);
+}
+
+.setup-org-page .btn-success:hover:not(:disabled),
+.setup-org-page .btn-success:focus-visible:not(:disabled),
+.setup-org-page .setup-join-button:hover:not(:disabled),
+.setup-org-page .setup-join-button:focus-visible:not(:disabled) {
+  color: #ffffff;
+}
+
+.setup-org-page .setup-join-button:hover:not(:disabled),
+.setup-org-page .setup-join-button:focus-visible:not(:disabled) {
+  background-color: var(--page-primary);
+  border-color: var(--page-primary);
+}
+
+.setup-org-page .btn-access:hover svg,
+.setup-org-page .btn-success:hover:not(:disabled) svg,
+.setup-org-page .setup-join-button:hover:not(:disabled) svg {
+  color: currentColor;
 }
 
 .setup-org-page .animate-fade-down {

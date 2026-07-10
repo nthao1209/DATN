@@ -29,26 +29,59 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
   const busLabelById = new Map(
     buses.map((bus) => [
       Number(bus.id),
-      bus.busCode || bus.registrationNumber || `Xe #${bus.id}`,
+      bus.busCode || bus.registrationNumber || '',
     ])
   );
 
-  const getBusLabel = (busId?: number | null) => {
-    if (!busId) return '';
-    return busLabelById.get(Number(busId)) || `Xe #${busId}`;
+  const getKnownBusId = (busId?: number | null) => {
+    if (!busId) return null;
+    return busLabelById.has(Number(busId)) ? Number(busId) : null;
   };
 
-  const getAttendanceLabel = (cell: DraftCell | null, assignedBusId?: number | null) => {
-    if (!cell) return 'Không';
+  const getBusLabel = (busId?: number | null, fallbackLabel = '') => {
+    if (!busId) return fallbackLabel;
+    return busLabelById.get(Number(busId)) || fallbackLabel;
+  };
 
-    const present = Boolean(cell.checkIn || cell.checkOut);
-    if (!present) return 'Không';
+  const getActualBusId = (
+    cellBusId?: number | null,
+    fallbackBusId?: number | null
+  ) => {
+    return getKnownBusId(cellBusId) || getKnownBusId(fallbackBusId) || fallbackBusId || null;
+  };
+
+  const getAttendanceInfo = (
+    isPresent: boolean,
+    actualBusId?: number | null,
+    assignedBusId?: number | null,
+    actualBusLabel = ''
+  ) => {
+    if (!isPresent) {
+      return {
+        label: 'Không',
+        isPresent: false,
+        isMismatch: false,
+      };
+    }
 
     const isMismatch = Boolean(
-      assignedBusId && cell.busId && Number(assignedBusId) !== Number(cell.busId)
+      assignedBusId && actualBusId && Number(assignedBusId) !== Number(actualBusId)
     );
 
-    return isMismatch ? 'Có (sai xe)' : 'Có (đúng xe)';
+    if (!isMismatch) {
+      return {
+        label: 'Có',
+        isPresent: true,
+        isMismatch: false,
+      };
+    }
+
+    const busLabel = getBusLabel(actualBusId, actualBusLabel);
+    return {
+      label: busLabel ? `Có (sai xe - khách đang ở trên ${busLabel})` : 'Có (sai xe)',
+      isPresent: true,
+      isMismatch: true,
+    };
   };
 
   const handleExportExcel = () => {
@@ -75,15 +108,33 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
           const cell = getCell(passenger.id, roundId);
           const assignedBusId = passenger.assignedBusId ?? null;
 
-          baseRow[`${roundLabel} - Lượt đi`] = cell?.checkIn
-            ? getAttendanceLabel(cell, assignedBusId)
-            : 'Không';
-          baseRow[`${roundLabel} - Xe lượt đi`] = cell?.checkIn ? getBusLabel(cell?.busId) : '';
+          const checkInBusId = getActualBusId(
+            cell?.checkInBusId ?? cell?.busId ?? null,
+            passenger.busId
+          );
+          const checkOutBusId = getActualBusId(
+            cell?.checkOutBusId ?? cell?.busId ?? null,
+            passenger.busId
+          );
+          const actualBusLabel = passenger.busName || getBusLabel(passenger.busId);
+          const checkInKey = `${roundLabel} - Lượt đi`;
+          const checkOutKey = `${roundLabel} - Lượt về`;
+          const checkInInfo = getAttendanceInfo(
+            Boolean(cell?.checkIn),
+            checkInBusId,
+            assignedBusId,
+            actualBusLabel
+          );
+          const checkOutInfo = getAttendanceInfo(
+            Boolean(cell?.checkOut),
+            checkOutBusId,
+            assignedBusId,
+            actualBusLabel
+          );
+
+          baseRow[checkInKey] = checkInInfo.label;
           baseRow[`${roundLabel} - Ghi chú lượt đi`] = cell?.checkInNote?.trim() || '';
-          baseRow[`${roundLabel} - Lượt về`] = cell?.checkOut
-            ? getAttendanceLabel(cell, assignedBusId)
-            : 'Không';
-          baseRow[`${roundLabel} - Xe lượt về`] = cell?.checkOut ? getBusLabel(cell?.busId) : '';
+          baseRow[checkOutKey] = checkOutInfo.label;
           baseRow[`${roundLabel} - Ghi chú lượt về`] = cell?.checkOutNote?.trim() || '';
         });
 
@@ -98,11 +149,9 @@ const ExportExcelButton: React.FC<ExportExcelButtonProps> = ({
         { wch: 16 },
         { wch: 20 },
         ...selectedRounds.flatMap(() =>[
-          { wch: 18 },
-          { wch: 20 },
+          { wch: 36 },
           { wch: 28 },
-          { wch: 18 },
-          { wch: 20 },
+          { wch: 36 },
           { wch: 28 },
         ]),
       ];
