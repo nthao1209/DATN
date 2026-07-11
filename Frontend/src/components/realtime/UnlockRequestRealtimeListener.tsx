@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import { type RootState } from '../redux/store';
-import api from '../services/api';
+import { type RootState } from '../../redux/store';
+import api from '../../services/api';
 import { MqttUnlockListener } from './MqttUnlockListener';
-import { ROLE_IDS } from '../auth/rbac';
+import { ROLE_IDS } from '../../auth/rbac';
 
 export const UnlockRequestRealtimeListener = () => {
   const { roleId, user } = useSelector((state: RootState) => state.auth);

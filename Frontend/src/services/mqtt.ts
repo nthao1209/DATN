@@ -92,13 +92,11 @@ let sharedClient: MqttClient | null = null;
 let currentStatus: MqttBrokerStatus = 'connecting';
 
 const notifyStatus = (status: MqttBrokerStatus) => {
-  // Đẩy trạng thái broker ra UI để hiện connected/reconnecting/error.
   currentStatus = status;
   statusListeners.forEach((listener) => listener(status));
 };
-
+// Đảm bảo có một client MQTT duy nhất cho toàn bộ web, tránh tạo nhiều kết nối.
 const ensureSharedClient = () => {
-  // Toàn app dùng một MQTT client duy nhất để tránh mở nhiều websocket không cần thiết.
   if (sharedClient) {
     return sharedClient;
   }
@@ -127,7 +125,7 @@ const ensureSharedClient = () => {
   sharedClient.on('error', () => notifyStatus('error'));
 
   sharedClient.on('message', (topic, payload) => {
-    // Mỗi topic có thể có nhiều component nghe, nên dispatch tới toàn bộ handler đã đăng ký.
+  // Danh sách handler nhận message cho topic này
     const handlers = topicHandlers.get(topic);
     if (!handlers || handlers.size === 0) {
       return;
@@ -141,9 +139,8 @@ const ensureSharedClient = () => {
   notifyStatus('connecting');
   return sharedClient;
 };
-
+// Đợi client kết nối broker trước khi publish, tránh trường hợp publish xong mà client chưa connect.
 const waitForClientConnection = async () => {
-  // Dùng trước khi publish để đảm bảo client đã kết nối broker.
   const client = ensureSharedClient();
 
   if (client.connected) {
@@ -176,7 +173,7 @@ const waitForClientConnection = async () => {
     client.on('error', onError);
   });
 };
-
+// Đăng ký handler cho một hoặc nhiều topic, và quản lý subscribe/unsubscribe dựa trên số lượng listener thực sự còn dùng topic.
 const registerTopicHandlers = (
   topics: string[],
   handler: (topic: string, message: Record<string, unknown>) => void,
@@ -251,7 +248,6 @@ export const subscribeAttendanceUpdates = (
   tripId: number,
   onMessage: (event: AttendanceUpdateEvent) => void,
 ): MqttSubscriptionHandle => {
-  // Màn transaction nghe event điểm danh theo trip để refetch bảng.
   return registerTopicHandlers([`${MQTT_UI_TOPIC_PREFIX}/${tripId}`], (_topic, parsed) => {
     if (
       (parsed.type === 'attendance.updated' ||
@@ -304,9 +300,8 @@ export const subscribeLockUpdates = (
   });
 };
 
-
+// Frontend chỉ xóa action khỏi offline queue khi worker đã publish ACK sau khi commit DB.
 const createAttendanceAckWaiter = (actionId: string, timeoutMs = 15000) => {
-  // Frontend chỉ xóa action khỏi offline queue khi worker đã publish ACK sau khi commit DB.
   let timeoutId: number | undefined;
   let subscription: MqttSubscriptionHandle | null = null;
 
@@ -343,10 +338,9 @@ const createAttendanceAckWaiter = (actionId: string, timeoutMs = 15000) => {
   return promise;
 };
 
+  // Topic chứa trip/bus/round để worker xử lý điểm danh độc lập với HTTP API.
 export const publishAttendanceAction = async (action: OfflineAction) => {
   const client = await waitForClientConnection();
-
-  // Topic chứa trip/bus/round để worker xử lý điểm danh độc lập với HTTP API.
   const topic = `${MQTT_ATTENDANCE_TOPIC_PREFIX}/${action.tripId}/${action.busId}/${action.roundId}/check`;
   const ackPromise = action.id ? createAttendanceAckWaiter(action.id) : Promise.resolve();
   const payload = {

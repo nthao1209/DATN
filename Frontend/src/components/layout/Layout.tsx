@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar.tsx";
 import TopBar from "./AppHeader";
-import { useTheme } from '../theme/ThemeContext';
-import { UnsavedChangesGuard } from './common/UnsavedChangesContext';
-import { UnlockRequestRealtimeListener } from './UnlockRequestRealtimeListener';
+import { useTheme } from '../../theme/ThemeContext';
+import { UnsavedChangesGuard } from '../common/UnsavedChangesContext';
+import { UnlockRequestRealtimeListener } from '../realtime/UnlockRequestRealtimeListener';
 
 const Layout: React.FC = () => {
   const { colors } = useTheme();

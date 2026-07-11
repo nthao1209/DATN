@@ -5,9 +5,9 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { type RootState } from '../redux/store';
-import { useTheme } from '../theme/ThemeContext';
-import { ROLE_IDS } from '../auth/rbac';
+import { type RootState } from '../../redux/store';
+import { useTheme } from '../../theme/ThemeContext';
+import { ROLE_IDS } from '../../auth/rbac';
 
 interface SidebarProps {
   isCollapsed?: boolean;

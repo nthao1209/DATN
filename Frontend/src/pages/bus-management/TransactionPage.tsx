@@ -37,10 +37,12 @@ const TransactionPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const currentTenantId = useSelector((state: RootState) => state.auth.currentTenant?.id ?? null);
   const pageThemeVars = usePageThemeVars();
+
   // draftMap lưu trạng thái người dùng vừa sửa trên UI trước khi MQTT worker ghi xong DB.
   // Nhờ vậy checkbox/ghi chú phản hồi ngay cả khi đang chờ ACK, refetch hoặc mạng chậm.
   const [draftMap, setDraftMap] = useState<Record<string, DraftCell>>({});
   const [attendanceDisplayMode, setAttendanceDisplayMode] = useState<AttendanceDisplayMode>('all');
+
   const {
     selectedTripId,
     setSelectedTripId,
@@ -60,13 +62,14 @@ const TransactionPage: React.FC = () => {
     setReturnRoundFilter,
     filterDropdownRef,
   } = useTransactionSelection();
+
+  // Khi đổi tenant, reset selection và draftMap để tránh lẫn dữ liệu giữa các tenant.
   useEffect(() => {
     setSelectedTripId(null);
     setSelectedBusIds([]);
     setSelectedRoundIds([]);
     setDraftMap({});
   }, [currentTenantId]);
-
 
   // Hook này gom toàn bộ API query cần cho trang transaction.
   const {
@@ -86,6 +89,7 @@ const TransactionPage: React.FC = () => {
     refetchBusRoundStatuses,
   } = useTransactionData(selectedTripId);
 
+  // Hook này đồng bộ selection với dữ liệu API, ví dụ khi đổi trip thì reset bus/round selection.
   useTransactionSelectionDataSync({
     trips,
     buses,
@@ -101,32 +105,54 @@ const TransactionPage: React.FC = () => {
     setReturnRoundFilter,
   });
 
-    // Tìm xe thực tế của hành khách ở một chặng: ưu tiên transaction đã có, fallback về xe được phân công.
-    const getActualBusId = (
-      passengerId: number,
-      roundId: number,
-      assignedBusId?: number | null
-    ) => {
-      const key = keyOf(passengerId, roundId);
+  // Dữ liệu transaction theo key passengerId_roundId.
+  const txMap = useTransactionMap(transactions);
 
-      const txCell = txMap[key];
+  const sortedRounds = useMemo(
+    () => [...rounds].sort((a, b) => Number(a.id) - Number(b.id)),
+    [rounds]
+  );
 
-      if (txCell?.checkOutBusId) {
-        return Number(txCell.checkOutBusId);
-      }
-      if (txCell?.checkInBusId) {
-        return Number(txCell.checkInBusId);
-      }
-      if (txCell?.busId) {
-        return Number(txCell.busId);
-      }
-      if (assignedBusId) {
-        return Number(assignedBusId);
-      }
+  // Chỉ lấy các chặng đang được chọn để dựng cột bảng và xuất file theo thứ tự id chặng.
+  const selectedRounds = useMemo(
+    () => sortedRounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
+    [sortedRounds, selectedRoundIds]
+  );
 
-      return null;
-    };
-    
+  // Lưu draft local/offline để reload trang vẫn giữ thao tác chưa sync xong.
+  const storageKey = useTransactionDraftStorage({
+    selectedTripId,
+    draftMap,
+    setDraftMap,
+    refetchTransactions,
+    refetchPassengers,
+  });
+
+  // Tìm xe thực tế của hành khách ở một chặng: ưu tiên transaction đã có, fallback về xe được phân công.
+  const getActualBusId = (
+    passengerId: number,
+    roundId: number,
+    assignedBusId?: number | null
+  ) => {
+    const key = keyOf(passengerId, roundId);
+    const txCell = txMap[key];
+
+    if (txCell?.checkOutBusId) {
+      return Number(txCell.checkOutBusId);
+    }
+    if (txCell?.checkInBusId) {
+      return Number(txCell.checkInBusId);
+    }
+    if (txCell?.busId) {
+      return Number(txCell.busId);
+    }
+    if (assignedBusId) {
+      return Number(assignedBusId);
+    }
+
+    return null;
+  };
+
   // Hook khóa lượt dùng actual bus id để biết ô check-in/check-out nào không được sửa.
   const { isLocked, lockStatuses, refetchLocks } = useRoundLocks(
     selectedTripId,
@@ -143,24 +169,7 @@ const TransactionPage: React.FC = () => {
     refetchTransactions,
   });
 
-
-
-
-  // Quản lý draft local/offline và trả về storageKey để useTransactionSync biết queue nào cần xử lý.
-  const storageKey = useTransactionDraftStorage({
-    selectedTripId,
-    draftMap,
-    setDraftMap,
-    refetchTransactions,
-    refetchPassengers,
-  });
-
-  // Map dữ liệu transaction theo key passengerId_roundId để đọc trạng thái từng ô nhanh hơn.
-  const txMap = useTransactionMap(transactions);
-
   // Sau khi server trả dữ liệu mới, xóa draft đã trùng DB.
-  // Đây là điểm "chốt": khi MQTT worker đã ghi DB và refetch trả dữ liệu mới,
-  // trạng thái tạm trong draftMap không còn cần nữa.
   useEffect(() => {
     setDraftMap((prev) => {
       let changed = false;
@@ -177,7 +186,6 @@ const TransactionPage: React.FC = () => {
     });
   }, [txMap]);
 
-
   const {
     displayedPassengers,
     existingPassengerIds,
@@ -188,17 +196,6 @@ const TransactionPage: React.FC = () => {
     selectedBusIds,
     buses,
   });
-
-  const sortedRounds = useMemo(
-    () => [...rounds].sort((a, b) => Number(a.id) - Number(b.id)),
-    [rounds]
-  );
-
-  // Chỉ lấy các chặng đang được chọn để dựng cột bảng và xuất file theo thứ tự id chặng.
-  const selectedRounds = useMemo(
-    () => sortedRounds.filter((r) => selectedRoundIds.includes(Number(r.id))),
-    [sortedRounds, selectedRoundIds]
-  );
 
   const {
     showAddPassengerPanel,
@@ -223,9 +220,7 @@ const TransactionPage: React.FC = () => {
     refetchPassengers,
   });
 
-  // Lấy trạng thái ô để render bảng.
-  // Ưu tiên draftMap trước txMap để UI hiển thị ngay thao tác vừa tick, thay vì phải chờ MQTT -> worker -> DB -> refetch API.
-  // Nếu chưa có draft thì dùng txMap, tức dữ liệu thật từ DB/API.
+  // Lấy dữ liệu trong ô để render bảng ưu tiên sử dụng draftMap trước sau đó mới là txMap
   const getCell = (passengerId: number, roundId: number): DraftCell | null => {
     const key = keyOf(passengerId, roundId);
     const draft = draftMap[key];
@@ -241,114 +236,109 @@ const TransactionPage: React.FC = () => {
     };
   };
 
-  // Cập nhật một ô điểm danh/ghi chú trên màn.
-  // Hàm này chỉ ghi vào draftMap, chưa ghi DB trực tiếp; useTransactionSync sẽ lấy
-  // các draft khác DB để đưa vào offline queue rồi publish MQTT.
-  // Cách này vừa tạo optimistic UI cho online, vừa hỗ trợ offline queue.
+  // Ghi thay đổi vào draftMap sau đó hệ thống tự sync với DB qua MQTT worker. Nếu ô bị lock thì không cho sửa và cảnh báo.
   const setCell = (payload: Partial<DraftCell>) => {
-    
-  if (payload.passengerId === undefined || payload.roundId === undefined || payload.busId === undefined) {
-    return;
-  }
+    if (payload.passengerId === undefined || payload.roundId === undefined || payload.busId === undefined) {
+      return;
+    }
 
-  const key = keyOf(payload.passengerId, payload.roundId);
+    const key = keyOf(payload.passengerId, payload.roundId);
+    const baseCell = txMap[key];
 
-  const baseCell = txMap[key];
+    const lockedIn = isLocked(
+      payload.passengerId,
+      payload.busId,
+      Number(payload.roundId),
+      'checkIn'
+    );
 
-     
-        const lockedIn = isLocked(
-          payload.passengerId,
-          payload.busId,
-          Number(payload.roundId),
-          'checkIn'
-        );
+    const lockedOut = isLocked(
+      payload.passengerId,
+      payload.busId,
+      Number(payload.roundId),
+      'checkOut'
+    );
 
-        const lockedOut = isLocked(
-          payload.passengerId,
-          payload.busId,
-          Number(payload.roundId),
-          'checkOut'
-        );
+    const changingCheckIn =
+      payload.checkIn !== undefined
+        ? baseCell
+          ? payload.checkIn !== baseCell.checkIn
+          : payload.checkIn === true
+        : false;
 
-        const changingCheckIn =
-          payload.checkIn !== undefined
-            ? baseCell
-              ? payload.checkIn !== baseCell.checkIn
-              : payload.checkIn === true
-            : false;
+    const changingCheckInNote =
+      payload.checkInNote !== undefined
+        ? baseCell
+          ? payload.checkInNote !== baseCell.checkInNote
+          : (payload.checkInNote ?? '').trim() !== ''
+        : false;
 
-        const changingCheckInNote =
-          payload.checkInNote !== undefined
-            ? baseCell
-              ? payload.checkInNote !== baseCell.checkInNote
-              : (payload.checkInNote ?? '').trim() !== ''
-            : false;
+    const changingCheckOut =
+      payload.checkOut !== undefined
+        ? baseCell
+          ? payload.checkOut !== baseCell.checkOut
+          : payload.checkOut === true
+        : false;
 
-        const changingCheckOut =
-          payload.checkOut !== undefined
-            ? baseCell
-              ? payload.checkOut !== baseCell.checkOut
-              : payload.checkOut === true
-            : false;
+    const changingCheckOutNote =
+      payload.checkOutNote !== undefined
+        ? baseCell
+          ? payload.checkOutNote !== baseCell.checkOutNote
+          : (payload.checkOutNote ?? '').trim() !== ''
+        : false;
 
-        const changingCheckOutNote =
-          payload.checkOutNote !== undefined
-            ? baseCell
-              ? payload.checkOutNote !== baseCell.checkOutNote
-              : (payload.checkOutNote ?? '').trim() !== ''
-            : false;
-
-        if (
-          (lockedIn && (changingCheckIn || changingCheckInNote)) ||
-          (lockedOut && (changingCheckOut || changingCheckOutNote))
-        ) {
-          enqueueSnackbar(
-            buildLockedAttendanceMessage({
-              lockedIn,
-              lockedOut,
-              changingCheckIn,
-              changingCheckInNote,
-              changingCheckOut,
-              changingCheckOutNote,
-            }),
-            { variant: 'warning' }
-          );
-          return;               
-        } 
+    if (
+      (lockedIn && (changingCheckIn || changingCheckInNote)) ||
+      (lockedOut && (changingCheckOut || changingCheckOutNote))
+    ) {
+      enqueueSnackbar(
+        buildLockedAttendanceMessage({
+          lockedIn,
+          lockedOut,
+          changingCheckIn,
+          changingCheckInNote,
+          changingCheckOut,
+          changingCheckOutNote,
+        }),
+        { variant: 'warning' }
+      );
+      return;
+    }
 
     const defaultCell: DraftCell = {
-    passengerId: payload.passengerId,
-    roundId: payload.roundId,
-    busId: payload.busId,
-    checkIn: false,
-    checkOut: false,
-    checkInNote: '',
-    checkOutNote: '',
-    checkInBusId: payload.busId,
-    checkOutBusId: payload.busId,
+      passengerId: payload.passengerId,
+      roundId: payload.roundId,
+      busId: payload.busId,
+      checkIn: false,
+      checkOut: false,
+      checkInNote: '',
+      checkOutNote: '',
+      checkInBusId: payload.busId,
+      checkOutBusId: payload.busId,
+    };
+
+    const cleanPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined)
+    ) as Partial<DraftCell>;
+
+    const merged: DraftCell = {
+      ...defaultCell,
+      ...baseCell,
+      ...draftMap[key],
+      ...cleanPayload,
+    };
+
+    // So sánh draft mới với dữ liệu gốc để biết ô này có thật sự cần lưu hay không.
+    const isDirty = !isSameCell(merged, baseCell);
+
+    setDraftMap((prev) => ({
+      ...prev,
+      [key]: {
+        ...merged,
+        dirty: isDirty,
+      },
+    }));
   };
-
-  const cleanPayload = Object.fromEntries(
-    Object.entries(payload).filter(([, value]) => value !== undefined)
-  ) as Partial<DraftCell>;
-
-  const merged: DraftCell = {
-    ...defaultCell,
-    ...baseCell,
-    ...draftMap[key],
-    ...cleanPayload,
-  };
-
-  const isDirty = !isSameCell(merged, baseCell);
-
-  setDraftMap((prev) => ({
-    ...prev,
-    [key]: {
-      ...merged,
-      dirty: isDirty,
-    },
-  }));
-};
 
   // Kiểm tra hành khách có mặt ở một chặng theo hướng lượt đi hoặc lượt về.
   const isPresentAtRound = (passengerId: number, roundId: number, direction: 'checkIn' | 'checkOut') => {

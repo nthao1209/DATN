@@ -6,7 +6,7 @@ import { auth as fbAuth } from '../../config/firebase';
 import { authSuccess } from '../../redux/slice/authSlice';
 import api from '../../services/api';
 import { type RootState } from '../../redux/store';
-import TenantSelector from '../../components/TenantSelector';
+import TenantSelector from '../../components/layout/TenantSelector';
 import { useSnackbar } from 'notistack';
 import { usePageThemeVars } from '../../hooks/usePageThemeVars';
 import './SetupOrgPage.css';

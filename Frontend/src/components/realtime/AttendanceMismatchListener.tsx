@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import { type RootState } from '../redux/store';
-import { useNotification } from '../contexts/NotificationContext';
-import { subscribeAttendanceUpdates } from '../services/mqtt';
-import { api } from '../services/api';
-import { ROLE_IDS } from '../auth/rbac';
+import { type RootState } from '../../redux/store';
+import { useNotification } from '../../contexts/NotificationContext';
+import { subscribeAttendanceUpdates } from '../../services/mqtt';
+import { api } from '../../services/api';
+import { ROLE_IDS } from '../../auth/rbac';
 
 export const AttendanceMismatchListener = () => {
   const { addNotification, refreshNotifications } = useNotification();
@@ -53,7 +53,7 @@ export const AttendanceMismatchListener = () => {
         }
 
         let passengerName = message.passengerName || `#${message.passengerId}`;
-
+        // Nếu không có tên hành khách gọi api để lấy tên hành khách
         if (!message.passengerName) {
           const list = await api.getPassengers(String(message.tripId));
           const found = (list as any[]).find(
@@ -78,7 +78,7 @@ export const AttendanceMismatchListener = () => {
 
         const shortText = `Khách ${passengerName} của ${correctBus} vừa được điểm danh trên ${currentBus} ở ${roundName}.`;
 
-        addNotification(shortText, 'warning', 10000, { showToast: true });
+        addNotification(shortText, 'warning', 3000, { showToast: true });
         void refreshNotifications();
       }),
     );

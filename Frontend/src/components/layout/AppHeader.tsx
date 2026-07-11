@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
-import { type RootState } from '../redux/store';
-import { logout, renameCurrentTenantSuccess } from '../redux/slice/authSlice';
+import { type RootState } from '../../redux/store';
+import { logout, renameCurrentTenantSuccess } from '../../redux/slice/authSlice';
 import { 
   LogOut, ChevronDown, Moon, Sun, ShieldCheck, LockKeyhole, X, CircleAlert, Copy, PencilLine
 } from 'lucide-react';
-import { useMqttBrokerStatus } from '../hooks/useMqttBrokerStatus';
-import api from '../services/api';
-import { useTheme } from '../theme/ThemeContext';
-import { auth, signOut } from '../config/firebase';
+import { useMqttBrokerStatus } from '../../hooks/useMqttBrokerStatus';
+import api from '../../services/api';
+import { useTheme } from '../../theme/ThemeContext';
+import { auth, signOut } from '../../config/firebase';
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -19,10 +19,10 @@ import {
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {enqueueSnackbar} from 'notistack';
-import { useUnsavedChanges } from './common/UnsavedChangesContext';
-import NotificationBell from './NotificationBell';
+import { useUnsavedChanges } from '../common/UnsavedChangesContext';
+import NotificationBell from '../NotificationBell';
 import TenantSelector from './TenantSelector';
-import { getRoleDisplayName } from '../auth/rbac';
+import { getRoleDisplayName } from '../../auth/rbac';
 
 const schema = yup.object({
   currentPassword : yup.string().required("Mật khẩu hiện tại không được để trống"),

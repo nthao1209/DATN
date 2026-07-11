@@ -1,8 +1,8 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { type RootState } from '../redux/store';
-import { type RoleId, getFallbackPathForRole, hasRoleAccess } from '../auth/rbac';
+import { type RootState } from '../../redux/store';
+import { type RoleId, getFallbackPathForRole, hasRoleAccess } from '../../auth/rbac';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import type { RootState } from './redux/store';
 import { ThemeProvider } from './theme/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { AttendanceMismatchListener } from './components/AttendanceMismatchListener';
+import { AttendanceMismatchListener } from './components/realtime/AttendanceMismatchListener';
 import SyncManager from './components/common/SyncManager';
 import { UnsavedChangesProvider } from './components/common/UnsavedChangesContext';
 import { createAppRouter } from './role/appRouter';

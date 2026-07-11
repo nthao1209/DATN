@@ -8,8 +8,8 @@ import {
 import type { RootState } from '../redux/store';
 import { ROLE_IDS, getFallbackPathForRole } from '../auth/rbac';
 import { BASE_PATH } from '../config/paths';
-import ProtectedRoute from '../components/ProtectedRoute';
-import Layout from '../components/Layout';
+import ProtectedRoute from '../components/routing/ProtectedRoute';
+import Layout from '../components/layout/Layout';
 
 const Login = React.lazy(() => import('../pages/Register-Login/LoginPage'));
 const Register = React.lazy(() => import('../pages/Register-Login/RegisterPage'));

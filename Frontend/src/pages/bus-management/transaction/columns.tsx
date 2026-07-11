@@ -1,4 +1,4 @@
-import PassengerActionButtons from '../../../components/PassengerActionButtons';
+import PassengerActionButtons from '../../../components/passenger/PassengerActionButtons';
 import type { Column } from '../../../components/DataTable';
 import type { DraftCell, RoundOption, TransactionTableRow } from './types';
 import { AutoResizeTextarea } from '../../../hooks/useAutoResize';

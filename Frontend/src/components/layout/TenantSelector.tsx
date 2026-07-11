@@ -3,14 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { type RootState } from '../redux/store';
-import { setCurrentTenant } from '../redux/slice/authSlice';
+import { type RootState } from '../../redux/store';
+import { setCurrentTenant } from '../../redux/slice/authSlice';
 import { Check, Building2, Plus, X, Globe } from 'lucide-react';
-import { auth as fbAuth } from '../config/firebase';
-import api from '../services/api';
-import type { Tenant } from '../types/auth';
-import { useTheme } from '../theme/ThemeContext';
-import { getFallbackPathForRole, getRoleDisplayName } from '../auth/rbac';
+import { auth as fbAuth } from '../../config/firebase';
+import api from '../../services/api';
+import type { Tenant } from '../../types/auth';
+import { useTheme } from '../../theme/ThemeContext';
+import { getFallbackPathForRole, getRoleDisplayName } from '../../auth/rbac';
 
 interface TenantSelectorProps {
   isOpen: boolean;

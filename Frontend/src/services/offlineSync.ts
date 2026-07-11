@@ -39,9 +39,8 @@ const migrateOfflineAction = (action: OfflineAction & { note?: string }): Offlin
     checkOutNote: action.checkOutNote ?? action.note,
   };
 };
-
+// Đọc queue từ localStorage; lỗi parse thì coi như queue rỗng để UI không crash.
 const readQueue = (): OfflineAction[] => {
-  // Đọc queue từ localStorage; lỗi parse thì coi như queue rỗng để UI không crash.
   if (!isBrowser()) return [];
 
   try {
