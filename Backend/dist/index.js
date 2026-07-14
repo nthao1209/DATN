@@ -6,15 +6,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const public_1 = __importDefault(require("./routes/public"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const system_admin_1 = __importDefault(require("./routes/system-admin"));
 const bus_management_1 = __importDefault(require("./routes/bus-management"));
+const swagger_1 = require("./config/swagger");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 // Middleware nền cho toàn bộ API: cho phép frontend gọi cross-origin và đọc body JSON.
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
 // Gom route theo nhóm quyền/ngữ cảnh để controller phía dưới chỉ tập trung xử lý nghiệp vụ.
 app.use('/api', public_1.default);
 app.use('/api', admin_1.default);
@@ -39,7 +42,7 @@ app.get('/api/_routes', (_req, res) => {
         res.status(500).json({ message: 'Failed to enumerate routes' });
     }
 });
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 // Bắt đầu lắng nghe request HTTP.
 app.listen(PORT, () => {
 });

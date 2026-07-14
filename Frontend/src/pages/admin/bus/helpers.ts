@@ -202,10 +202,12 @@ export const buildBusRows = (buses: any[]) => {
 export const buildBusAttendanceSummary = ({
   rows,
   tripId,
+  roundId,
   transactions,
 }: {
   rows: BusRow[];
   tripId?: string;
+  roundId?: number | null;
   transactions: TransactionRecord[];
 }) => {
   if (!tripId) return [];
@@ -225,7 +227,9 @@ export const buildBusAttendanceSummary = ({
   // Chỉ lấy transaction thuộc chuyến hiện tại để không lẫn dữ liệu giữa các chuyến.
   const tripTransactions = transactions.filter((tx) => {
     const txTripId = Number(tx.round?.tripId ?? (tx as any)?.bus?.tripId ?? 0);
-    return txTripId === currentTripId;
+    const txRoundId = Number(tx.roundId ?? tx.round?.id ?? 0);
+
+    return txTripId === currentTripId && (!roundId || txRoundId === roundId);
   });
 
   return rows

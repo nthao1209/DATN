@@ -252,7 +252,7 @@ export const roundController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: 'Không tìm thấy vòng' });
+        return res.status(404).json({ message: 'Không tìm thấy chặng' });
       }
 
       if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
@@ -317,7 +317,7 @@ export const roundController = {
       });
 
       if (!existing) {
-        return res.status(404).json({ message: 'Không tìm thấy vòng' });
+        return res.status(404).json({ message: 'Không tìm thấy chặng' });
       }
 
       await prisma.round.delete({

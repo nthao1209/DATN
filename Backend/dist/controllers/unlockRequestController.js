@@ -36,6 +36,7 @@ const notifyAdmin = async (tenantId, handledBy, payload) => {
         return;
     await (0, notificationService_1.createNotification)(db_1.prisma, {
         userId: recipientId,
+        tenantId,
         ...payload,
     });
 };
@@ -92,7 +93,7 @@ const create = async (req, res) => {
         const roundId = Number(req.params.roundId);
         const { type = 'check_in', reason } = req.body || {};
         if (!busId || !roundId) {
-            return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc vòng (roundId)' });
+            return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc chặng (roundId)' });
         }
         if (!req.user?.id) {
             return res.status(401).json({ message: 'Không có quyền truy cập' });
@@ -111,7 +112,7 @@ const create = async (req, res) => {
             where: { id: roundId, trip: { tenantId: req.tenantId } },
         });
         if (!round) {
-            return res.status(404).json({ message: 'Không tìm thấy vòng' });
+            return res.status(404).json({ message: 'Không tìm thấy chặng' });
         }
         const status = await db_1.prisma.busRoundStatus.findUnique({
             where: { busId_roundId: { busId, roundId } },
@@ -174,6 +175,7 @@ const create = async (req, res) => {
         });
         await (0, notificationService_1.createNotification)(db_1.prisma, {
             userId: req.user.id,
+            tenantId: req.tenantId,
             type: 'unlock.request.created.self',
             title: 'Yêu cầu mở khóa đã được gửi',
             content: `Yêu cầu mở khóa đã được gửi cho trưởng đoàn trong chặng ${round.name} (Xe ${bus.busCode}).`,
@@ -279,6 +281,7 @@ const approve = async (req, res) => {
         const requesterId = request.requestedBy;
         await (0, notificationService_1.createNotification)(db_1.prisma, {
             userId: requesterId,
+            tenantId: req.tenantId,
             type: 'unlock.request.approved',
             title: buildUnlockTitle('APPROVED'),
             content: buildUnlockContent(request, request.bus.busCode, undefined, `Đã được phê duyệt bởi ${req.user.name || req.user.email || req.user.id}`),
@@ -359,6 +362,7 @@ const reject = async (req, res) => {
         // Notify requester only
         await (0, notificationService_1.createNotification)(db_1.prisma, {
             userId: requesterId,
+            tenantId: req.tenantId,
             type: 'unlock.request.rejected',
             title: buildUnlockTitle('REJECTED'),
             content: buildUnlockContent(request, request.bus.busCode, undefined, `Lý do: ${rejectReason || 'Không có'}`),

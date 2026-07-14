@@ -6,6 +6,7 @@ type NotificationWriteClient = Pick<PrismaClient, 'notification'>;
 
 export interface NotificationCreateInput {
   userId: number;
+  tenantId: number;
   type: string;
   title: string;
   content: string;
@@ -17,6 +18,7 @@ export const createNotification = (prisma: NotificationWriteClient, input: Notif
   return prisma.notification.create({
     data: {
       userId: input.userId,
+      tenantId: input.tenantId,
       type: input.type,
       title: input.title,
       content: input.content,

@@ -1,19 +1,20 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import swaggerUi from 'swagger-ui-express';
 import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import systemAdminRoutes from './routes/system-admin';
 import busManagementRoutes from './routes/bus-management';
+import { swaggerSpec } from './config/swagger';
 dotenv.config()
-
 
 const app = express()
 
 // Middleware nền cho toàn bộ API: cho phép frontend gọi cross-origin và đọc body JSON.
 app.use(cors())
 app.use(express.json())
-
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Gom route theo nhóm quyền/ngữ cảnh để controller phía dưới chỉ tập trung xử lý nghiệp vụ.
 app.use('/api', publicRoutes);
 app.use('/api', adminRoutes);
@@ -40,7 +41,7 @@ app.get('/api/_routes', (_req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 5001
 
 // Bắt đầu lắng nghe request HTTP.
 app.listen(PORT, () => {

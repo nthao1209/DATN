@@ -29,6 +29,7 @@ import './TransactionPage.css';
 import EditableTableCard from '../../components/admin/EditableTableCard';
 import { usePageThemeVars } from '../../hooks/usePageThemeVars';
 import type { RootState } from '../../redux/store';
+import { ROLE_IDS } from '../../auth/rbac';
 
 type AttendanceDisplayMode = 'all' | 'checkIn' | 'checkOut';
 
@@ -36,6 +37,8 @@ type AttendanceDisplayMode = 'all' | 'checkIn' | 'checkOut';
 const TransactionPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const currentTenantId = useSelector((state: RootState) => state.auth.currentTenant?.id ?? null);
+  const roleId = useSelector((state: RootState) => state.auth.roleId ?? null);
+  const canMutateTransactions = roleId === ROLE_IDS.BUS_MANAGEMENT;
   const pageThemeVars = usePageThemeVars();
 
   // draftMap lưu trạng thái người dùng vừa sửa trên UI trước khi MQTT worker ghi xong DB.
@@ -238,6 +241,10 @@ const TransactionPage: React.FC = () => {
 
   // Ghi thay đổi vào draftMap sau đó hệ thống tự sync với DB qua MQTT worker. Nếu ô bị lock thì không cho sửa và cảnh báo.
   const setCell = (payload: Partial<DraftCell>) => {
+    if (!canMutateTransactions) {
+      return;
+    }
+
     if (payload.passengerId === undefined || payload.roundId === undefined || payload.busId === undefined) {
       return;
     }
@@ -371,7 +378,7 @@ const TransactionPage: React.FC = () => {
   // Hook này xử lý lưu/sync dirty entries, bao gồm cả chế độ offline.
   useTransactionSync({
     dirtyEntries,
-    enabled: !transactionsLoading,
+    enabled: canMutateTransactions && !transactionsLoading,
     selectedTripId,
     storageKey,
   });
@@ -409,12 +416,14 @@ const TransactionPage: React.FC = () => {
         <div className="transaction-filter-extra mt-3 pt-3 border-top d-flex flex-column gap-3">
             <div className="d-flex flex-wrap align-items-center gap-3">
               
-              <button 
-                className="btn-outline-custom flex-grow-1 flex-md-grow-0" 
-                onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
-              >
-                <UserPlus size={16} /> <span className="ms-1">Khách ngoài biên chế</span>
-              </button>
+              {canMutateTransactions && (
+                <button
+                  className="btn-outline-custom flex-grow-1 flex-md-grow-0"
+                  onClick={() => setShowAddPassengerPanel(!showAddPassengerPanel)}
+                >
+                  <UserPlus size={16} /> <span className="ms-1">Khách ngoài biên chế</span>
+                </button>
+              )}
 
               <div className="col-12 col-lg flex-grow-1">
                <div className="row g-2">
@@ -448,20 +457,22 @@ const TransactionPage: React.FC = () => {
                 </div>
               </div>
             </div>
-           <ExtraPassengerPanel
-              show={showAddPassengerPanel}
-              passengers={passengers}
-              buses={buses}
-              selectedBusIds={selectedBusIds}
-              existingPassengerIds={existingPassengerIds}
-              extraPassengers={extraPassengers}
-              onAdd={addExtraPassenger}
-              onRemove={removeExtraPassenger}
-              onConfirmAll={handleConfirmAllExtraPassengers}
-              confirmDisabled={extraPassengerRoundConfirmed}
-              confirmDisabledReason="Chặng đã xác nhận hoàn tất nên không thể thêm khách ngoài biên chế."
-              onClose={() => setShowAddPassengerPanel(false)}
-            />
+           {canMutateTransactions && (
+             <ExtraPassengerPanel
+                show={showAddPassengerPanel}
+                passengers={passengers}
+                buses={buses}
+                selectedBusIds={selectedBusIds}
+                existingPassengerIds={existingPassengerIds}
+                extraPassengers={extraPassengers}
+                onAdd={addExtraPassenger}
+                onRemove={removeExtraPassenger}
+                onConfirmAll={handleConfirmAllExtraPassengers}
+                confirmDisabled={extraPassengerRoundConfirmed}
+                confirmDisabledReason="Chặng đã xác nhận hoàn tất nên không thể thêm khách ngoài biên chế."
+                onClose={() => setShowAddPassengerPanel(false)}
+              />
+           )}
               
         </div>
       </div>
@@ -505,6 +516,7 @@ const TransactionPage: React.FC = () => {
           columns={buildTransactionColumns({
             selectedRounds,
             displayMode: attendanceDisplayMode,
+            readOnly: !canMutateTransactions,
             getCell,
             setCell,
             isLocked,
@@ -515,23 +527,25 @@ const TransactionPage: React.FC = () => {
           initialPageSize={50}
           onRefresh={() => { refetchTransactions(); refetchPassengers(); refetchLocks(); }}
         >
-      <div className="bento-action-hub shadow-sm">
-        <div className="d-flex flex-column gap-2">
-        <ConfirmRoundPanel 
-            selectedRounds={selectedRounds} 
-            selectedBusIds={selectedBusIds} 
-          lockStatuses={lockStatuses} 
-            onSuccess={() => { refetchTransactions(); refetchLocks(); }} 
-        />
-        <CompleteRoundPanel
-            selectedRounds={selectedRounds}
-            selectedBusIds={selectedBusIds}
-            buses={buses}
-            busRoundStatuses={busRoundStatuses}
-            onSuccess={() => { refetchTransactions(); refetchLocks(); refetchBusRoundStatuses(); }}
+      {canMutateTransactions && (
+        <div className="bento-action-hub shadow-sm">
+          <div className="d-flex flex-column gap-2">
+          <ConfirmRoundPanel
+              selectedRounds={selectedRounds}
+              selectedBusIds={selectedBusIds}
+            lockStatuses={lockStatuses}
+              onSuccess={() => { refetchTransactions(); refetchLocks(); }}
           />
-      </div>
-      </div>
+          <CompleteRoundPanel
+              selectedRounds={selectedRounds}
+              selectedBusIds={selectedBusIds}
+              buses={buses}
+              busRoundStatuses={busRoundStatuses}
+              onSuccess={() => { refetchTransactions(); refetchLocks(); refetchBusRoundStatuses(); }}
+            />
+        </div>
+        </div>
+      )}
       </EditableTableCard>
     </div>
   );

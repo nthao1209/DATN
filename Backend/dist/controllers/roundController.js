@@ -222,7 +222,7 @@ exports.roundController = {
                 }
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Không tìm thấy vòng' });
+                return res.status(404).json({ message: 'Không tìm thấy chặng' });
             }
             if (status !== undefined && String(status).trim().toUpperCase() === Status.DONE) {
                 const { busCount, completedBusCount } = await getCompletedBusCounts(existing.tripId, Number(id), req.tenantId);
@@ -274,7 +274,7 @@ exports.roundController = {
                 }
             });
             if (!existing) {
-                return res.status(404).json({ message: 'Không tìm thấy vòng' });
+                return res.status(404).json({ message: 'Không tìm thấy chặng' });
             }
             await db_1.prisma.round.delete({
                 where: { id: Number(id) }

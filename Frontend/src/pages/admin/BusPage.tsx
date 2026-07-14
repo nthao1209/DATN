@@ -33,6 +33,7 @@ const BusPage: React.FC = () => {
   const pageThemeVars = usePageThemeVars();
   const { id: tripId } = useParams<{ id: string }>();
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedRoundId, setSelectedRoundId] = useState<number | null>(null);
   const [wrongBusModal, setWrongBusModal] = useState<{
     busLabel: string;
     passengers: WrongBusPassenger[];
@@ -52,6 +53,14 @@ const BusPage: React.FC = () => {
   });
 
   const managers = managersData ?? EMPTY_MANAGERS;
+
+  const { data: roundsData } = useQuery<any[]>({
+    queryKey: ['rounds', tripId],
+    queryFn: () => api.getRounds(String(tripId)),
+    enabled: !!tripId,
+  });
+
+  const rounds = roundsData ?? [];
 
   const { data: transactionsData, isLoading: isTransactionsLoading } = useQuery<TransactionRecord[]>({
     queryKey: ['transactions', tripId],
@@ -114,8 +123,13 @@ const BusPage: React.FC = () => {
   const canSave = dirtyCount > 0 && !hasValidationErrors;
 
   const busAttendanceSummary = useMemo(() => {
-    return buildBusAttendanceSummary({ rows, tripId, transactions });
-  }, [rows, tripId, transactions]);
+    return buildBusAttendanceSummary({
+      rows,
+      tripId,
+      roundId: selectedRoundId,
+      transactions,
+    });
+  }, [rows, tripId, selectedRoundId, transactions]);
 
   const isPageLoading = isLoading || isTransactionsLoading;
 
@@ -191,13 +205,32 @@ const BusPage: React.FC = () => {
       <EditableTableCard
         title="Thông tin chi tiết đội xe"
         titleActions={
-          <SaveChangesAction
-            dirtyCount={dirtyCount}
-            isSaving={isSaving}
-            canSave={canSave}
-            onSave={handleSave}
-            validationMessage={saveValidationMessage}
-          />
+          <div className="d-flex flex-wrap align-items-center justify-content-end gap-2">
+            <select
+              className="form-select form-select-sm"
+              style={{ width: 180 }}
+              value={selectedRoundId ?? ''}
+              onChange={(e) => {
+                setSelectedRoundId(e.target.value ? Number(e.target.value) : null);
+              }}
+              aria-label="Lọc thống kê theo chặng"
+            >
+              <option value="">Tất cả chặng</option>
+              {rounds.map((round) => (
+                <option key={round.id} value={round.id}>
+                  {round.name || `Chặng #${round.id}`}
+                </option>
+              ))}
+            </select>
+
+            <SaveChangesAction
+              dirtyCount={dirtyCount}
+              isSaving={isSaving}
+              canSave={canSave}
+              onSave={handleSave}
+              validationMessage={saveValidationMessage}
+            />
+          </div>
         }
         columns={columns}
         queryKey={['buses-local', tripId]}

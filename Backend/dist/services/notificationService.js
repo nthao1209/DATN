@@ -6,6 +6,7 @@ const createNotification = (prisma, input) => {
     return prisma.notification.create({
         data: {
             userId: input.userId,
+            tenantId: input.tenantId,
             type: input.type,
             title: input.title,
             content: input.content,

@@ -11,7 +11,12 @@ const ensureTenant = (req, res) => {
     }
     return req.tenantId;
 };
-const canAccessTransactions = (req) => [1, 2, 3].includes(Number(req.roleId));
+const ROLE_IDS = {
+    ADMIN: 2,
+    BUS_MANAGEMENT: 3,
+};
+const canViewTransactions = (req) => [ROLE_IDS.ADMIN, ROLE_IDS.BUS_MANAGEMENT].includes(Number(req.roleId));
+const canMutateTransactions = (req) => Number(req.roleId) === ROLE_IDS.BUS_MANAGEMENT;
 const parseBoolean = (value) => {
     if (typeof value === "boolean")
         return value;
@@ -172,7 +177,7 @@ exports.transactionController = {
             const tenantId = ensureTenant(req, res);
             if (!tenantId)
                 return;
-            if (!canAccessTransactions(req)) {
+            if (!canViewTransactions(req)) {
                 return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
             }
             const managerCondition = 
@@ -251,7 +256,7 @@ exports.transactionController = {
             const tenantId = ensureTenant(req, res);
             if (!tenantId)
                 return;
-            if (!canAccessTransactions(req)) {
+            if (!canMutateTransactions(req)) {
                 return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
             }
             if (hasAttendanceMutationInput(req.body)) {
@@ -280,7 +285,7 @@ exports.transactionController = {
                 select: { id: true, tripId: true },
             });
             if (!round) {
-                return res.status(404).json({ message: "Không tìm thấy vòng" });
+                return res.status(404).json({ message: "Không tìm thấy chặng" });
             }
             if (Number(round.tripId) !== Number(bus.tripId)) {
                 return res
@@ -391,7 +396,7 @@ exports.transactionController = {
             const tenantId = ensureTenant(req, res);
             if (!tenantId)
                 return;
-            if (!canAccessTransactions(req)) {
+            if (!canMutateTransactions(req)) {
                 return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
             }
             const id = Number(req.params.id);

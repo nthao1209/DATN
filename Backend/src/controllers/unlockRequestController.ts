@@ -51,6 +51,7 @@ const notifyAdmin = async (tenantId: number, handledBy: number, payload: any) =>
 
   await createNotification(prisma, {
     userId: recipientId,
+    tenantId,
     ...payload,
   });
 };
@@ -123,7 +124,7 @@ const create = async (req: AuthRequest, res: Response) => {
     const { type = 'check_in', reason } = req.body || {};
 
     if (!busId || !roundId) {
-      return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc vòng (roundId)' });
+      return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc chặng (roundId)' });
     }
     if (!req.user?.id) {
       return res.status(401).json({ message: 'Không có quyền truy cập' });
@@ -146,7 +147,7 @@ const create = async (req: AuthRequest, res: Response) => {
     });
 
     if (!round) {
-      return res.status(404).json({ message: 'Không tìm thấy vòng' });
+      return res.status(404).json({ message: 'Không tìm thấy chặng' });
     }
 
     const status = await prisma.busRoundStatus.findUnique({
@@ -216,6 +217,7 @@ const create = async (req: AuthRequest, res: Response) => {
 
     await createNotification(prisma, {
           userId: req.user.id,
+          tenantId: req.tenantId,
           type: 'unlock.request.created.self',
           title: 'Yêu cầu mở khóa đã được gửi',
           content: `Yêu cầu mở khóa đã được gửi cho trưởng đoàn trong chặng ${round.name} (Xe ${bus.busCode}).`,
@@ -333,6 +335,7 @@ const approve = async (req: AuthRequest, res: Response) => {
 
     await createNotification(prisma, {
       userId: requesterId,
+      tenantId: req.tenantId,
       type: 'unlock.request.approved',
       title: buildUnlockTitle('APPROVED'),
       content: buildUnlockContent(request, request.bus.busCode, undefined, `Đã được phê duyệt bởi ${req.user.name || req.user.email || req.user.id}`),
@@ -423,6 +426,7 @@ const reject = async (req: AuthRequest, res: Response) => {
     // Notify requester only
     await createNotification(prisma, {
       userId: requesterId,
+      tenantId: req.tenantId,
       type: 'unlock.request.rejected',
       title: buildUnlockTitle('REJECTED'),
       content: buildUnlockContent(request, request.bus.busCode, undefined, `Lý do: ${rejectReason || 'Không có'}`),

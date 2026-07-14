@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import PassengerActionButtons from '../../../components/passenger/PassengerActionButtons';
 import type { Column } from '../../../components/DataTable';
 import type { DraftCell, RoundOption, TransactionTableRow } from './types';
@@ -6,6 +7,7 @@ import { AutoResizeTextarea } from '../../../hooks/useAutoResize';
 type BuildColumnsParams = {
   selectedRounds: RoundOption[];
   displayMode?: 'all' | 'checkIn' | 'checkOut';
+  readOnly?: boolean;
   getCell: (passengerId: number, roundId: number) => DraftCell | null;
   setCell: (payload: Partial<DraftCell>) => void;
   isLocked: (
@@ -18,9 +20,60 @@ type BuildColumnsParams = {
   canRemovePassenger?: (row: TransactionTableRow) => boolean;
 };
 
+type CommitNoteTextareaProps = {
+  value: string;
+  placeholder: string;
+  disabled?: boolean;
+  onCommit: (value: string) => void;
+};
+
+const CommitNoteTextarea = ({
+  value,
+  placeholder,
+  disabled,
+  onCommit,
+}: CommitNoteTextareaProps) => {
+  const [draft, setDraft] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setDraft(value);
+    }
+  }, [isFocused, value]);
+
+  const commit = () => {
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  };
+
+  return (
+    <AutoResizeTextarea
+      className="form-control form-control-sm transaction-note-input"
+      value={draft}
+      placeholder={placeholder}
+      disabled={disabled}
+      onFocus={() => setIsFocused(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        commit();
+        setIsFocused(false);
+      }}
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          commit();
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+};
+
 export const buildTransactionColumns = ({
   selectedRounds,
   displayMode = 'all',
+  readOnly = false,
   getCell,
   setCell,
   isLocked,
@@ -35,7 +88,7 @@ export const buildTransactionColumns = ({
       header: `${roundLabel} - Lượt đi`,
       key: `round_${roundId}_checkin`,
       width: '132px',
-      render: (row) => {
+      render: (row: TransactionTableRow) => {
         const current = getCell(row.id, roundId);
 
         const checkIn = Boolean(current?.checkIn);
@@ -47,14 +100,15 @@ export const buildTransactionColumns = ({
           roundId,
           'checkIn'
         );
+        const disabled = locked || readOnly;
 
         return (
           <div className="transaction-attendance-cell d-flex flex-column gap-2 align-items-center">
             <input
-              className={`transaction-check-input ${locked ? 'table-control-muted' : ''}`}
+              className={`transaction-check-input ${disabled ? 'table-control-muted' : ''}`}
               type="checkbox"
               checked={checkIn}
-              disabled={locked}
+              disabled={disabled}
               onChange={(e) => {
                 if (!row.busId) return;
 
@@ -74,12 +128,11 @@ export const buildTransactionColumns = ({
               }}
             />
 
-            <AutoResizeTextarea
-              className="form-control form-control-sm transaction-note-input"
+            <CommitNoteTextarea
               value={current?.checkInNote || ''}
               placeholder="Ghi chú lượt đi"
-              disabled={locked}
-              onChange={(e) => {
+              disabled={disabled}
+              onCommit={(value) => {
                 if (!row.busId) return;
 
                 setCell({
@@ -90,7 +143,7 @@ export const buildTransactionColumns = ({
 
                   checkIn,
                   checkOut,
-                  checkInNote: e.target.value,
+                  checkInNote: value,
                   checkOutNote: current?.checkOutNote || '',
                   checkInBusId: current?.checkInBusId ?? row.busId,
                   ...(current?.checkOutBusId ? { checkOutBusId: current.checkOutBusId } : {}),
@@ -107,7 +160,7 @@ export const buildTransactionColumns = ({
       header: `${roundLabel} - Lượt về`,
       key: `round_${roundId}_checkout`,
       width: '132px',
-      render: (row) => {
+      render: (row: TransactionTableRow) => {
         const current = getCell(row.id, roundId);
 
         const checkIn = Boolean(current?.checkIn);
@@ -119,14 +172,15 @@ export const buildTransactionColumns = ({
           roundId,
           'checkOut'
         );
+        const disabled = locked || readOnly;
 
         return (
           <div className="transaction-attendance-cell d-flex flex-column gap-2 align-items-center">
             <input
-              className={`transaction-check-input ${locked ? 'table-control-muted' : ''}`}
+              className={`transaction-check-input ${disabled ? 'table-control-muted' : ''}`}
               type="checkbox"
               checked={checkOut}
-              disabled={locked}
+              disabled={disabled}
               onChange={(e) => {
                 if (!row.busId) return;
 
@@ -146,12 +200,11 @@ export const buildTransactionColumns = ({
               }}
             />
 
-            <AutoResizeTextarea
-              className="form-control form-control-sm transaction-note-input"
+            <CommitNoteTextarea
               value={current?.checkOutNote || ''}
               placeholder="Ghi chú lượt về"
-              disabled={locked}
-              onChange={(e) => {
+              disabled={disabled}
+              onCommit={(value) => {
                 if (!row.busId) return;
 
                 setCell({
@@ -163,7 +216,7 @@ export const buildTransactionColumns = ({
                   checkIn,
                   checkOut,
                   checkInNote: current?.checkInNote || '',
-                  checkOutNote: e.target.value,
+                  checkOutNote: value,
                   ...(current?.checkInBusId ? { checkInBusId: current.checkInBusId } : {}),
                   checkOutBusId: current?.checkOutBusId ?? row.busId,
                   checkOutNoteTouched: true,
@@ -193,14 +246,14 @@ export const buildTransactionColumns = ({
       header: 'Họ và tên',
       key: 'name',
       width: '180px',
-      render: (row) => <span className="fw-semibold">{row.name}</span>,
+      render: (row: TransactionTableRow) => <span className="fw-semibold">{row.name}</span>,
     },
 
     {
       header: 'Liên lạc',
       key: 'contact',
       width: '150px',
-      render: (row) => {
+      render: (row: TransactionTableRow) => {
         return (
           <div className="transaction-contact-cell d-flex align-items-center justify-content-between gap-2">
             <div className="d-flex flex-column gap-1 overflow-hidden">
@@ -235,7 +288,7 @@ export const buildTransactionColumns = ({
       header: 'Ghi chú hồ sơ',
       key: 'passengerNote',
       width: '160px',
-      render: (row) => {
+      render: (row: TransactionTableRow) => {
         const note = (row.note || '').trim();
 
         return note ? (
@@ -248,11 +301,11 @@ export const buildTransactionColumns = ({
 
     ...dynamicRoundCols,
 
-    {
+    ...(readOnly ? [] : [{
       header: 'Thao tác',
       key: 'actions',
       width: '76px',
-      render: (row) => {
+      render: (row: TransactionTableRow) => {
         const canRemove = canRemovePassenger
           ? canRemovePassenger(row)
           : true;
@@ -273,6 +326,6 @@ export const buildTransactionColumns = ({
           </button>
         );
       },
-    },
+    }]),
   ];
 };

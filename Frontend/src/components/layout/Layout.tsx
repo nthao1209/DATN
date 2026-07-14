@@ -77,12 +77,7 @@ const Layout: React.FC = () => {
           letterSpacing: '0.025em'
         }}>
           <div className="d-flex gap-3">
-            <span>© 2026 <strong>BusTrack</strong> • SOICT, HUST</span>
-            <span className="d-none d-md-inline opacity-50">|</span>
-            <a href="https://soict.hust.edu.vn" target="_blank" rel="noreferrer" 
-               className="text-decoration-none text-gray-500 hover-white transition-all">
-              soict.hust.edu.vn
-            </a>
+            <span>© 2026 <strong>BusTrack</strong></span>
           </div>
           
           <div className="d-flex align-items-center gap-2">

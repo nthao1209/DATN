@@ -137,7 +137,7 @@ export const createAppRouter = (
         <Route
           path="/transactions"
           element={
-            <ProtectedRoute allowedRoles={[ROLE_IDS.BUS_MANAGEMENT]}>
+            <ProtectedRoute allowedRoles={[ROLE_IDS.ADMIN, ROLE_IDS.BUS_MANAGEMENT]}>
               <TransactionPage />
             </ProtectedRoute>
           }

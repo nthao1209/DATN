@@ -12,6 +12,7 @@ model Tenant {
   name        String
   description String?
   joinCode    String       @unique
+  notifications Notification[]
   trips       Trip[]
   userTenants UserTenant[]
 }
@@ -95,15 +96,19 @@ model Bus {
 model Notification {
   id        Int      @id @default(autoincrement())
   userId    Int
+  tenantId  Int?
   type      String
   title     String
   content   String
   payload   Json?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([tenantId])
+  @@index([userId, tenantId])
   @@index([isRead])
   @@index([createdAt])
 }

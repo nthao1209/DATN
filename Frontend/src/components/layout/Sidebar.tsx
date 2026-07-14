@@ -55,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false, onToggle }) => {
     roleManagement: roleId === ROLE_IDS.SYSTEM_ADMIN,
     trips: roleId === ROLE_IDS.ADMIN,
     passengers:  roleId === ROLE_IDS.ADMIN,
-    transactions: roleId === ROLE_IDS.BUS_MANAGEMENT,
+    transactions: roleId === ROLE_IDS.ADMIN || roleId === ROLE_IDS.BUS_MANAGEMENT,
     unlockRequests: roleId === ROLE_IDS.BUS_MANAGEMENT,
     about: true,
   };

@@ -3,7 +3,7 @@ import { auth as fbAuth } from '../config/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { PassengerImportPreviewResponse } from '../pages/admin/passenger/types';
 
-const rawApiBaseUrl = import.meta.env.VITE_API_URL;
+const rawApiBaseUrl = String(import.meta.env.VITE_API_URL || '').trim();
 // Axios client dùng chung cho toàn frontend; mọi endpoint bên dưới đều tự gắn /api.
 const axiosClient = axios.create({
   baseURL: `${rawApiBaseUrl.replace(/\/$/, '')}/api`,

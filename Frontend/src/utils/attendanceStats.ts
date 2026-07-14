@@ -42,7 +42,7 @@ export const getResolvedAttendanceState = (tx: TransactionLike) => {
     // busId trong event là xe thực tế phát sinh thao tác, dùng để phát hiện sai xe.
     checkInBusId: Number(checkInEvent?.busId ?? tx.checkInBusId ?? fallbackBusId) || null,
     checkOutBusId: Number(checkOutEvent?.busId ?? tx.checkOutBusId ?? fallbackBusId) || null,
-    checkInNote: checkInEvent?.note ?? tx.checkInNote ?? '',
-    checkOutNote: checkOutEvent?.note ?? tx.checkOutNote ?? '',
+    checkInNote: tx.checkInNote ?? checkInEvent?.note ?? '',
+    checkOutNote: tx.checkOutNote ?? checkOutEvent?.note ?? '',
   };
 };

@@ -352,7 +352,7 @@ export const busController = {
       const roundId = Number(req.params.roundId);
 
       if (!busId || !roundId) {
-        return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc vòng (roundId)' });
+        return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc chặng (roundId)' });
       }
 
       if (!req.tenantId) {
@@ -389,7 +389,7 @@ export const busController = {
       });
 
       if (!round) {
-        return res.status(404).json({ message: 'Không tìm thấy vòng' });
+        return res.status(404).json({ message: 'Không tìm thấy chặng' });
       }
 
       const status = await prisma.busRoundStatus.findUnique({
@@ -398,7 +398,7 @@ export const busController = {
 
       if (!status?.checkInLocked || !status.checkOutLocked) {
         return res.status(400).json({
-          message: 'Phải khóa cả lượt đi và lượt về trước khi hoàn thành vòng',
+          message: 'Phải khóa cả lượt đi và lượt về trước khi hoàn thành chặng',
         });
       }
 
@@ -430,7 +430,7 @@ export const busController = {
       const roundId = Number(req.params.roundId);
 
       if (!busId || !roundId) {
-        return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc vòng (roundId)' });
+        return res.status(400).json({ message: 'Thiếu thông tin xe (busId) hoặc chặng (roundId)' });
       }
 
       if (!req.tenantId) {

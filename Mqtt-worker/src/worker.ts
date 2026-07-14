@@ -147,6 +147,7 @@ const syncBusRoundStatusTimes = async (
 const createNotification = async (
     db: PoolClient,
     userId: number,
+    tenantId: number,
     type: string,
     title: string,
     content: string,
@@ -162,15 +163,17 @@ const createNotification = async (
         SELECT id
         FROM "Notification"
         WHERE "userId" = $1
-          AND type = $2
-          AND (payload->>'transactionId')::int = $3
-          AND (payload->>'passengerId')::int = $4
-          AND payload->>'eventType' = $5
+          AND "tenantId" = $2
+          AND type = $3
+          AND (payload->>'transactionId')::int = $4
+          AND (payload->>'passengerId')::int = $5
+          AND payload->>'eventType' = $6
         ORDER BY "createdAt" DESC, id DESC
         LIMIT 1
         `,
         [
             userId,
+            tenantId,
             type,
             Number(payload.transactionId || 0),
             Number(payload.passengerId || 0),
@@ -185,6 +188,7 @@ const createNotification = async (
         INSERT INTO "Notification"
         (
             "userId",
+            "tenantId",
             type,
             title,
             content,
@@ -192,9 +196,9 @@ const createNotification = async (
             "isRead",
             "createdAt"
         )
-        VALUES ($1, $2, $3, $4, $5, false, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
         `,
-        [userId, type, title, content, JSON.stringify(payload)]
+        [userId, tenantId, type, title, content, JSON.stringify(payload)]
     );
 };
 
@@ -592,6 +596,12 @@ async function init() {
                   : existing?.checkOutNote ?? null
                 : incomingCheckOutNote ?? existing?.checkOutNote ?? null;
 
+            const hasNoteChanged =
+                (checkInNoteTouched &&
+                    (existing?.checkInNote ?? null) !== (nextCheckInNote ?? null)) ||
+                (checkOutNoteTouched &&
+                    (existing?.checkOutNote ?? null) !== (nextCheckOutNote ?? null));
+
             // Kể cả UI bị bypass hoặc action offline cũ sync lại, worker vẫn chặn nếu lượt/chặng đã khóa.
             await assertAttendanceUnlocked(db, {
                 roundId,
@@ -815,6 +825,7 @@ async function init() {
                 await createNotification(
                     db,
                     targetManagerId,
+                    Number(bus.tenantId),
                     'attendance.wrong_bus',
                     'Khách sai xe',
                     content,
@@ -837,7 +848,7 @@ async function init() {
 
             await db.query('COMMIT');
 
-            if (hasAttendanceStatusChanged) {
+            if (hasAttendanceStatusChanged || hasNoteChanged) {
                 // Chỉ publish realtime sau khi commit thành công.
                 // Frontend dùng event này làm tín hiệu refetch, không tự cộng/trừ số liệu từ payload.
                 const realtimePayload = {

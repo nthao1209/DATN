@@ -13,7 +13,16 @@ const ensureTenant = (req: AuthRequest, res: Response): number | null => {
   return req.tenantId;
 };
 
-const canAccessTransactions = (req: AuthRequest) => [1, 2, 3].includes(Number(req.roleId));
+const ROLE_IDS = {
+  ADMIN: 2,
+  BUS_MANAGEMENT: 3,
+} as const;
+
+const canViewTransactions = (req: AuthRequest) =>
+  [ROLE_IDS.ADMIN, ROLE_IDS.BUS_MANAGEMENT].includes(Number(req.roleId) as 2 | 3);
+
+const canMutateTransactions = (req: AuthRequest) =>
+  Number(req.roleId) === ROLE_IDS.BUS_MANAGEMENT;
 
 const parseBoolean = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
@@ -205,7 +214,7 @@ export const transactionController = {
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
 
-      if (!canAccessTransactions(req)) {
+      if (!canViewTransactions(req)) {
         return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
       }
 
@@ -287,7 +296,7 @@ export const transactionController = {
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
 
-      if (!canAccessTransactions(req)) {
+      if (!canMutateTransactions(req)) {
         return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
       }
 
@@ -324,7 +333,7 @@ export const transactionController = {
       });
 
       if (!round) {
-        return res.status(404).json({ message: "Không tìm thấy vòng" });
+        return res.status(404).json({ message: "Không tìm thấy chặng" });
       }
 
       if (Number(round.tripId) !== Number(bus.tripId)) {
@@ -463,7 +472,7 @@ export const transactionController = {
       const tenantId = ensureTenant(req, res);
       if (!tenantId) return;
 
-      if (!canAccessTransactions(req)) {
+      if (!canMutateTransactions(req)) {
         return res.status(403).json({ message: "Từ chối truy cập (Forbidden)" });
       }
 

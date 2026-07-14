@@ -10,10 +10,20 @@ const ensureUser = (req, res) => {
     }
     return req.user.id;
 };
+const ensureTenant = (req, res) => {
+    if (!req.tenantId) {
+        res.status(400).json({ message: 'Thiếu thông tin tổ chức (tenantId)' });
+        return null;
+    }
+    return req.tenantId;
+};
 const list = async (req, res) => {
     try {
         const userId = ensureUser(req, res);
         if (!userId)
+            return;
+        const tenantId = ensureTenant(req, res);
+        if (!tenantId)
             return;
         const unreadOnly = String(req.query.unreadOnly || '') === 'true';
         const type = typeof req.query.type === 'string' ? req.query.type : undefined;
@@ -41,6 +51,7 @@ const list = async (req, res) => {
         const notifications = await db_1.prisma.notification.findMany({
             where: {
                 userId,
+                tenantId,
                 ...(andConditions.length ? { AND: andConditions } : {}),
             },
             orderBy: { createdAt: 'desc' },
@@ -58,6 +69,9 @@ const create = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
+        const tenantId = ensureTenant(req, res);
+        if (!tenantId)
+            return;
         const type = String(req.body?.type || '').trim();
         const title = String(req.body?.title || '').trim();
         const content = String(req.body?.content || '').trim();
@@ -67,6 +81,7 @@ const create = async (req, res) => {
         }
         const notification = await (0, notificationService_1.createNotification)(db_1.prisma, {
             userId,
+            tenantId,
             type,
             title,
             content,
@@ -83,11 +98,14 @@ const markRead = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
+        const tenantId = ensureTenant(req, res);
+        if (!tenantId)
+            return;
         const id = Number(req.params.id);
         if (!id) {
             return res.status(400).json({ message: 'Thiếu ID thông báo' });
         }
-        const notification = await db_1.prisma.notification.findFirst({ where: { id, userId } });
+        const notification = await db_1.prisma.notification.findFirst({ where: { id, userId, tenantId } });
         if (!notification) {
             return res.status(404).json({ message: 'Không tìm thấy thông báo' });
         }
@@ -106,8 +124,11 @@ const markAllRead = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
+        const tenantId = ensureTenant(req, res);
+        if (!tenantId)
+            return;
         const result = await db_1.prisma.notification.updateMany({
-            where: { userId, isRead: false },
+            where: { userId, tenantId, isRead: false },
             data: { isRead: true },
         });
         res.json(result);
@@ -121,11 +142,14 @@ const remove = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
+        const tenantId = ensureTenant(req, res);
+        if (!tenantId)
+            return;
         const id = Number(req.params.id);
         if (!id) {
             return res.status(400).json({ message: 'Thiếu ID thông báo' });
         }
-        const notification = await db_1.prisma.notification.findFirst({ where: { id, userId } });
+        const notification = await db_1.prisma.notification.findFirst({ where: { id, userId, tenantId } });
         if (!notification) {
             return res.status(404).json({ message: 'Không tìm thấy thông báo' });
         }
@@ -143,8 +167,11 @@ const removeAll = async (req, res) => {
         const userId = ensureUser(req, res);
         if (!userId)
             return;
+        const tenantId = ensureTenant(req, res);
+        if (!tenantId)
+            return;
         const result = await db_1.prisma.notification.deleteMany({
-            where: { userId },
+            where: { userId, tenantId },
         });
         res.json({ message: 'Đã xóa toàn bộ thông báo', count: result.count });
     }

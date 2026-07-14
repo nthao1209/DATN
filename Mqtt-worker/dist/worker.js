@@ -83,7 +83,7 @@ const syncBusRoundStatusTimes = async (db, busId, roundId, checkInAt, checkOutAt
             "checkOutAt" = COALESCE($4, "BusRoundStatus"."checkOutAt")
         `, [busId, roundId, nextCheckInAt, nextCheckOutAt]);
 };
-const createNotification = async (db, userId, type, title, content, payload) => {
+const createNotification = async (db, userId, tenantId, type, title, content, payload) => {
     // Tạo notification sai xe nhưng chống trùng theo transaction/passenger/eventType.
     if (!Number.isInteger(userId) || userId <= 0) {
         return;
@@ -92,14 +92,16 @@ const createNotification = async (db, userId, type, title, content, payload) => 
         SELECT id
         FROM "Notification"
         WHERE "userId" = $1
-          AND type = $2
-          AND (payload->>'transactionId')::int = $3
-          AND (payload->>'passengerId')::int = $4
-          AND payload->>'eventType' = $5
+          AND "tenantId" = $2
+          AND type = $3
+          AND (payload->>'transactionId')::int = $4
+          AND (payload->>'passengerId')::int = $5
+          AND payload->>'eventType' = $6
         ORDER BY "createdAt" DESC, id DESC
         LIMIT 1
         `, [
         userId,
+        tenantId,
         type,
         Number(payload.transactionId || 0),
         Number(payload.passengerId || 0),
@@ -111,6 +113,7 @@ const createNotification = async (db, userId, type, title, content, payload) => 
         INSERT INTO "Notification"
         (
             "userId",
+            "tenantId",
             type,
             title,
             content,
@@ -118,8 +121,8 @@ const createNotification = async (db, userId, type, title, content, payload) => 
             "isRead",
             "createdAt"
         )
-        VALUES ($1, $2, $3, $4, $5, false, NOW())
-        `, [userId, type, title, content, JSON.stringify(payload)]);
+        VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
+        `, [userId, tenantId, type, title, content, JSON.stringify(payload)]);
 };
 async function init() {
     let config;
@@ -391,6 +394,10 @@ async function init() {
                         ? incomingCheckOutNote ?? null
                         : existing?.checkOutNote ?? null
                     : incomingCheckOutNote ?? existing?.checkOutNote ?? null;
+            const hasNoteChanged = (checkInNoteTouched &&
+                (existing?.checkInNote ?? null) !== (nextCheckInNote ?? null)) ||
+                (checkOutNoteTouched &&
+                    (existing?.checkOutNote ?? null) !== (nextCheckOutNote ?? null));
             // Kể cả UI bị bypass hoặc action offline cũ sync lại, worker vẫn chặn nếu lượt/chặng đã khóa.
             await assertAttendanceUnlocked(db, {
                 roundId,
@@ -569,7 +576,7 @@ async function init() {
                 const content = `Khách ${passenger.name || `#${passengerId}`} của xe ${passenger.busCode ||
                     passenger.registrationNumber ||
                     passenger.busId} vừa được điểm danh trên xe ${latestBusCode} ở chặng ${round.name || roundId}.`;
-                await createNotification(db, targetManagerId, 'attendance.wrong_bus', 'Khách sai xe', content, {
+                await createNotification(db, targetManagerId, Number(bus.tenantId), 'attendance.wrong_bus', 'Khách sai xe', content, {
                     tripId: bus.tripId,
                     busId: latestEventBusId,
                     busCode: latestBusCode,
@@ -585,7 +592,7 @@ async function init() {
                 });
             }
             await db.query('COMMIT');
-            if (hasAttendanceStatusChanged) {
+            if (hasAttendanceStatusChanged || hasNoteChanged) {
                 // Chỉ publish realtime sau khi commit thành công.
                 // Frontend dùng event này làm tín hiệu refetch, không tự cộng/trừ số liệu từ payload.
                 const realtimePayload = {
